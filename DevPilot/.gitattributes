@@ -1,0 +1,276 @@
+###############################################################################
+# .gitattributes - Git attribute configuration for DevPilot
+###############################################################################
+# This file controls how Git handles line endings, diffs, merges, and more.
+# It ensures consistent behavior across Windows, macOS, and Linux.
+###############################################################################
+
+###############################################################################
+# Core Configuration
+###############################################################################
+
+# Auto detect text files and normalize line endings to LF in the repository
+* text=auto
+
+# Explicitly declare text files you want to always be normalized and converted
+# to native line endings on checkout
+*.cs text diff=csharp
+*.csx text diff=csharp
+*.vb text
+*.vbx text
+*.fs text
+*.fsx text
+*.fsi text
+
+###############################################################################
+# .NET Solution and Project Files
+###############################################################################
+
+*.sln text eol=crlf merge=union
+*.csproj text eol=crlf merge=union
+*.vbproj text eol=crlf merge=union
+*.vcxproj text eol=crlf merge=union
+*.vcxproj.filters text eol=crlf
+*.proj text eol=crlf
+*.projitems text eol=crlf
+*.shproj text eol=crlf
+*.props text eol=crlf
+*.targets text eol=crlf
+*.ruleset text eol=crlf
+*.config text eol=crlf
+*.nuspec text eol=crlf
+
+###############################################################################
+# Configuration and Data Files
+###############################################################################
+
+*.json text
+*.xml text
+*.yaml text
+*.yml text
+*.toml text
+*.ini text
+*.cfg text
+.editorconfig text
+.gitattributes text
+.gitignore text
+
+###############################################################################
+# Documentation
+###############################################################################
+
+*.md text diff=markdown
+*.markdown text diff=markdown
+*.txt text
+*.adoc text
+*.textile text
+*.mustache text
+*.csv text
+*.tab text
+*.tsv text
+*.sql text
+
+# Mark as documentation for GitHub Linguist
+*.md linguist-documentation
+*.markdown linguist-documentation
+
+###############################################################################
+# Web Files
+###############################################################################
+
+*.html text diff=html
+*.htm text diff=html
+*.css text diff=css
+*.scss text
+*.sass text
+*.less text
+*.js text
+*.jsx text
+*.ts text diff=typescript
+*.tsx text diff=typescript
+*.mjs text
+*.cjs text
+*.vue text
+*.razor text
+
+###############################################################################
+# Graphics and Media
+###############################################################################
+
+# Images - mark as binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.bmp binary
+*.tif binary
+*.tiff binary
+*.webp binary
+*.svg text
+*.svgz binary
+*.psd binary
+*.ai binary
+*.eps binary
+
+# Fonts - mark as binary
+*.ttf binary
+*.otf binary
+*.eot binary
+*.woff binary
+*.woff2 binary
+
+# Audio
+*.mp3 binary
+*.ogg binary
+*.wav binary
+*.flac binary
+
+# Video
+*.mp4 binary
+*.avi binary
+*.mov binary
+*.mpg binary
+*.mpeg binary
+*.webm binary
+
+###############################################################################
+# .NET Compiled and Binary Files
+###############################################################################
+
+*.dll binary
+*.exe binary
+*.pdb binary
+*.suo binary
+*.user binary
+*.userosscache binary
+*.sln.docstates binary
+*.userprefs binary
+
+# Strong name key files
+*.snk binary
+*.pfx binary
+
+###############################################################################
+# Archives and Packages
+###############################################################################
+
+*.zip binary
+*.7z binary
+*.gz binary
+*.tar binary
+*.rar binary
+*.tgz binary
+*.nupkg binary
+*.snupkg binary
+
+# Node packages
+*.node binary
+
+###############################################################################
+# Documents
+###############################################################################
+
+*.pdf binary
+*.doc binary
+*.docx binary
+*.xls binary
+*.xlsx binary
+*.ppt binary
+*.pptx binary
+*.odt binary
+*.ods binary
+*.odp binary
+
+###############################################################################
+# Scripts
+###############################################################################
+
+# Windows batch files - force CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+*.psm1 text eol=crlf
+*.psd1 text eol=crlf
+
+# Unix shell scripts - force LF
+*.sh text eol=lf
+*.bash text eol=lf
+*.fish text eol=lf
+*.zsh text eol=lf
+
+# Make scripts always use LF
+Makefile text eol=lf
+*.mk text eol=lf
+
+###############################################################################
+# Resource Files
+###############################################################################
+
+*.resx text eol=crlf
+*.resw text eol=crlf
+*.rc text
+*.rc2 text
+
+###############################################################################
+# Version Control and CI/CD
+###############################################################################
+
+.gitattributes text
+.gitignore text
+.gitmodules text
+.gitkeep text
+
+# GitHub specific
+.github/** text
+
+# Azure DevOps
+azure-pipelines.yml text
+*.yml text
+
+# Docker
+Dockerfile text eol=lf
+*.dockerfile text eol=lf
+.dockerignore text
+
+###############################################################################
+# Generated Code and Build Output
+###############################################################################
+
+# Mark generated code to be excluded from GitHub language statistics
+*.designer.cs linguist-generated=true
+*.generated.cs linguist-generated=true
+*.g.cs linguist-generated=true
+*.g.i.cs linguist-generated=true
+*AssemblyInfo.cs linguist-generated=true
+*AssemblyAttributes.cs linguist-generated=true
+
+###############################################################################
+# Lock Files - should not be merged
+###############################################################################
+
+package-lock.json binary
+yarn.lock binary
+pnpm-lock.yaml binary
+packages.lock.json binary
+project.lock.json binary
+project.fragment.lock.json binary
+
+###############################################################################
+# Special Files
+###############################################################################
+
+# Exclude from exports (git archive)
+.gitattributes export-ignore
+.gitignore export-ignore
+.github export-ignore
+.editorconfig export-ignore
+*.md export-ignore
+LICENSE export-ignore
+
+# Prevent line ending normalization for specific vendored files
+# (Add paths here if you have vendored dependencies that break with normalization)
+
+###############################################################################
+# End of .gitattributes
+###############################################################################
