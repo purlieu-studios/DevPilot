@@ -105,6 +105,8 @@ public sealed class PipelineContext
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(reason);
 
+        var previousStage = CurrentStage;
+
         ApprovalRequired = true;
         ApprovalReason = reason;
         CurrentStage = PipelineStage.AwaitingApproval;
@@ -113,7 +115,7 @@ public sealed class PipelineContext
         {
             Stage = PipelineStage.AwaitingApproval,
             EnteredAt = DateTimeOffset.UtcNow,
-            PreviousStage = CurrentStage
+            PreviousStage = previousStage
         });
     }
 

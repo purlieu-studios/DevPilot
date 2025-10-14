@@ -193,11 +193,81 @@ public sealed class PipelineTests
         result.Duration.Should().BeGreaterThan(TimeSpan.Zero);
     }
 
+    [Fact]
+    public async Task ExecuteAsync_RequiresApproval_WhenPlannerFlagsNeedsApproval()
+    {
+        // Arrange
+        var plannerJson = """
+            {
+              "plan": {"summary": "Blocked", "steps": []},
+              "file_list": [],
+              "risk": {"level": "low", "factors": [], "mitigation": ""},
+              "needs_approval": true,
+              "approval_reason": "Ambiguous requirements"
+            }
+            """;
+
+        var agents = CreateMockAgents(allSucceed: true);
+        agents[PipelineStage.Planning] = new MockAgent("planner", true, plannerJson);
+        var pipeline = new Pipeline(agents);
+
+        // Act
+        var result = await pipeline.ExecuteAsync("Unclear request");
+
+        // Assert
+        result.Success.Should().BeFalse();
+        result.RequiresApproval.Should().BeTrue();
+        result.FinalStage.Should().Be(PipelineStage.AwaitingApproval);
+        result.Context.ApprovalRequired.Should().BeTrue();
+        result.Context.ApprovalReason.Should().Contain("needs_approval");
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_RequiresApproval_WhenPlanHasLocBreach()
+    {
+        // Arrange
+        var plannerJson = """
+            {
+              "plan": {
+                "summary": "Large change",
+                "steps": [
+                  {"step_number": 1, "description": "Big feature", "file_target": "Big.cs", "agent": "coder", "estimated_loc": 450}
+                ]
+              },
+              "file_list": [],
+              "risk": {"level": "low", "factors": [], "mitigation": ""},
+              "needs_approval": false
+            }
+            """;
+
+        var agents = CreateMockAgents(allSucceed: true);
+        agents[PipelineStage.Planning] = new MockAgent("planner", true, plannerJson);
+        var pipeline = new Pipeline(agents);
+
+        // Act
+        var result = await pipeline.ExecuteAsync("Create large feature");
+
+        // Assert
+        result.Success.Should().BeFalse();
+        result.RequiresApproval.Should().BeTrue();
+        result.Context.ApprovalReason.Should().Contain("LOC limit exceeded");
+        result.Context.ApprovalReason.Should().Contain("450");
+    }
+
     private static Dictionary<PipelineStage, IAgent> CreateMockAgents(bool allSucceed)
     {
+        var safePlanJson = """
+            {
+              "plan": {"summary": "Safe operation", "steps": [{"step_number": 1, "description": "Test", "file_target": null, "agent": "coder", "estimated_loc": 50}]},
+              "file_list": [],
+              "risk": {"level": "low", "factors": [], "mitigation": ""},
+              "needs_approval": false
+            }
+            """;
+
         return new Dictionary<PipelineStage, IAgent>
         {
-            [PipelineStage.Planning] = new MockAgent("planner", allSucceed, "{\"steps\": []}"),
+            [PipelineStage.Planning] = new MockAgent("planner", allSucceed, safePlanJson),
             [PipelineStage.Coding] = new MockAgent("coder", allSucceed, "diff --git..."),
             [PipelineStage.Reviewing] = new MockAgent("reviewer", allSucceed, "{\"verdict\": \"APPROVE\"}"),
             [PipelineStage.Testing] = new MockAgent("tester", allSucceed, "{\"pass\": true}"),

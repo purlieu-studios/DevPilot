@@ -141,6 +141,22 @@ public sealed class PipelineContextBehaviorTests
     }
 
     [Fact]
+    public void RequestApproval_RecordsPreviousStageCorrectly()
+    {
+        // Arrange
+        var context = new PipelineContext { UserRequest = "Test" };
+        context.AdvanceToStage(PipelineStage.Planning, "Plan output");
+
+        // Act
+        context.RequestApproval("LOC breach");
+
+        // Assert
+        context.StageHistory.Should().HaveCount(2);
+        context.StageHistory[1].Stage.Should().Be(PipelineStage.AwaitingApproval);
+        context.StageHistory[1].PreviousStage.Should().Be(PipelineStage.Planning);
+    }
+
+    [Fact]
     public void RequestApproval_ThrowsArgumentException_WhenReasonIsEmpty()
     {
         // Arrange
