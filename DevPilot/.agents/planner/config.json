@@ -1,0 +1,33 @@
+{
+  "agent_name": "planner",
+  "version": "1.0.0",
+  "description": "First-stage agent that analyzes user requests and creates detailed execution plans with risk assessment and verification criteria",
+  "model": {
+    "provider": "anthropic",
+    "model_name": "claude-sonnet-4-5-20250929",
+    "temperature": 0.3,
+    "max_tokens": 4096,
+    "reasoning": {
+      "enabled": true,
+      "type": "extended"
+    }
+  },
+  "capabilities": [
+    "task_decomposition",
+    "risk_assessment",
+    "file_identification",
+    "verification_planning",
+    "rollback_planning",
+    "constraint_checking"
+  ],
+  "retry_policy": {
+    "max_retries": 2,
+    "retry_delay_ms": 1000,
+    "exponential_backoff": true
+  },
+  "constraints": {
+    "max_steps": 7,
+    "max_files_per_step": 1,
+    "max_loc_per_step": 300
+  }
+}
