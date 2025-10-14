@@ -114,6 +114,33 @@ git push --no-verify
 
 **Warning:** Use `--no-verify` sparingly. Hooks exist to maintain code quality and prevent issues.
 
+### Claude Code Hook Failure Handling
+
+When Claude Code encounters a Git hook failure (commit blocked, push blocked, etc.), it MUST:
+
+1. **Immediately report the block** using this format:
+   ```
+   [BLOCKED] - <reason for the block>
+   ```
+
+2. **Wait for user guidance** - Do not automatically retry, bypass, or attempt workarounds
+
+3. **Examples:**
+   ```
+   [BLOCKED] - LOC limit exceeded: 450 lines changed (max 300)
+   [BLOCKED] - Commit message does not follow Conventional Commits format
+   [BLOCKED] - Direct push to main branch is not allowed
+   [BLOCKED] - Secrets detected in staged files
+   ```
+
+4. **After reporting the block**, present options to the user:
+   - Split the commit into smaller pieces
+   - Fix the validation error
+   - Use `--no-verify` if appropriate
+   - Adjust configuration if needed
+
+**Important:** Never automatically use `--no-verify` without explicit user approval. The user decides when bypassing hooks is appropriate.
+
 ### Setup for New Developers
 
 Hooks are automatically installed when cloning the repository. If hooks aren't working:
