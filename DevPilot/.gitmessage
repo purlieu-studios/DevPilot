@@ -1,0 +1,50 @@
+# <type>[optional scope]: <description>
+#
+# [optional body]
+#
+# [optional footer(s)]
+
+# --- COMMIT MESSAGE GUIDELINES ---
+#
+# Type (choose one):
+#   feat:     New feature
+#   fix:      Bug fix
+#   docs:     Documentation changes
+#   style:    Code style changes (formatting, missing semicolons, etc.)
+#   refactor: Code refactoring (no functional changes)
+#   perf:     Performance improvements
+#   test:     Adding or updating tests
+#   build:    Changes to build system or dependencies
+#   ci:       Changes to CI configuration
+#   chore:    Other changes that don't modify src or test files
+#
+# Scope (optional):
+#   Specify the area of the codebase affected (e.g., parser, api, ui)
+#   Example: feat(auth): add OAuth2 support
+#
+# Breaking Changes:
+#   Add ! after type/scope: feat!: remove deprecated API
+#   Or add footer: BREAKING CHANGE: describe what breaks
+#
+# Subject Line (first line):
+#   - Use imperative mood ("Add feature" not "Added feature")
+#   - Capitalize first letter
+#   - No period at the end
+#   - Max 50 characters
+#
+# Body (optional):
+#   - Separate from subject with blank line
+#   - Explain WHAT and WHY (not HOW)
+#   - Wrap at 72 characters
+#
+# Footer (optional):
+#   - Reference issues: Fixes #123, Closes #456
+#   - Note breaking changes: BREAKING CHANGE: description
+#
+# Example:
+#   feat(parser): add support for array destructuring
+#
+#   Implement support for parsing array destructuring syntax in
+#   function parameters and variable declarations.
+#
+#   Closes #234
