@@ -1,6 +1,0 @@
-{
-  "agent_name": "orchestrator",
-  "version": "1.0.0",
-  "description": "Coordinates tasks between specialized agents and manages workflow execution",
-  "model": "sonnet"
-}
