@@ -25,6 +25,7 @@ DevPilot/
 
 ### Git Workflow
 
+- **All changes must go through pull requests** - Do not push directly to `main`
 - Pull requests should use the provided PR template in `.github/PULL_REQUEST_TEMPLATE.md`
 - The main branch is `main`
 
