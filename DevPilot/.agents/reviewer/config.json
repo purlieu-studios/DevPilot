@@ -1,5 +1,5 @@
 {
-  "agent_name": "validator",
+  "agent_name": "reviewer",
   "version": "1.0.0",
   "description": "Validates C# code for syntax errors, style compliance, and code quality",
   "model": "sonnet"
