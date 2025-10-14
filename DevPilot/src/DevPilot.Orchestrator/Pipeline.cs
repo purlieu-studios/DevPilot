@@ -62,6 +62,16 @@ public sealed class Pipeline
 
                 context.AdvanceToStage(stage, agentResult.Output);
 
+                // Check approval gates after Planning stage
+                if (stage == PipelineStage.Planning)
+                {
+                    var decision = ApprovalGate.Evaluate(agentResult.Output);
+                    if (decision.Required)
+                    {
+                        context.RequestApproval(decision.Reason);
+                    }
+                }
+
                 if (!ShouldContinue(context))
                 {
                     stopwatch.Stop();
