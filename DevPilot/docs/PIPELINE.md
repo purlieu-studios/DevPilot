@@ -496,6 +496,10 @@ public sealed class PipelineStageEntry
 | ClaudeCliClient | Subprocess executor for Claude CLI | #13 |
 | Integration Tests | Separate project for scheduled API testing | #13 |
 | Planner Agent | Declarative agent definition | #9 |
+| ClaudeCliAgent | IAgent implementation using ClaudeCliClient | #15 |
+| AgentDefinition Simplification | Reduced from 137 LOC to 32 LOC (model alias strings) | #15 |
+| AgentLoader Simplification | Reduced from 220 LOC to 120 LOC | #15 |
+| PATH Resolution Fix | Automatic discovery of Claude CLI in PATH | #15 |
 
 **Total**: 149 tests passing (143 unit + 6 integration)
 
@@ -507,33 +511,16 @@ None currently.
 
 | Component | Description | Priority | Estimated PR |
 |-----------|-------------|----------|--------------|
-| ClaudeCliAgent | IAgent implementation using ClaudeCliClient | High | #14 |
-| Agent Renaming | Rename code-generator → coder, validator → reviewer | High | #15 |
-| Tester Agent Definition | system-prompt.md, tools.json, config.json | High | #16 |
-| Evaluator Agent Definition | system-prompt.md, tools.json, config.json | High | #17 |
-| Program.cs Wiring | Full pipeline with approval prompts | High | #18 |
+| Agent Renaming | Rename code-generator → coder, validator → reviewer | High | #16 |
+| Tester Agent Definition | system-prompt.md, config.json | High | #17 |
+| Evaluator Agent Definition | system-prompt.md, config.json | High | #18 |
+| Program.cs Wiring | Full pipeline with approval prompts | High | #19 |
 
 ---
 
 ## Next Steps (Roadmap)
 
-### PR #14: ClaudeCliAgent
-
-**Goal**: Create concrete IAgent implementation that uses ClaudeCliClient
-
-**Components**:
-- `ClaudeCliAgent.cs` - Implements IAgent interface
-- Reads agent definition from AgentLoader
-- Builds system prompt from system-prompt.md
-- Calls ClaudeCliClient.ExecuteAsync()
-- Parses response and returns AgentResult
-- Comprehensive tests
-
-**Estimated LOC**: 200-250
-
----
-
-### PR #15: Agent Renaming
+### PR #16: Agent Renaming
 
 **Goal**: Align agent names with pipeline stages
 
@@ -548,13 +535,12 @@ None currently.
 
 ---
 
-### PR #16: Tester Agent Definition
+### PR #17: Tester Agent Definition
 
 **Goal**: Create declarative agent for Testing stage
 
 **Files**:
 - `.agents/tester/system-prompt.md` - Instructions for test execution
-- `.agents/tester/tools.json` - Tools: execute_command, parse_test_output
 - `.agents/tester/config.json` - Model: Claude Sonnet 4.5, temperature 0.2
 
 **Responsibilities**:
@@ -568,13 +554,12 @@ None currently.
 
 ---
 
-### PR #17: Evaluator Agent Definition
+### PR #18: Evaluator Agent Definition
 
 **Goal**: Create declarative agent for Evaluating stage
 
 **Files**:
 - `.agents/evaluator/system-prompt.md` - Scoring criteria and examples
-- `.agents/evaluator/tools.json` - Tools: calculate_metrics
 - `.agents/evaluator/config.json` - Model: Claude Sonnet 4.5, temperature 0.3
 
 **Responsibilities**:
@@ -588,7 +573,7 @@ None currently.
 
 ---
 
-### PR #18: CLI Application Wiring
+### PR #19: CLI Application Wiring
 
 **Goal**: Wire up Program.cs with full pipeline execution
 

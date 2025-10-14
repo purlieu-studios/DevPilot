@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-DevPilot is a new project repository. The codebase is currently in early setup phase.
+DevPilot is a MASAI (Modular Autonomous Software AI) pipeline for automated code generation and review. It implements a linear 5-agent pipeline (Planner → Coder → Reviewer → Tester → Evaluator) that transforms user requests into production-ready code with comprehensive testing and quality scoring.
 
 ## Environment
 
@@ -38,33 +38,53 @@ DevPilot is a new project repository. The codebase is currently in early setup p
   - Hook-specific requirements
   - Troubleshooting and bypass procedures
 
+- **Pipeline Architecture**: `docs/PIPELINE.md`
+  - Complete MASAI pipeline specification
+  - Agent definitions and responsibilities
+  - Data flow and approval gates
+  - Implementation status and roadmap
+
 These documents contain detailed rules and examples. Claude Code should proactively reference them when:
 - Creating commits (check COMMIT_STANDARDS.md and GUARDRAILS.md)
 - Handling secrets or credentials (check SECURITY.md)
 - Encountering hook failures (check .husky/README.md)
 - Planning large changes (check GUARDRAILS.md for LOC limits)
+- Understanding pipeline architecture (check PIPELINE.md)
 
 ## Repository Structure
 
 ```
 DevPilot/
+├── .agents/                        # Declarative agent definitions
+│   ├── planner/                   # Stage 1: Planning agent
+│   ├── code-generator/            # Stage 2: Coding agent (to be renamed to 'coder')
+│   ├── validator/                 # Stage 3: Reviewing agent (to be renamed to 'reviewer')
+│   └── orchestrator/              # (to be deleted - not used in linear pipeline)
 ├── .github/
-│   ├── .gitmessage                # Commit message template (Conventional Commits)
-│   ├── PULL_REQUEST_TEMPLATE.md   # PR template for standardized submissions
-│   └── README.md                  # Documentation for GitHub templates
-├── .husky/
-│   ├── pre-commit.ps1             # LOC limits, secrets detection, formatting
+│   ├── .gitmessage                # Commit message template
+│   ├── PULL_REQUEST_TEMPLATE.md   # PR template
+│   └── README.md                  # GitHub templates documentation
+├── .husky/                        # Git hooks (Husky.NET)
+│   ├── pre-commit.ps1             # LOC limits, secrets detection
 │   ├── commit-msg.ps1             # Conventional Commits validation
 │   ├── pre-push.ps1               # Protected branch checks, build/test
 │   ├── post-checkout.ps1          # Dependency restoration
-│   ├── post-merge.ps1             # Post-merge cleanup
+│   ├── post-merge.ps1             # Post-merge updates
 │   ├── hooks-config.json          # Hook configuration
-│   ├── task-runner.json           # Husky task definitions
-│   └── README.md                  # Comprehensive hook documentation
+│   └── task-runner.json           # Husky task definitions
 ├── docs/
+│   ├── PIPELINE.md                # Complete MASAI pipeline architecture
 │   ├── GUARDRAILS.md              # Code quality standards and LOC limits
 │   ├── COMMIT_STANDARDS.md        # Commit message conventions
-│   └── SECURITY.md                # Security guidelines and best practices
+│   └── SECURITY.md                # Security guidelines
+├── src/
+│   ├── DevPilot.Core/             # Core domain models (IAgent, AgentContext, PipelineStage)
+│   ├── DevPilot.Agents/           # Agent implementations (ClaudeCliAgent, AgentLoader)
+│   ├── DevPilot.Orchestrator/     # Pipeline orchestration (Pipeline, ApprovalGate)
+│   └── DevPilot.Console/          # CLI application (not yet implemented)
+├── tests/
+│   ├── DevPilot.Agents.Tests/     # Unit tests (143 tests)
+│   └── DevPilot.Agents.IntegrationTests/  # Integration tests (6 tests)
 ├── .editorconfig                  # Code style rules (strict C# enforcement)
 ├── .gitattributes                 # Git file handling (cross-platform)
 ├── .gitignore                     # Visual Studio ignore patterns
@@ -210,10 +230,58 @@ All hook scripts are in the `.husky/` directory:
 - `hooks-config.json` - Configuration file
 - `task-runner.json` - Husky task definitions
 
-## Notes for Future Development
+## Architecture
 
-This CLAUDE.md should be updated as the project grows to include:
-- Build and test commands
-- Architecture overview
-- Key design patterns and conventions
-- Development workflow specifics
+DevPilot implements a **linear 5-agent MASAI pipeline**. See `docs/PIPELINE.md` for complete specification.
+
+### Pipeline Stages
+
+1. **Planner** - Analyzes user request, creates execution plan with risk assessment
+2. **Coder** - Generates unified diff patch implementing the plan
+3. **Reviewer** - Validates code quality, style, and correctness
+4. **Tester** - Executes tests and reports results
+5. **Evaluator** - Scores overall quality and provides final verdict
+
+### Approval Gates
+
+After the Planning stage, the pipeline may pause for human approval if:
+- Planner explicitly flags `needs_approval: true`
+- High-risk operation detected (`risk.level == "high"`)
+- LOC limit breach (>300 LOC per step)
+- Step limit breach (>7 steps)
+- File deletion detected
+
+### Key Components
+
+- **ClaudeCliAgent** - Executes agents via Claude CLI subprocess
+- **AgentLoader** - Loads agent definitions from `.agents/` directory
+- **Pipeline** - Orchestrates linear execution of all 5 agents
+- **ApprovalGate** - Evaluates plans against 5 approval triggers
+- **PipelineContext** - Carries immutable state through all stages
+
+### Testing
+
+Run all tests:
+```bash
+dotnet test
+```
+
+Current status: **149 tests passing** (143 unit + 6 integration)
+
+## Development Workflow
+
+### Typical PR Flow
+
+1. Create feature branch: `git checkout -b <type>/<description>`
+2. Make changes (respecting 200-300 LOC limit per commit)
+3. Run tests: `dotnet test`
+4. Commit with Conventional Commits format
+5. Push and create PR using `.github/PULL_REQUEST_TEMPLATE.md`
+6. Wait for review and merge
+
+### Current Roadmap (see PIPELINE.md for details)
+
+- **Next PR #16**: Agent Renaming (code-generator → coder, validator → reviewer)
+- **PR #17**: Tester agent definition
+- **PR #18**: Evaluator agent definition
+- **PR #19**: CLI application wiring (Program.cs)
