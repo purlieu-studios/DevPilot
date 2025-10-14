@@ -11,6 +11,39 @@ DevPilot is a new project repository. The codebase is currently in early setup p
 - **Platform**: Windows
 - **IDE Setup**: Visual Studio (based on .gitignore configuration)
 
+## Required Reading for Claude Code
+
+**IMPORTANT:** Before performing any code changes, commits, or pushes, Claude Code MUST read and follow all rules in these documents:
+
+- **Code Quality Standards**: `docs/GUARDRAILS.md`
+  - LOC limits (200-300 lines per commit)
+  - Naming conventions and code style
+  - File management and organization
+  - Branch naming and workflow rules
+
+- **Commit Message Standards**: `docs/COMMIT_STANDARDS.md`
+  - Conventional Commits format
+  - Valid commit types and scopes
+  - Subject line rules and examples
+  - Blocked words and validation rules
+
+- **Security Guidelines**: `docs/SECURITY.md`
+  - Secret management (never commit credentials)
+  - Input validation requirements
+  - Authentication/authorization standards
+  - Data protection and encryption
+
+- **Git Hooks Documentation**: `.husky/README.md`
+  - Automated enforcement details
+  - Hook-specific requirements
+  - Troubleshooting and bypass procedures
+
+These documents contain detailed rules and examples. Claude Code should proactively reference them when:
+- Creating commits (check COMMIT_STANDARDS.md and GUARDRAILS.md)
+- Handling secrets or credentials (check SECURITY.md)
+- Encountering hook failures (check .husky/README.md)
+- Planning large changes (check GUARDRAILS.md for LOC limits)
+
 ## Repository Structure
 
 ```
@@ -19,8 +52,23 @@ DevPilot/
 │   ├── .gitmessage                # Commit message template (Conventional Commits)
 │   ├── PULL_REQUEST_TEMPLATE.md   # PR template for standardized submissions
 │   └── README.md                  # Documentation for GitHub templates
+├── .husky/
+│   ├── pre-commit.ps1             # LOC limits, secrets detection, formatting
+│   ├── commit-msg.ps1             # Conventional Commits validation
+│   ├── pre-push.ps1               # Protected branch checks, build/test
+│   ├── post-checkout.ps1          # Dependency restoration
+│   ├── post-merge.ps1             # Post-merge cleanup
+│   ├── hooks-config.json          # Hook configuration
+│   ├── task-runner.json           # Husky task definitions
+│   └── README.md                  # Comprehensive hook documentation
+├── docs/
+│   ├── GUARDRAILS.md              # Code quality standards and LOC limits
+│   ├── COMMIT_STANDARDS.md        # Commit message conventions
+│   └── SECURITY.md                # Security guidelines and best practices
+├── .editorconfig                  # Code style rules (strict C# enforcement)
+├── .gitattributes                 # Git file handling (cross-platform)
 ├── .gitignore                     # Visual Studio ignore patterns
-└── CLAUDE.md                      # This file
+└── CLAUDE.md                      # This file - Claude Code instructions
 ```
 
 ## Development Guidelines
