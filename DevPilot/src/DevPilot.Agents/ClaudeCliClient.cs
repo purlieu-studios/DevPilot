@@ -48,6 +48,8 @@ public sealed class ClaudeCliClient
 
         try
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             var arguments = BuildArguments(systemPrompt, model);
             var processStartInfo = new ProcessStartInfo
             {
