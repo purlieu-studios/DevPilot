@@ -20,7 +20,17 @@ public sealed class ClaudeCliClient
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(cliPath);
 
-        _cliPath = cliPath;
+        // If using default "claude", try to find it in PATH
+        if (cliPath == "claude")
+        {
+            var foundPath = FindExecutableInPath("claude");
+            _cliPath = foundPath ?? cliPath;
+        }
+        else
+        {
+            _cliPath = cliPath;
+        }
+
         _defaultTimeout = defaultTimeout ?? TimeSpan.FromMinutes(5);
     }
 
@@ -61,6 +71,17 @@ public sealed class ClaudeCliClient
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
+
+            // Copy current environment variables to subprocess to ensure PATH is inherited
+            foreach (System.Collections.DictionaryEntry env in Environment.GetEnvironmentVariables())
+            {
+                var key = env.Key?.ToString();
+                var value = env.Value?.ToString();
+                if (!string.IsNullOrEmpty(key) && value != null)
+                {
+                    processStartInfo.EnvironmentVariables[key] = value;
+                }
+            }
 
             using var process = new Process { StartInfo = processStartInfo };
             var outputBuilder = new StringBuilder();
@@ -209,5 +230,38 @@ public sealed class ClaudeCliClient
         {
             return false;
         }
+    }
+
+    /// <summary>
+    /// Finds an executable in the system PATH.
+    /// </summary>
+    /// <param name="fileName">The executable name to find (e.g., "claude").</param>
+    /// <returns>The full path to the executable, or null if not found.</returns>
+    private static string? FindExecutableInPath(string fileName)
+    {
+        var pathEnv = Environment.GetEnvironmentVariable("PATH");
+        if (string.IsNullOrEmpty(pathEnv))
+        {
+            return null;
+        }
+
+        var paths = pathEnv.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries);
+        var extensions = Environment.OSVersion.Platform == PlatformID.Win32NT
+            ? new[] { ".exe", ".cmd", ".bat", "" }
+            : new[] { "" };
+
+        foreach (var basePath in paths)
+        {
+            foreach (var ext in extensions)
+            {
+                var fullPath = Path.Combine(basePath, fileName + ext);
+                if (File.Exists(fullPath))
+                {
+                    return fullPath;
+                }
+            }
+        }
+
+        return null;
     }
 }
