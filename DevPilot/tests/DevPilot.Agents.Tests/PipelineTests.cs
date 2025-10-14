@@ -290,15 +290,7 @@ public sealed class PipelineTests
                 Version = "1.0.0",
                 Description = "Mock agent for testing",
                 SystemPrompt = "Test prompt",
-                Model = new ModelConfiguration
-                {
-                    Provider = "test",
-                    ModelName = "test-model",
-                    Temperature = 0.0,
-                    MaxTokens = 1000
-                },
-                Capabilities = Array.Empty<string>(),
-                Tools = Array.Empty<AgentTool>()
+                Model = "sonnet"
             };
         }
 

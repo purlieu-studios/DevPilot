@@ -52,30 +52,7 @@ public sealed class AgentLoaderTests
         definition.Version.Should().Be("1.0.0");
         definition.Description.Should().Be("A test agent for unit testing");
         definition.SystemPrompt.Should().Contain("Test Agent System Prompt");
-
-        definition.Model.Should().NotBeNull();
-        definition.Model.Provider.Should().Be("anthropic");
-        definition.Model.ModelName.Should().Be("claude-sonnet-4-5-20250929");
-        definition.Model.Temperature.Should().Be(0.5);
-        definition.Model.MaxTokens.Should().Be(2048);
-
-        definition.Model.Reasoning.Should().NotBeNull();
-        definition.Model.Reasoning!.Enabled.Should().BeTrue();
-        definition.Model.Reasoning.Type.Should().Be("extended");
-
-        definition.Capabilities.Should().HaveCount(2);
-        definition.Capabilities.Should().Contain("test_capability_1");
-        definition.Capabilities.Should().Contain("test_capability_2");
-
-        definition.Tools.Should().NotBeNull();
-        definition.Tools.Should().HaveCount(1);
-        definition.Tools![0].Name.Should().Be("test_tool");
-        definition.Tools[0].Description.Should().Be("A test tool for unit testing");
-
-        definition.RetryPolicy.Should().NotBeNull();
-        definition.RetryPolicy!.MaxRetries.Should().Be(3);
-        definition.RetryPolicy.RetryDelayMs.Should().Be(1000);
-        definition.RetryPolicy.ExponentialBackoff.Should().BeTrue();
+        definition.Model.Should().Be("sonnet");
     }
 
     [Fact]
@@ -90,12 +67,9 @@ public sealed class AgentLoaderTests
         // Assert
         definition.Should().NotBeNull();
         definition.Name.Should().Be("minimal-agent");
+        definition.Description.Should().Be("A minimal test agent without optional fields");
         definition.SystemPrompt.Should().Contain("Minimal Agent");
-
-        definition.Model.Reasoning.Should().BeNull();
-        definition.Tools.Should().BeNull();
-        definition.RetryPolicy.Should().BeNull();
-        definition.Capabilities.Should().BeEmpty();
+        definition.Model.Should().Be("haiku");
     }
 
     [Fact]
@@ -147,7 +121,7 @@ public sealed class AgentLoaderTests
         Directory.CreateDirectory(Path.Combine(testPath, "broken-agent"));
         File.WriteAllText(
             Path.Combine(testPath, "broken-agent", "config.json"),
-            "{\"agent_name\":\"broken\",\"version\":\"1.0.0\",\"description\":\"test\",\"model\":{\"provider\":\"test\",\"model_name\":\"test\",\"temperature\":0.5,\"max_tokens\":100},\"capabilities\":[]}");
+            "{\"agent_name\":\"broken\",\"version\":\"1.0.0\",\"description\":\"test\",\"model\":\"sonnet\"}");
 
         var loader = new AgentLoader(testPath);
 

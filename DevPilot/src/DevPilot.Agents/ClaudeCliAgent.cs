@@ -55,14 +55,11 @@ public sealed class ClaudeCliAgent : IAgent
                 Content = input
             });
 
-            // Extract model name - try to use alias if possible, otherwise full name
-            var modelName = ExtractModelAlias(Definition.Model.ModelName);
-
-            // Execute via Claude CLI
+            // Execute via Claude CLI using model alias from definition
             var response = await _client.ExecuteAsync(
                 prompt: input,
                 systemPrompt: Definition.SystemPrompt,
-                model: modelName,
+                model: Definition.Model,  // Direct use - "sonnet", "opus", or "haiku"
                 timeout: null, // Use ClaudeCliClient default
                 cancellationToken: cancellationToken);
 
@@ -127,40 +124,5 @@ public sealed class ClaudeCliAgent : IAgent
                 errorMessage: $"Agent execution failed: {ex.Message}",
                 duration: stopwatch.Elapsed);
         }
-    }
-
-    /// <summary>
-    /// Extracts a short model alias from a full model name.
-    /// </summary>
-    /// <param name="fullModelName">The full model name (e.g., "claude-sonnet-4-5-20250929").</param>
-    /// <returns>The model alias (e.g., "sonnet") or the full name if extraction fails.</returns>
-    private static string ExtractModelAlias(string fullModelName)
-    {
-        // Try to extract common aliases from full model names
-        // Examples:
-        //   "claude-sonnet-4-5-20250929" → "sonnet"
-        //   "claude-opus-4-20250514" → "opus"
-        //   "claude-haiku-4-20250703" → "haiku"
-
-        var lowerName = fullModelName.ToLowerInvariant();
-
-        if (lowerName.Contains("sonnet"))
-        {
-            return "sonnet";
-        }
-
-        if (lowerName.Contains("opus"))
-        {
-            return "opus";
-        }
-
-        if (lowerName.Contains("haiku"))
-        {
-            return "haiku";
-        }
-
-        // If no known alias found, return full name
-        // Claude CLI should handle full model names too
-        return fullModelName;
     }
 }
