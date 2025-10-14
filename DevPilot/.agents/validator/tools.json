@@ -1,0 +1,152 @@
+{
+  "tools": [
+    {
+      "name": "check_syntax",
+      "description": "Validates C# code syntax using Roslyn compiler",
+      "parameters": {
+        "code": {
+          "type": "string",
+          "description": "The C# code to validate"
+        },
+        "target_framework": {
+          "type": "string",
+          "default": "net8.0",
+          "description": "Target framework version"
+        }
+      },
+      "required": ["code"]
+    },
+    {
+      "name": "check_naming_conventions",
+      "description": "Validates naming conventions for classes, methods, properties, fields, etc.",
+      "parameters": {
+        "code": {
+          "type": "string",
+          "description": "The C# code to validate"
+        },
+        "strict_mode": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether to enforce strict naming rules"
+        }
+      },
+      "required": ["code"]
+    },
+    {
+      "name": "check_editorconfig_compliance",
+      "description": "Validates code against .editorconfig rules",
+      "parameters": {
+        "code": {
+          "type": "string",
+          "description": "The C# code to validate"
+        },
+        "editorconfig_path": {
+          "type": "string",
+          "description": "Path to .editorconfig file"
+        }
+      },
+      "required": ["code"]
+    },
+    {
+      "name": "check_documentation",
+      "description": "Validates XML documentation completeness",
+      "parameters": {
+        "code": {
+          "type": "string",
+          "description": "The C# code to validate"
+        },
+        "require_public_only": {
+          "type": "boolean",
+          "default": true,
+          "description": "Only require docs for public members"
+        }
+      },
+      "required": ["code"]
+    },
+    {
+      "name": "analyze_code_quality",
+      "description": "Performs static analysis for code quality issues",
+      "parameters": {
+        "code": {
+          "type": "string",
+          "description": "The C# code to analyze"
+        },
+        "analysis_level": {
+          "type": "string",
+          "enum": ["basic", "standard", "strict"],
+          "default": "standard",
+          "description": "Level of analysis to perform"
+        }
+      },
+      "required": ["code"]
+    },
+    {
+      "name": "suggest_improvements",
+      "description": "Suggests code improvements and optimizations",
+      "parameters": {
+        "code": {
+          "type": "string",
+          "description": "The C# code to analyze"
+        },
+        "focus_areas": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["performance", "readability", "maintainability", "security"]
+          },
+          "description": "Areas to focus improvement suggestions on"
+        }
+      },
+      "required": ["code"]
+    },
+    {
+      "name": "generate_fix",
+      "description": "Generates code fix for a specific issue",
+      "parameters": {
+        "code": {
+          "type": "string",
+          "description": "The original code with issues"
+        },
+        "issue_code": {
+          "type": "string",
+          "description": "The issue code to fix (e.g., CS1002, NAMING001)"
+        },
+        "issue_location": {
+          "type": "object",
+          "properties": {
+            "line": { "type": "number" },
+            "column": { "type": "number" }
+          },
+          "description": "Location of the issue"
+        }
+      },
+      "required": ["code", "issue_code"]
+    }
+  ],
+  "validation_categories": {
+    "syntax": {
+      "description": "Checks for compilation errors and syntax issues",
+      "severity": "error"
+    },
+    "naming_conventions": {
+      "description": "Validates naming patterns (PascalCase, camelCase, etc.)",
+      "severity": "error"
+    },
+    "editorconfig": {
+      "description": "Validates adherence to .editorconfig rules",
+      "severity": "error"
+    },
+    "documentation": {
+      "description": "Checks for missing XML documentation",
+      "severity": "warning"
+    },
+    "code_quality": {
+      "description": "Identifies potential bugs and code smells",
+      "severity": "warning"
+    },
+    "best_practices": {
+      "description": "Validates against C# best practices",
+      "severity": "suggestion"
+    }
+  }
+}
