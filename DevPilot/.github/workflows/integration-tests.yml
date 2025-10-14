@@ -1,0 +1,79 @@
+name: Integration Tests
+
+on:
+  # Run every Monday at 9:00 AM UTC
+  schedule:
+    - cron: '0 9 * * 1'
+
+  # Allow manual trigger
+  workflow_dispatch:
+
+  # Run on PRs that modify integration test files (optional)
+  pull_request:
+    paths:
+      - 'tests/DevPilot.Agents.IntegrationTests/**'
+      - 'src/DevPilot.Agents/ClaudeCliClient.cs'
+
+jobs:
+  integration-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Install Claude CLI
+        run: |
+          # Install Claude CLI (adjust based on actual installation method)
+          # This is a placeholder - update with actual installation steps
+          npm install -g @anthropic-ai/claude-cli
+
+      - name: Authenticate Claude CLI
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          # Configure Claude CLI authentication
+          # This is a placeholder - update with actual auth method
+          echo "Configuring Claude CLI authentication..."
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build solution
+        run: dotnet build --no-restore --configuration Release
+
+      - name: Run integration tests
+        run: dotnet test tests/DevPilot.Agents.IntegrationTests --no-build --configuration Release --verbosity normal
+
+      - name: Create issue on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '⚠️ Integration Tests Failed - Claude CLI Breaking Change?',
+              body: `## Integration Test Failure
+
+              The scheduled integration tests have failed. This may indicate:
+              - Breaking changes in Claude CLI
+              - Changes to Claude CLI flags or behavior
+              - API changes in Claude models
+
+              **Workflow Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+              **Next Steps:**
+              1. Review the workflow logs above
+              2. Check if Claude CLI has been updated recently
+              3. Update ClaudeCliClient if necessary
+              4. Re-run integration tests locally to verify fixes
+
+              cc: @${{ github.repository_owner }}`,
+              labels: ['bug', 'integration-test-failure', 'claude-cli']
+            })
