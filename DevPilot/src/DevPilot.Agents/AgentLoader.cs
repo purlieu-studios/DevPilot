@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using DevPilot.Core;
 
 namespace DevPilot.Agents;
@@ -140,45 +141,79 @@ public sealed class AgentLoader
     // DTOs for deserialization
     private sealed class AgentConfigDto
     {
+        [JsonPropertyName("agent_name")]
         public required string AgentName { get; init; }
+
+        [JsonPropertyName("version")]
         public required string Version { get; init; }
+
+        [JsonPropertyName("description")]
         public required string Description { get; init; }
+
+        [JsonPropertyName("model")]
         public required ModelDto Model { get; init; }
+
+        [JsonPropertyName("capabilities")]
         public required List<string> Capabilities { get; init; }
+
+        [JsonPropertyName("retry_policy")]
         public RetryPolicyDto? RetryPolicy { get; init; }
     }
 
     private sealed class ModelDto
     {
+        [JsonPropertyName("provider")]
         public required string Provider { get; init; }
+
+        [JsonPropertyName("model_name")]
         public required string ModelName { get; init; }
+
+        [JsonPropertyName("temperature")]
         public double Temperature { get; init; }
+
+        [JsonPropertyName("max_tokens")]
         public int MaxTokens { get; init; }
+
+        [JsonPropertyName("reasoning")]
         public ReasoningDto? Reasoning { get; init; }
     }
 
     private sealed class ReasoningDto
     {
+        [JsonPropertyName("enabled")]
         public bool Enabled { get; init; }
+
+        [JsonPropertyName("type")]
         public string? Type { get; init; }
     }
 
     private sealed class RetryPolicyDto
     {
+        [JsonPropertyName("max_retries")]
         public int MaxRetries { get; init; }
+
+        [JsonPropertyName("retry_delay_ms")]
         public int RetryDelayMs { get; init; }
+
+        [JsonPropertyName("exponential_backoff")]
         public bool ExponentialBackoff { get; init; }
     }
 
     private sealed class ToolsDto
     {
+        [JsonPropertyName("tools")]
         public List<ToolDto>? Tools { get; init; }
     }
 
     private sealed class ToolDto
     {
+        [JsonPropertyName("name")]
         public required string Name { get; init; }
+
+        [JsonPropertyName("description")]
         public required string Description { get; init; }
+
+        [JsonPropertyName("parameters")]
         public object? Parameters { get; init; }
     }
 }
