@@ -2,11 +2,5 @@
   "agent_name": "minimal-agent",
   "version": "1.0.0",
   "description": "A minimal test agent without optional fields",
-  "model": {
-    "provider": "anthropic",
-    "model_name": "claude-sonnet-4-5-20250929",
-    "temperature": 0.3,
-    "max_tokens": 1024
-  },
-  "capabilities": []
+  "model": "haiku"
 }

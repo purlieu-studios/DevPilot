@@ -2,23 +2,5 @@
   "agent_name": "test-agent",
   "version": "1.0.0",
   "description": "A test agent for unit testing",
-  "model": {
-    "provider": "anthropic",
-    "model_name": "claude-sonnet-4-5-20250929",
-    "temperature": 0.5,
-    "max_tokens": 2048,
-    "reasoning": {
-      "enabled": true,
-      "type": "extended"
-    }
-  },
-  "capabilities": [
-    "test_capability_1",
-    "test_capability_2"
-  ],
-  "retry_policy": {
-    "max_retries": 3,
-    "retry_delay_ms": 1000,
-    "exponential_backoff": true
-  }
+  "model": "sonnet"
 }

@@ -2,36 +2,5 @@
   "agent_name": "orchestrator",
   "version": "1.0.0",
   "description": "Coordinates tasks between specialized agents and manages workflow execution",
-  "model": {
-    "provider": "anthropic",
-    "model_name": "claude-sonnet-4-5-20250929",
-    "temperature": 0.3,
-    "max_tokens": 4096,
-    "reasoning": {
-      "enabled": true,
-      "type": "extended"
-    }
-  },
-  "capabilities": [
-    "task_decomposition",
-    "agent_routing",
-    "workflow_management",
-    "context_management",
-    "result_aggregation"
-  ],
-  "retry_policy": {
-    "max_retries": 3,
-    "retry_delay_ms": 1000,
-    "exponential_backoff": true
-  },
-  "memory": {
-    "enabled": true,
-    "max_history_items": 50,
-    "context_window": 10
-  },
-  "logging": {
-    "level": "info",
-    "include_prompts": true,
-    "include_responses": true
-  }
+  "model": "sonnet"
 }
