@@ -1,0 +1,46 @@
+{
+  "agent_name": "code-generator",
+  "version": "1.0.0",
+  "description": "Generates high-quality C# code following best practices and conventions",
+  "model": {
+    "provider": "anthropic",
+    "model_name": "claude-sonnet-4-5-20250929",
+    "temperature": 0.2,
+    "max_tokens": 8192,
+    "reasoning": {
+      "enabled": true,
+      "type": "extended"
+    }
+  },
+  "capabilities": [
+    "class_generation",
+    "interface_generation",
+    "method_generation",
+    "documentation_generation",
+    "pattern_application",
+    "code_formatting"
+  ],
+  "code_standards": {
+    "language": "csharp",
+    "version": "12.0",
+    "framework": "net8.0",
+    "nullable_reference_types": true,
+    "file_scoped_namespaces": true,
+    "implicit_usings": true
+  },
+  "validation": {
+    "check_syntax": true,
+    "check_naming_conventions": true,
+    "check_documentation": true,
+    "max_method_lines": 50,
+    "max_class_lines": 300
+  },
+  "retry_policy": {
+    "max_retries": 2,
+    "retry_delay_ms": 500
+  },
+  "logging": {
+    "level": "info",
+    "include_generated_code": true
+  }
+}

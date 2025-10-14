@@ -1,0 +1,55 @@
+{
+  "agent_name": "validator",
+  "version": "1.0.0",
+  "description": "Validates C# code for syntax errors, style compliance, and code quality",
+  "model": {
+    "provider": "anthropic",
+    "model_name": "claude-sonnet-4-5-20250929",
+    "temperature": 0.1,
+    "max_tokens": 4096,
+    "reasoning": {
+      "enabled": true,
+      "type": "extended"
+    }
+  },
+  "capabilities": [
+    "syntax_validation",
+    "style_validation",
+    "naming_convention_validation",
+    "documentation_validation",
+    "code_quality_analysis",
+    "improvement_suggestions",
+    "fix_generation"
+  ],
+  "validation_settings": {
+    "strict_mode": true,
+    "fail_on_warnings": false,
+    "fail_on_errors": true,
+    "max_allowed_warnings": 5,
+    "check_editorconfig": true,
+    "require_documentation": true,
+    "check_code_complexity": true
+  },
+  "quality_thresholds": {
+    "max_method_lines": 50,
+    "max_class_lines": 300,
+    "max_cyclomatic_complexity": 10,
+    "max_nesting_depth": 4
+  },
+  "roslyn_analyzers": {
+    "enabled": true,
+    "analyzer_packages": [
+      "Microsoft.CodeAnalysis.CSharp",
+      "Microsoft.CodeAnalysis.NetAnalyzers"
+    ]
+  },
+  "retry_policy": {
+    "max_retries": 1,
+    "retry_delay_ms": 500
+  },
+  "logging": {
+    "level": "info",
+    "include_validation_details": true,
+    "include_code_snippets": true
+  }
+}
