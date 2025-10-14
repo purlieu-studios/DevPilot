@@ -1,58 +1,56 @@
-## Description
+## Summary
 
-<!-- Provide a brief description of the changes in this PR -->
+<!-- Provide a clear, concise summary of what this PR does and why it's needed -->
 
-## Type of Change
+**What changed:**
 
-<!-- Mark the relevant option with an "x" -->
-
-- [ ] Bug fix (non-breaking change which fixes an issue)
-- [ ] New feature (non-breaking change which adds functionality)
-- [ ] Breaking change (fix or feature that would cause existing functionality to not work as expected)
-- [ ] Refactoring (no functional changes)
-- [ ] Documentation update
-- [ ] Performance improvement
-- [ ] Code cleanup
-- [ ] Other (please describe):
+**Why:**
 
 ## Related Issues
 
-<!-- Link any related issues using #issue_number -->
+<!-- Link related issues: Closes #123, Fixes #456, Related to #789 -->
+<!-- Delete this section if not applicable -->
 
-Closes #
+## Type of Change
 
-## Changes Made
+- [ ] Bug fix
+- [ ] New feature
+- [ ] Breaking change (see breaking changes section below)
+- [ ] Refactoring / Code cleanup
+- [ ] Documentation
+- [ ] Performance improvement
 
-<!-- List the specific changes made in this PR -->
+## What Should Reviewers Focus On?
 
--
--
--
+<!-- Guide reviewers: What areas need the most attention? Any specific concerns? -->
+
+## Screenshots / Demo
+
+<!-- For UI changes: Add before/after screenshots or screen recordings -->
+<!-- Delete this section if not applicable -->
+
+## Breaking Changes
+
+<!-- If this is a breaking change, describe:
+- What breaks
+- Migration path for users
+- Why this change is necessary
+-->
+<!-- Delete this section if not applicable -->
 
 ## Testing
 
-<!-- Describe the testing you've done -->
+**How to test:**
+<!-- Provide clear steps for reviewers to test your changes -->
 
+**Tests added/updated:**
+- [ ] Unit tests
+- [ ] Integration tests
 - [ ] Manual testing completed
-- [ ] Unit tests added/updated
-- [ ] Integration tests added/updated
-- [ ] All existing tests pass
-
-### Test Evidence
-
-<!-- Provide screenshots, logs, or other evidence of testing -->
 
 ## Checklist
 
-- [ ] My code follows the project's style guidelines
-- [ ] I have performed a self-review of my code
-- [ ] I have commented my code, particularly in hard-to-understand areas
-- [ ] I have made corresponding changes to the documentation
-- [ ] My changes generate no new warnings
-- [ ] I have added tests that prove my fix is effective or that my feature works
-- [ ] New and existing unit tests pass locally with my changes
-- [ ] Any dependent changes have been merged and published
-
-## Additional Notes
-
-<!-- Add any additional context, screenshots, or information that reviewers should know -->
+- [ ] Code has been self-reviewed
+- [ ] Tests pass locally
+- [ ] Documentation updated (if needed)
+- [ ] No new warnings introduced
