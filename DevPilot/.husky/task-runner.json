@@ -1,0 +1,55 @@
+{
+   "$schema": "https://alirezanet.github.io/Husky.Net/schema.json",
+   "tasks": [
+      {
+         "name": "pre-commit",
+         "group": "pre-commit",
+         "command": "pwsh",
+         "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ".husky/pre-commit.ps1"],
+         "windows": {
+            "command": "pwsh",
+            "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ".husky/pre-commit.ps1"]
+         }
+      },
+      {
+         "name": "commit-msg",
+         "group": "commit-msg",
+         "command": "pwsh",
+         "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ".husky/commit-msg.ps1", "${args}"],
+         "windows": {
+            "command": "pwsh",
+            "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ".husky/commit-msg.ps1", "${args}"]
+         }
+      },
+      {
+         "name": "pre-push",
+         "group": "pre-push",
+         "command": "pwsh",
+         "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ".husky/pre-push.ps1"],
+         "windows": {
+            "command": "pwsh",
+            "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ".husky/pre-push.ps1"]
+         }
+      },
+      {
+         "name": "post-checkout",
+         "group": "post-checkout",
+         "command": "pwsh",
+         "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ".husky/post-checkout.ps1", "${args}"],
+         "windows": {
+            "command": "pwsh",
+            "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ".husky/post-checkout.ps1", "${args}"]
+         }
+      },
+      {
+         "name": "post-merge",
+         "group": "post-merge",
+         "command": "pwsh",
+         "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ".husky/post-merge.ps1"],
+         "windows": {
+            "command": "pwsh",
+            "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ".husky/post-merge.ps1"]
+         }
+      }
+   ]
+}

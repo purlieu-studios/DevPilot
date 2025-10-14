@@ -42,6 +42,99 @@ DevPilot/
 - Subject line: max 50 characters, capitalized, no period
 - Add body for context (what and why, not how)
 
+## Git Hooks
+
+This repository uses [Husky.NET](https://alirezanet.github.io/Husky.Net/) to manage Git hooks that enforce code quality and workflow standards.
+
+### Automated Checks
+
+The following hooks run automatically:
+
+#### pre-commit (Before Creating a Commit)
+- **LOC Limit Enforcement** - Maximum 300 lines per commit (warn at 200)
+  - Excludes generated files, lock files, and documentation
+  - Provides detailed breakdown of changes per file
+  - Encourages small, focused commits for easier review
+- **Secrets Detection** - Scans for API keys, passwords, and connection strings
+- **File Size Check** - Warns about files larger than 5MB
+- **Code Formatting** - Validates .editorconfig compliance (when dotnet-format is installed)
+
+#### commit-msg (Validating Commit Messages)
+- **Conventional Commits** - Enforces format: `type(scope): description`
+  - Valid types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert
+- **Subject Line Validation** - Max 50 characters, lowercase start, no period
+- **Imperative Mood** - Ensures commands ("add" not "added")
+- **Blocked Words** - Prevents WIP, TODO, FIXME in commit messages
+
+#### pre-push (Before Pushing to Remote)
+- **Protected Branch Check** - Blocks direct pushes to main/master
+- **Branch Name Validation** - Enforces `type/description` format
+- **Build Verification** - Runs `dotnet build` (configurable)
+- **Test Execution** - Runs `dotnet test` (configurable)
+- **Uncommitted Changes Warning** - Alerts about unpushed changes
+
+#### post-checkout (After Switching Branches)
+- **Dependency Restoration** - Runs `dotnet restore` automatically
+- **Build Artifact Notice** - Suggests cleaning stale bin/obj folders
+- **Recent Commits** - Displays last 5 commits on the new branch
+
+#### post-merge (After Merging)
+- **Dependency Updates** - Runs `dotnet restore`
+- **Rebuild Solution** - Ensures merge didn't break build
+- **Conflict Detection** - Lists unresolved merge conflicts
+
+### Configuration
+
+Hook behavior is configured in `.husky/hooks-config.json`:
+
+```json
+{
+  "loc_limits": {
+    "max_lines": 300,        // Maximum lines per commit
+    "warn_lines": 200        // Warning threshold
+  },
+  "pre_push": {
+    "require_tests": false,  // Enable to require tests before push
+    "require_build": false   // Enable to require build before push
+  }
+}
+```
+
+### Bypassing Hooks
+
+In emergency situations, you can bypass hooks:
+
+```bash
+# Skip pre-commit and commit-msg hooks
+git commit --no-verify
+
+# Skip pre-push hook
+git push --no-verify
+```
+
+**Warning:** Use `--no-verify` sparingly. Hooks exist to maintain code quality and prevent issues.
+
+### Setup for New Developers
+
+Hooks are automatically installed when cloning the repository. If hooks aren't working:
+
+```bash
+# Reinstall hooks
+dotnet tool restore
+dotnet husky install
+```
+
+### Hook Files
+
+All hook scripts are in the `.husky/` directory:
+- `pre-commit.ps1` - Pre-commit checks
+- `commit-msg.ps1` - Commit message validation
+- `pre-push.ps1` - Pre-push verification
+- `post-checkout.ps1` - Post-checkout setup
+- `post-merge.ps1` - Post-merge updates
+- `hooks-config.json` - Configuration file
+- `task-runner.json` - Husky task definitions
+
 ## Notes for Future Development
 
 This CLAUDE.md should be updated as the project grows to include:

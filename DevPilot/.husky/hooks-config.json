@@ -1,0 +1,43 @@
+{
+  "loc_limits": {
+    "max_lines": 300,
+    "warn_lines": 200,
+    "excludePatterns": [
+      "*.designer.cs",
+      "*.g.cs",
+      "*.g.i.cs",
+      "*.generated.cs",
+      "*AssemblyInfo.cs",
+      "*AssemblyAttributes.cs",
+      "package-lock.json",
+      "yarn.lock",
+      "pnpm-lock.yaml",
+      "packages.lock.json",
+      "project.lock.json",
+      "project.fragment.lock.json",
+      "*.md",
+      ".editorconfig",
+      ".gitattributes",
+      ".gitignore"
+    ]
+  },
+  "commit_message": {
+    "max_subject_length": 50,
+    "types": ["feat", "fix", "docs", "style", "refactor", "perf", "test", "build", "ci", "chore", "revert"],
+    "blocked_words": ["WIP", "wip", "TODO", "todo", "FIXME", "fixme", "temp", "tmp"]
+  },
+  "pre_push": {
+    "require_tests": false,
+    "require_build": false,
+    "branch_name_pattern": "^(feat|fix|docs|style|refactor|perf|test|build|ci|chore)/[a-z0-9-]+$"
+  },
+  "secrets_detection": {
+    "patterns": [
+      "(?i)(api[_-]?key|apikey)\\s*[:=]\\s*['\"]?[a-z0-9]{20,}['\"]?",
+      "(?i)(secret|password|passwd|pwd)\\s*[:=]\\s*['\"]?[^'\"\\s]{8,}['\"]?",
+      "(?i)connectionstring\\s*[:=]",
+      "(?i)-----BEGIN (RSA |DSA )?PRIVATE KEY-----",
+      "(?i)(aws_access_key_id|aws_secret_access_key)\\s*[:=]"
+    ]
+  }
+}
