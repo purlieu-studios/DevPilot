@@ -197,4 +197,24 @@ If you encounter issues with Claude CLI authentication or usage, check:
 3. Test auth works: `echo "test" | claude --print --model sonnet`
 4. Claude is in PATH: `where claude` (Windows) or `which claude` (Unix)
 
+## Development Principles
+
+### Always the Proper Fix, Never Cut Corners
+
+When fixing bugs or implementing features in DevPilot:
+
+1. **Root Cause First**: Fix the underlying issue, not just the symptom
+2. **No Workarounds**: Don't add regex hacks or string parsing when the agent prompt can be fixed
+3. **Maintain Consistency**: If other agents output pure JSON, all agents should
+4. **Document Why**: Explain the proper approach vs why shortcuts were rejected
+5. **Test Properly**: Ensure fixes work end-to-end, not just in isolation
+
+**Example**: When the evaluator returned conversational text instead of JSON:
+- ❌ **Wrong**: Add regex to extract JSON from prose
+- ✅ **Right**: Fix evaluator system prompt to output only JSON (matches other agents)
+
+This principle ensures long-term maintainability and consistency across the codebase.
+
+---
+
 If problems persist, see the [Claude CLI documentation](https://docs.anthropic.com/claude/docs) or file an issue in the DevPilot repository.
