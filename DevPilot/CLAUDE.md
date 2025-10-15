@@ -386,7 +386,15 @@ If you need structured output from Claude CLI:
 
 ### Current Roadmap (see PIPELINE.md for details)
 
-- **Next PR #16**: Agent Renaming (code-generator → coder, validator → reviewer)
-- **PR #17**: Tester agent definition
-- **PR #18**: Evaluator agent definition
-- **PR #19**: CLI application wiring (Program.cs)
+**Completed (PR #16-20):**
+- ✅ Agent Renaming (code-generator → coder, validator → reviewer)
+- ✅ Tester agent definition
+- ✅ Evaluator agent definition
+- ✅ CLI application wiring (Program.cs)
+- ✅ MCP server experiment for structured planning
+
+**Next Steps:**
+- **First End-to-End Test**: Run complete pipeline with real request
+- **Integrate MCP**: Wire MCP server into planner agent execution
+- **Patch Application**: Implement workspace manager and diff application
+- **Test Runner**: Implement actual test execution in tester agent

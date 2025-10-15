@@ -500,6 +500,12 @@ public sealed class PipelineStageEntry
 | AgentDefinition Simplification | Reduced from 137 LOC to 32 LOC (model alias strings) | #15 |
 | AgentLoader Simplification | Reduced from 220 LOC to 120 LOC | #15 |
 | PATH Resolution Fix | Automatic discovery of Claude CLI in PATH | #15 |
+| Coder Agent (renamed) | Renamed from code-generator to match pipeline stage | #16 |
+| Reviewer Agent (renamed) | Renamed from validator to match pipeline stage | #16 |
+| Tester Agent | Declarative agent definition for Testing stage | #17 |
+| Evaluator Agent | Declarative agent definition for Evaluating stage | #18 |
+| CLI Application Wiring | Full pipeline execution with approval prompts | #19 |
+| MCP Planning Experiment | Structured planning via tool calling | #20 |
 
 **Total**: 149 tests passing (143 unit + 6 integration)
 
@@ -507,94 +513,32 @@ public sealed class PipelineStageEntry
 
 None currently.
 
-### ❌ Missing Components
-
-| Component | Description | Priority | Estimated PR |
-|-----------|-------------|----------|--------------|
-| Agent Renaming | Rename code-generator → coder, validator → reviewer | High | #16 |
-| Tester Agent Definition | system-prompt.md, config.json | High | #17 |
-| Evaluator Agent Definition | system-prompt.md, config.json | High | #18 |
-| Program.cs Wiring | Full pipeline with approval prompts | High | #19 |
 
 ---
 
-## Next Steps (Roadmap)
+## Next Steps
 
-### PR #16: Agent Renaming
+### ✅ Recently Completed (PR #16-20)
 
-**Goal**: Align agent names with pipeline stages
+- **PR #16**: Agent Renaming - Aligned agent names with pipeline stages
+- **PR #17**: Tester Agent - Created declarative agent definition
+- **PR #18**: Evaluator Agent - Created declarative agent definition  
+- **PR #19**: CLI Application Wiring - Full pipeline execution with Spectre.Console
+- **PR #20**: MCP Planning Experiment - Structured planning via tool calling
 
-**Changes**:
-- Rename `.agents/code-generator/` → `.agents/coder/`
-- Rename `.agents/validator/` → `.agents/reviewer/`
-- Delete `.agents/orchestrator/` (not needed)
-- Update agent names in config.json files
-- Update references in system-prompt.md files
+### 🎯 Current Focus
 
-**Estimated LOC**: 50-100 (mostly renames)
+**First End-to-End Test**: Run the complete pipeline with a real user request to identify any runtime issues.
 
----
+### 📋 Future Work
 
-### PR #17: Tester Agent Definition
-
-**Goal**: Create declarative agent for Testing stage
-
-**Files**:
-- `.agents/tester/system-prompt.md` - Instructions for test execution
-- `.agents/tester/config.json` - Model: Claude Sonnet 4.5, temperature 0.2
-
-**Responsibilities**:
-- Apply patch to temporary workspace
-- Execute test commands (dotnet test)
-- Parse xUnit/NUnit output
-- Calculate coverage metrics
-- Return JSON test report
-
-**Estimated LOC**: 200-250
+1. **Integrate MCP into Planner**: Wire MCP server into planner agent for schema-consistent output
+2. **Implement Patch Application**: Create workspace manager to apply unified diff patches
+3. **Implement Test Runner**: Execute tests and parse results in tester agent
+4. **Add Rollback Capability**: Implement automatic rollback on pipeline failure
+5. **Performance Optimization**: Reduce Claude CLI subprocess overhead
 
 ---
-
-### PR #18: Evaluator Agent Definition
-
-**Goal**: Create declarative agent for Evaluating stage
-
-**Files**:
-- `.agents/evaluator/system-prompt.md` - Scoring criteria and examples
-- `.agents/evaluator/config.json` - Model: Claude Sonnet 4.5, temperature 0.3
-
-**Responsibilities**:
-- Review all stage outputs
-- Score 5 quality dimensions (0-10 scale)
-- Identify strengths and weaknesses
-- Provide actionable recommendations
-- Return JSON evaluation with final verdict
-
-**Estimated LOC**: 200-250
-
----
-
-### PR #19: CLI Application Wiring
-
-**Goal**: Wire up Program.cs with full pipeline execution
-
-**Components**:
-- Load agent definitions using AgentLoader
-- Create ClaudeCliAgent instances for each stage
-- Build Pipeline with agent dictionary
-- Parse command-line arguments
-- Execute pipeline with user request
-- Handle approval prompts (interactive CLI)
-- Display results to user
-- Error handling and logging
-
-**Features**:
-- `devpilot "Create Calculator class"` - Execute request
-- `devpilot --approve <pipeline-id>` - Resume after approval
-- `devpilot --status <pipeline-id>` - Check pipeline status
-- `devpilot --list` - Show recent pipelines
-
-**Estimated LOC**: 250-300
-
 ---
 
 ## Example End-to-End Flow
