@@ -2,5 +2,6 @@
   "agent_name": "planner",
   "version": "1.0.0",
   "description": "First-stage agent that analyzes user requests and creates detailed execution plans with risk assessment and verification criteria",
-  "model": "sonnet"
+  "model": "sonnet",
+  "mcp_config_path": "../../experiments/mcp-planner/plan-tools.json"
 }

@@ -29,4 +29,9 @@ public sealed class AgentDefinition
     /// Gets the model alias to use (e.g., "sonnet", "opus", "haiku").
     /// </summary>
     public required string Model { get; init; }
+    /// <summary>
+    /// Gets the optional MCP (Model Context Protocol) configuration file path.
+    /// When set, Claude CLI will be invoked with --mcp-config flag.
+    /// </summary>
+    public string? McpConfigPath { get; init; }
 }

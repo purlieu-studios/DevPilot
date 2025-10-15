@@ -60,6 +60,7 @@ public sealed class ClaudeCliAgent : IAgent
                 prompt: input,
                 systemPrompt: Definition.SystemPrompt,
                 model: Definition.Model,  // Direct use - "sonnet", "opus", or "haiku"
+                mcpConfigPath: Definition.McpConfigPath, // Optional MCP config
                 timeout: null, // Use ClaudeCliClient default
                 cancellationToken: cancellationToken);
 
