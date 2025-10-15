@@ -1,0 +1,6 @@
+{
+  "agent_name": "tester",
+  "version": "1.0.0",
+  "description": "Executes tests and reports results with coverage metrics",
+  "model": "sonnet"
+}
