@@ -1,5 +1,6 @@
 using DevPilot.Core;
 using System.Diagnostics;
+using System.Text.Json;
 
 namespace DevPilot.Orchestrator;
 
@@ -69,6 +70,19 @@ public sealed class Pipeline
                     if (decision.Required)
                     {
                         context.RequestApproval(decision.Reason);
+                    }
+                }
+
+                // Check evaluator verdict after Evaluating stage
+                if (stage == PipelineStage.Evaluating)
+                {
+                    var (score, verdict) = ParseEvaluatorVerdict(agentResult.Output);
+                    if (verdict == "REJECT" || score < 7.0)
+                    {
+                        var errorMsg = $"Evaluator rejected pipeline (score: {score:F1}/10, verdict: {verdict})";
+                        context.AdvanceToStage(PipelineStage.Failed, errorMsg);
+                        stopwatch.Stop();
+                        return PipelineResult.CreateFailure(context, stopwatch.Elapsed, errorMsg);
                     }
                 }
 
@@ -197,6 +211,33 @@ public sealed class Pipeline
         {
             var stageNames = string.Join(", ", missingStages);
             throw new ArgumentException($"Missing required agents for stages: {stageNames}", nameof(agents));
+        }
+    }
+
+    /// <summary>
+    /// Parses the evaluator's JSON output to extract the verdict and overall score.
+    /// </summary>
+    /// <param name="evaluatorOutput">The JSON output from the evaluator agent.</param>
+    /// <returns>A tuple containing (score, verdict). Returns (0.0, "UNKNOWN") if parsing fails.</returns>
+    private static (double Score, string Verdict) ParseEvaluatorVerdict(string evaluatorOutput)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(evaluatorOutput);
+            var evaluation = doc.RootElement.GetProperty("evaluation");
+            var score = evaluation.GetProperty("overall_score").GetDouble();
+            var verdict = evaluation.GetProperty("final_verdict").GetString() ?? "UNKNOWN";
+            return (score, verdict);
+        }
+        catch (JsonException)
+        {
+            // If JSON parsing fails, treat as unknown/failed evaluation
+            return (0.0, "UNKNOWN");
+        }
+        catch (KeyNotFoundException)
+        {
+            // If required properties are missing, treat as unknown/failed evaluation
+            return (0.0, "UNKNOWN");
         }
     }
 }

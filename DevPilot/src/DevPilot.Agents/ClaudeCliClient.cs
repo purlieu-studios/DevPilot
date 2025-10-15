@@ -389,7 +389,7 @@ public sealed class ClaudeCliClient
                 {
                     foreach (var server in mcpServers.EnumerateArray())
                     {
-                        if (server.TryGetProperty("name", out var name) && name.GetString() == "planning-tools")
+                        if (server.TryGetProperty("name", out var name) && name.GetString() == "pipeline-tools")
                         {
                             if (server.TryGetProperty("status", out var status))
                             {
@@ -445,6 +445,12 @@ public sealed class ClaudeCliClient
                                             if (resultDoc.RootElement.TryGetProperty("plan", out var planElement))
                                             {
                                                 finalResult = planElement.GetRawText();
+                                                break;
+                                            }
+                                            // Check if this has an "evaluation" property (from finalize_evaluation)
+                                            if (resultDoc.RootElement.TryGetProperty("evaluation", out var evaluationElement))
+                                            {
+                                                finalResult = evaluationElement.GetRawText(); // Extract just the evaluation object
                                                 break;
                                             }
                                         }

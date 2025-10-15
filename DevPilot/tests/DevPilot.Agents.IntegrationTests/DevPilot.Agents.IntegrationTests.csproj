@@ -34,6 +34,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\DevPilot.Agents\DevPilot.Agents.csproj" />
+    <ProjectReference Include="..\..\src\DevPilot.Orchestrator\DevPilot.Orchestrator.csproj" />
   </ItemGroup>
 
 </Project>
