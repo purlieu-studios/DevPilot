@@ -215,6 +215,46 @@ When fixing bugs or implementing features in DevPilot:
 
 This principle ensures long-term maintainability and consistency across the codebase.
 
+### Extend vs Duplicate: When to Reuse Infrastructure
+
+When implementing new features in DevPilot, always ask: "Can I extend existing infrastructure instead of duplicating it?"
+
+**Prefer Extension When**:
+- Existing system handles similar concerns (e.g., structured output, schema validation)
+- Core architecture is the same (e.g., JSON-RPC protocol, tool definitions)
+- Duplication would create maintenance burden (e.g., two nearly identical servers)
+- Naming can accommodate broader scope (e.g., "pipeline-tools" instead of "planning-tools")
+
+**Prefer Duplication When**:
+- Concerns are truly different (e.g., agent execution vs MCP server)
+- Isolation is critical for security/stability
+- Combining would create tight coupling or confusion
+- Systems have different lifecycles or deployment needs
+
+**Example: MCP Server Extension**
+
+When adding evaluator MCP support, we had two options:
+
+❌ **Wrong (Duplicate)**: Create `experiments/mcp-evaluator/mcp-server.js` with ~270 LOC of duplicated JSON-RPC scaffolding
+
+✅ **Right (Extend)**: Add 7 evaluation tools to existing `experiments/mcp-planner/mcp-server.js` and rename to "pipeline-tools"
+
+**Benefits of Extension**:
+- Single server to maintain and debug
+- Consistent tool calling pattern for all agents
+- Shared JSON-RPC infrastructure (no duplication)
+- Natural evolution: "planning-tools" → "pipeline-tools" reflects broader scope
+
+**Result**: Added evaluation support with ~80 LOC instead of ~270 LOC, reduced maintenance burden, and maintained architectural consistency.
+
+**Decision Framework**:
+1. Identify the core concern (e.g., "enforcing structured output via schema-validated tools")
+2. Find existing systems handling that concern (e.g., MCP server)
+3. Evaluate if extension is feasible (e.g., can add tools without breaking existing functionality)
+4. If yes, extend and rename if needed; if no, document why duplication is necessary
+
+This principle complements "Always the Proper Fix" - proper fixes often involve extending existing solutions rather than creating parallel systems.
+
 ---
 
 If problems persist, see the [Claude CLI documentation](https://docs.anthropic.com/claude/docs) or file an issue in the DevPilot repository.
