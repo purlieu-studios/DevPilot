@@ -63,18 +63,34 @@ public sealed class ClaudeCliClient
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var arguments = BuildArguments(systemPrompt, model, mcpConfigPath);
+            var argumentList = BuildArgumentList(systemPrompt, model, mcpConfigPath);
+
+            // Resolve .cmd wrappers to underlying Node.js scripts
+            // This fixes argument passing issues with Windows batch files
+            var resolvedPath = ResolveCmdToNodeScript(_cliPath);
+            var isNodeScript = resolvedPath.EndsWith(".js", StringComparison.OrdinalIgnoreCase);
 
             var processStartInfo = new ProcessStartInfo
             {
-                FileName = _cliPath,
-                Arguments = arguments,
+                FileName = isNodeScript ? "node" : resolvedPath,
                 RedirectStandardInput = true,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
+
+            // If calling a .js file, add it as first argument to node
+            if (isNodeScript)
+            {
+                processStartInfo.ArgumentList.Add(resolvedPath);
+            }
+
+            // Add all CLI arguments
+            foreach (var arg in argumentList)
+            {
+                processStartInfo.ArgumentList.Add(arg);
+            }
 
             // Copy current environment variables to subprocess to ensure PATH is inherited
             foreach (System.Collections.DictionaryEntry env in Environment.GetEnvironmentVariables())
@@ -111,7 +127,7 @@ public sealed class ClaudeCliClient
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();
 
-            // Write prompt to stdin
+            // Write prompt to stdin (works correctly with node.exe + cli.js)
             await process.StandardInput.WriteLineAsync(prompt);
             await process.StandardInput.FlushAsync(cancellationToken);
             process.StandardInput.Close();
@@ -158,7 +174,7 @@ public sealed class ClaudeCliClient
             string finalOutput = output;
             if (!string.IsNullOrWhiteSpace(mcpConfigPath))
             {
-                finalOutput = ExtractFinalResultFromStreamJson(output);
+                finalOutput = ExtractFinalResultFromStreamJson(output, enableDiagnostics: false);
             }
 
             return ClaudeCliResponse.CreateSuccess(finalOutput);
@@ -184,38 +200,41 @@ public sealed class ClaudeCliClient
     }
 
     /// <summary>
-    /// Builds the command-line arguments for Claude CLI.
+    /// Builds the command-line arguments for Claude CLI as a list.
     /// </summary>
     /// <param name="systemPrompt">The system prompt.</param>
     /// <param name="model">The model name.</param>
     /// <param name="mcpConfigPath">Optional MCP config file path.</param>
-    /// <returns>The arguments string.</returns>
-    private static string BuildArguments(string systemPrompt, string model, string? mcpConfigPath)
+    /// <returns>The arguments list.</returns>
+    private static List<string> BuildArgumentList(string systemPrompt, string model, string? mcpConfigPath)
     {
-        // Use --print for non-interactive mode
-        // Use --system-prompt to configure behavior
-        // Use --model to select model
-        // Use appropriate output format based on MCP usage
-        var escapedSystemPrompt = EscapeArgument(systemPrompt);
-        var escapedModel = EscapeArgument(model);
+        var args = new List<string>
+        {
+            "--print",
+            "--system-prompt",
+            systemPrompt,
+            "--model",
+            model
+        };
 
         // When using MCP, use stream-json format for tool interactions
-        // Otherwise, use text format for regular conversation
-        var outputFormat = !string.IsNullOrWhiteSpace(mcpConfigPath) ? "stream-json" : "text";
-
-        var args = $"--print --system-prompt {escapedSystemPrompt} --model {escapedModel} --output-format {outputFormat}";
-
-        // Add MCP config if specified
         if (!string.IsNullOrWhiteSpace(mcpConfigPath))
         {
-            // When using stream-json with --print, --verbose is required
-            args += " --verbose";
-            var escapedMcpConfigPath = EscapeArgument(mcpConfigPath);
-            args += $" --mcp-config {escapedMcpConfigPath}";
-            // Add permission bypass for MCP tools
-            args += " --permission-mode bypassPermissions";
+            args.Add("--output-format");
+            args.Add("stream-json");
+            args.Add("--verbose");
+            args.Add("--mcp-config");
+            args.Add(mcpConfigPath);
+            args.Add("--permission-mode");
+            args.Add("bypassPermissions");
+        }
+        else
+        {
+            args.Add("--output-format");
+            args.Add("text");
         }
 
+        // NOTE: Prompt is passed via stdin, not as argument
         return args;
     }
 
@@ -231,8 +250,17 @@ public sealed class ClaudeCliClient
             return "\"\"";
         }
 
-        // On Windows, wrap in quotes and escape internal quotes
-        return $"\"{argument.Replace("\"", "\\\"")}\"";
+        // For .cmd files on Windows, use doubled quotes for escaping
+        // See: https://learn.microsoft.com/en-us/archive/blogs/twistylittlepassagesallalike/everyone-quotes-command-line-arguments-the-wrong-way
+        argument = argument.Replace("\"", "\"\"");
+
+        // Wrap in quotes if contains spaces or special characters
+        if (argument.Contains(' ') || argument.Contains('\t'))
+        {
+            return $"\"{argument}\"";
+        }
+
+        return argument;
     }
 
     /// <summary>
@@ -295,11 +323,44 @@ public sealed class ClaudeCliClient
     }
 
     /// <summary>
+    /// Resolves a .cmd wrapper to its underlying Node.js script.
+    /// For npm-installed tools like claude.cmd, finds the actual cli.js file.
+    /// </summary>
+    /// <param name="cmdPath">Path to .cmd file.</param>
+    /// <returns>Path to underlying cli.js, or original path if not resolvable.</returns>
+    private static string ResolveCmdToNodeScript(string cmdPath)
+    {
+        if (!cmdPath.EndsWith(".cmd", StringComparison.OrdinalIgnoreCase))
+        {
+            return cmdPath;
+        }
+
+        // For npm global packages, the structure is:
+        // {npmDir}/claude.cmd
+        // {npmDir}/node_modules/@anthropic-ai/claude-code/cli.js
+        var cmdDir = Path.GetDirectoryName(cmdPath);
+        if (string.IsNullOrEmpty(cmdDir))
+        {
+            return cmdPath;
+        }
+
+        var cliJsPath = Path.Combine(cmdDir, "node_modules", "@anthropic-ai", "claude-code", "cli.js");
+        if (File.Exists(cliJsPath))
+        {
+            return cliJsPath;
+        }
+
+        // Fallback: return original path
+        return cmdPath;
+    }
+
+    /// <summary>
     /// Extracts the final result from stream-json output when using MCP tools.
     /// </summary>
     /// <param name="streamJsonOutput">The full stream-json output from Claude CLI.</param>
+    /// <param name="enableDiagnostics">Whether to print diagnostic information.</param>
     /// <returns>The final result JSON string from tool calls.</returns>
-    private static string ExtractFinalResultFromStreamJson(string streamJsonOutput)
+    private static string ExtractFinalResultFromStreamJson(string streamJsonOutput, bool enableDiagnostics = false)
     {
         if (string.IsNullOrWhiteSpace(streamJsonOutput))
         {
@@ -338,57 +399,64 @@ public sealed class ClaudeCliClient
                     }
                 }
 
-                // Track tool calls being made
-                if (root.TryGetProperty("tool_name", out var toolNameProp))
+                // Track tool calls (nested in message.content array)
+                if (root.TryGetProperty("type", out var msgType) && msgType.GetString() == "assistant" &&
+                    root.TryGetProperty("message", out var message) &&
+                    message.TryGetProperty("content", out var content) &&
+                    content.ValueKind == JsonValueKind.Array)
                 {
-                    toolCallCount++;
+                    foreach (var contentItem in content.EnumerateArray())
+                    {
+                        if (contentItem.TryGetProperty("type", out var contentType) &&
+                            contentType.GetString() == "tool_use")
+                        {
+                            toolCallCount++;
+                        }
+                    }
                 }
 
-                // Look for tool results
-                if (root.TryGetProperty("tool_result", out var toolResult))
+                // Look for tool results (nested in user message content array)
+                if (root.TryGetProperty("type", out var userMsgType) && userMsgType.GetString() == "user" &&
+                    root.TryGetProperty("message", out var userMessage) &&
+                    userMessage.TryGetProperty("content", out var userContent) &&
+                    userContent.ValueKind == JsonValueKind.Array)
                 {
-                    if (toolResult.TryGetProperty("result", out var result))
+                    foreach (var contentItem in userContent.EnumerateArray())
                     {
-                        // Check if this is from finalize_plan tool (with MCP prefix)
-                        if (root.TryGetProperty("tool_name", out var toolName) &&
-                            toolName.GetString() == "mcp__planning-tools__finalize_plan")
+                        if (contentItem.TryGetProperty("type", out var contentType) &&
+                            contentType.GetString() == "tool_result" &&
+                            contentItem.TryGetProperty("content", out var resultContent) &&
+                            resultContent.ValueKind == JsonValueKind.Array)
                         {
-                            // The result is nested JSON with { "success": true, "plan": {...} }
-                            // We need to extract the "plan" property
-                            try
+                            foreach (var resultItem in resultContent.EnumerateArray())
                             {
-                                var resultStr = result.GetString();
-                                if (!string.IsNullOrWhiteSpace(resultStr))
+                                if (resultItem.TryGetProperty("type", out var resultType) &&
+                                    resultType.GetString() == "text" &&
+                                    resultItem.TryGetProperty("text", out var textContent))
                                 {
-                                    using var resultDoc = JsonDocument.Parse(resultStr);
-                                    if (resultDoc.RootElement.TryGetProperty("plan", out var planElement))
+                                    var textStr = textContent.GetString();
+                                    if (!string.IsNullOrWhiteSpace(textStr))
                                     {
-                                        finalResult = planElement.GetRawText();
-                                        break;
+                                        // Parse the text content as JSON
+                                        try
+                                        {
+                                            using var resultDoc = JsonDocument.Parse(textStr);
+                                            // Check if this has a "plan" property (from finalize_plan)
+                                            if (resultDoc.RootElement.TryGetProperty("plan", out var planElement))
+                                            {
+                                                finalResult = planElement.GetRawText();
+                                                break;
+                                            }
+                                        }
+                                        catch
+                                        {
+                                            // If not JSON, keep as fallback
+                                            finalResult = textStr;
+                                        }
                                     }
                                 }
                             }
-                            catch
-                            {
-                                // If parsing fails, use the raw result
-                                finalResult = result.GetRawText();
-                                break;
-                            }
-                        }
-                        // Keep the last tool result as fallback
-                        finalResult = result.GetRawText();
-                    }
-                }
-                // Also check for content blocks that might contain the result
-                else if (root.TryGetProperty("content", out var content))
-                {
-                    if (content.ValueKind == JsonValueKind.String)
-                    {
-                        var contentStr = content.GetString();
-                        if (!string.IsNullOrWhiteSpace(contentStr) &&
-                            (contentStr.StartsWith('{') || contentStr.StartsWith('[')))
-                        {
-                            finalResult = contentStr;
+                            if (finalResult != null) break;
                         }
                     }
                 }
@@ -398,6 +466,16 @@ public sealed class ClaudeCliClient
                 // Skip malformed JSON lines
                 continue;
             }
+        }
+
+        // Diagnostic logging for MCP status
+        if (enableDiagnostics)
+        {
+            System.Console.WriteLine("[ClaudeCliClient] MCP Diagnostics:");
+            System.Console.WriteLine($"  Server Status: {mcpServerStatus}");
+            System.Console.WriteLine($"  Tool Calls: {toolCallCount}");
+            System.Console.WriteLine($"  Final Result: {(finalResult != null ? "Found" : "Not Found")}");
+            System.Console.WriteLine();
         }
 
         return finalResult ?? "{}";
