@@ -268,6 +268,111 @@ dotnet test
 
 Current status: **149 tests passing** (143 unit + 6 integration)
 
+## MCP Servers for Structured Output
+
+### What is an MCP Server?
+
+**MCP (Model Context Protocol)** is Anthropic's standard for adding custom tools to Claude. An MCP server is a **local program you write** that exposes custom tools beyond Claude's built-in ones (Read, Write, Bash, etc.).
+
+**Key Facts:**
+- ✅ **Locally owned** - MCP servers are scripts YOU write and run on your machine
+- ✅ **Zero cost** - No API calls, no subscriptions beyond your existing Claude CLI access
+- ✅ **JSON-RPC protocol** - Simple stdin/stdout communication
+- ✅ **Schema enforcement** - Tool input schemas are validated by the MCP protocol
+- ✅ **Trivially portable** - Copy the script anywhere, modify anytime
+
+### When to Use MCP Servers
+
+Use MCP servers when you need **structured output from Claude CLI** with guaranteed schema consistency.
+
+**Problem MCP Solves:**
+```
+Without MCP: Ask Claude for JSON → varies every run (schema inconsistency)
+With MCP: Claude calls structured tools → guaranteed schema enforcement
+```
+
+**Example Use Cases:**
+- Generating structured plans/reports
+- Building configuration files
+- Database queries with typed results
+- Any scenario where Claude CLI must return consistent JSON structure
+
+### Our Existing MCP Server
+
+**Location:** `experiments/mcp-planner/`
+
+**Purpose:** Provides 8 planning tools that build structured execution plans with guaranteed schema.
+
+**Tools Exposed:**
+- `plan_init` - Initialize plan with summary
+- `add_step` - Add execution step (step_number, description, file_target, agent, estimated_loc)
+- `add_file` - Add file to track (path, operation, reason)
+- `set_risk` - Set risk assessment (level, factors, mitigation)
+- `set_verify` - Set verification criteria (acceptance_criteria, test_commands, manual_checks)
+- `set_rollback` - Set rollback strategy (strategy, commands, notes)
+- `set_approval` - Mark approval requirement (needs_approval, approval_reason)
+- `finalize_plan` - Return complete plan JSON
+
+**How It Works:**
+1. Claude CLI spawns `mcp-server.js` as subprocess
+2. Server exposes tools via JSON-RPC 2.0 over stdin/stdout
+3. Claude calls tools (e.g., `plan_init`, `add_step`) with validated arguments
+4. Server builds plan in memory as tools are called
+5. `finalize_plan` returns complete, consistently-structured JSON
+
+**Testing:**
+```bash
+cd experiments/mcp-planner
+.\test-runner.ps1 "Your request here"
+```
+
+**Documentation:** See `experiments/mcp-planner/FINDINGS.md` for detailed findings and results.
+
+### How MCP Enforces Schema Consistency
+
+**Tool definitions have strict input schemas:**
+```javascript
+{
+  name: 'add_step',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      step_number: { type: 'number' },
+      description: { type: 'string' },
+      // ... more fields
+    },
+    required: ['step_number', 'description', ...]
+  }
+}
+```
+
+**Benefits:**
+- Claude MUST provide all required fields
+- Claude MUST use correct types (string, number, array)
+- If arguments don't match schema, tool call fails
+- No "creative restructuring" possible - schema is enforced
+
+**Result:** Identical JSON structure on every run, no deserialization failures.
+
+### When NOT to Use MCP Servers
+
+- Simple, one-off requests where schema variation doesn't matter
+- When Claude's built-in tools (Read, Write, Bash) are sufficient
+- When you don't need structured output from Claude CLI
+
+### Integration Guidance
+
+If you need structured output from Claude CLI:
+
+1. **Check if existing MCP server fits** - The `experiments/mcp-planner/` server may already have the tools you need
+2. **Extend existing server** - Add new tools to `mcp-server.js` (just add to `tools` array and `handleToolCall` switch)
+3. **Create new MCP server** - For unrelated domains, create a new server following the same pattern
+
+**DO NOT:**
+- Ask Claude CLI to return free-form JSON (schema varies)
+- Implement complex flexible deserialization (MCP is cleaner)
+- Think MCP is a cloud service (it's just a local script you own)
+
 ## Development Workflow
 
 ### Typical PR Flow
