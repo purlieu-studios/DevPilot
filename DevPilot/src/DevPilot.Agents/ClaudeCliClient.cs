@@ -64,6 +64,7 @@ public sealed class ClaudeCliClient
             cancellationToken.ThrowIfCancellationRequested();
 
             var arguments = BuildArguments(systemPrompt, model, mcpConfigPath);
+
             var processStartInfo = new ProcessStartInfo
             {
                 FileName = _cliPath,
@@ -309,6 +310,8 @@ public sealed class ClaudeCliClient
         // Look for tool call results, especially the finalize_plan result
         var lines = streamJsonOutput.Split('\n', StringSplitOptions.RemoveEmptyEntries);
         string? finalResult = null;
+        var toolCallCount = 0;
+        var mcpServerStatus = "unknown";
 
         foreach (var line in lines)
         {
@@ -319,17 +322,58 @@ public sealed class ClaudeCliClient
                 using var doc = JsonDocument.Parse(line);
                 var root = doc.RootElement;
 
+                // Check for MCP server status in init message
+                if (root.TryGetProperty("type", out var type) && type.GetString() == "system" &&
+                    root.TryGetProperty("mcp_servers", out var mcpServers))
+                {
+                    foreach (var server in mcpServers.EnumerateArray())
+                    {
+                        if (server.TryGetProperty("name", out var name) && name.GetString() == "planning-tools")
+                        {
+                            if (server.TryGetProperty("status", out var status))
+                            {
+                                mcpServerStatus = status.GetString() ?? "unknown";
+                            }
+                        }
+                    }
+                }
+
+                // Track tool calls being made
+                if (root.TryGetProperty("tool_name", out var toolNameProp))
+                {
+                    toolCallCount++;
+                }
+
                 // Look for tool results
                 if (root.TryGetProperty("tool_result", out var toolResult))
                 {
                     if (toolResult.TryGetProperty("result", out var result))
                     {
-                        // Check if this is from finalize_plan tool
+                        // Check if this is from finalize_plan tool (with MCP prefix)
                         if (root.TryGetProperty("tool_name", out var toolName) &&
-                            toolName.GetString() == "finalize_plan")
+                            toolName.GetString() == "mcp__planning-tools__finalize_plan")
                         {
-                            finalResult = result.GetRawText();
-                            break;
+                            // The result is nested JSON with { "success": true, "plan": {...} }
+                            // We need to extract the "plan" property
+                            try
+                            {
+                                var resultStr = result.GetString();
+                                if (!string.IsNullOrWhiteSpace(resultStr))
+                                {
+                                    using var resultDoc = JsonDocument.Parse(resultStr);
+                                    if (resultDoc.RootElement.TryGetProperty("plan", out var planElement))
+                                    {
+                                        finalResult = planElement.GetRawText();
+                                        break;
+                                    }
+                                }
+                            }
+                            catch
+                            {
+                                // If parsing fails, use the raw result
+                                finalResult = result.GetRawText();
+                                break;
+                            }
                         }
                         // Keep the last tool result as fallback
                         finalResult = result.GetRawText();
