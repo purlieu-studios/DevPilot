@@ -201,7 +201,7 @@ public sealed class Pipeline
             PipelineStage.Planning => context.UserRequest,
             PipelineStage.Coding => context.Plan ?? string.Empty,
             PipelineStage.Reviewing => context.Patch ?? string.Empty,
-            PipelineStage.Testing => context.Patch ?? string.Empty,
+            PipelineStage.Testing => BuildTesterInput(context),
             PipelineStage.Evaluating => BuildEvaluatorInput(context),
             _ => string.Empty
         };
@@ -220,6 +220,30 @@ public sealed class Pipeline
             Patch: {context.Patch}
             Review: {context.Review}
             Test Report: {context.TestReport}
+            """;
+    }
+
+    /// <summary>
+    /// Builds the input for the tester agent with workspace information.
+    /// </summary>
+    /// <param name="context">The pipeline context.</param>
+    /// <returns>The tester input with workspace path and applied files.</returns>
+    private static string BuildTesterInput(PipelineContext context)
+    {
+        var appliedFiles = context.AppliedFiles != null && context.AppliedFiles.Count > 0
+            ? string.Join(", ", context.AppliedFiles)
+            : "None";
+
+        return $"""
+            Workspace Path: {context.WorkspaceRoot ?? "Not set"}
+            Applied Files: {appliedFiles}
+
+            Please run tests in the workspace directory.
+            Steps:
+            1. Navigate to workspace: cd "{context.WorkspaceRoot}"
+            2. Build the solution: dotnet build
+            3. Run tests: dotnet test --logger "trx"
+            4. Parse and report results
             """;
     }
 
