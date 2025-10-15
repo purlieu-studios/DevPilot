@@ -183,8 +183,8 @@ internal sealed class Program
             }
             catch
             {
-                // If parsing fails, just show raw scores
-                AnsiConsole.MarkupLine($"[dim]Scores: {result.Context.Scores}[/]");
+                // If parsing fails, just show raw scores (use WriteLine to avoid markup parsing issues)
+                AnsiConsole.WriteLine($"Scores: {result.Context.Scores}");
             }
         }
     }
