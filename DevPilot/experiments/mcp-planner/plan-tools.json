@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "planning-tools": {
+      "command": "node",
+      "args": ["mcp-server.js"],
+      "cwd": "C:\\DevPilot\\DevPilot\\experiments\\mcp-planner"
+    }
+  }
+}
