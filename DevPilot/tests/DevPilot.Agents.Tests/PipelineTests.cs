@@ -265,13 +265,33 @@ public sealed class PipelineTests
             }
             """;
 
+        var evaluatorJson = """
+            {
+              "evaluation": {
+                "overall_score": 9.0,
+                "scores": {
+                  "plan_quality": 9.0,
+                  "code_quality": 9.0,
+                  "test_coverage": 9.0,
+                  "documentation": 9.0,
+                  "maintainability": 9.0
+                },
+                "strengths": ["Good"],
+                "weaknesses": [],
+                "recommendations": [],
+                "final_verdict": "ACCEPT",
+                "justification": "Meets quality standards"
+              }
+            }
+            """;
+
         return new Dictionary<PipelineStage, IAgent>
         {
             [PipelineStage.Planning] = new MockAgent("planner", allSucceed, safePlanJson),
             [PipelineStage.Coding] = new MockAgent("coder", allSucceed, "diff --git..."),
             [PipelineStage.Reviewing] = new MockAgent("reviewer", allSucceed, "{\"verdict\": \"APPROVE\"}"),
             [PipelineStage.Testing] = new MockAgent("tester", allSucceed, "{\"pass\": true}"),
-            [PipelineStage.Evaluating] = new MockAgent("evaluator", allSucceed, "{\"score\": 9}")
+            [PipelineStage.Evaluating] = new MockAgent("evaluator", allSucceed, evaluatorJson)
         };
     }
 

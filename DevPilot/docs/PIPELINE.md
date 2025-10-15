@@ -547,9 +547,14 @@ Successfully validated the complete pipeline infrastructure with a real Calculat
 - **Planner Stage**: ~2-3 minutes with MCP tools
 - **Other Stages**: ~30-60 seconds each (placeholder responses)
 
-**Bug Fixed:**
-- ❌ **Display Bug**: Program.cs:187 - Spectre.Console markup parsing failed on raw JSON with newlines
-- ✅ **Fixed**: Changed `MarkupLine()` to `WriteLine()` for raw score display
+**Bugs Fixed:**
+1. ❌ **Display Bug**: Program.cs:187 - Spectre.Console markup parsing failed on raw JSON with newlines
+   - ✅ **Fixed**: Changed `MarkupLine()` to `WriteLine()` for raw score display
+
+2. ❌ **Critical Bug**: Pipeline.cs ignored Evaluator verdict - Pipeline returned success even when Evaluator rejected with 2.0/10 score
+   - ✅ **Fixed**: Added `ParseEvaluatorVerdict()` method and verdict checking logic after Evaluating stage
+   - Now correctly fails pipeline when verdict is "REJECT" or score < 7.0
+   - Error message shows: "Evaluator rejected pipeline (score: X.X/10, verdict: REJECT)"
 
 **Current Limitations (Known & Documented):**
 1. **Patch application pending**: Coder generates diffs but cannot apply to workspace yet
