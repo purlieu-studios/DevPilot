@@ -450,7 +450,7 @@ public sealed class ClaudeCliClient
                                             // Check if this has an "evaluation" property (from finalize_evaluation)
                                             if (resultDoc.RootElement.TryGetProperty("evaluation", out var evaluationElement))
                                             {
-                                                finalResult = textStr; // Return full JSON including task_id and status
+                                                finalResult = evaluationElement.GetRawText(); // Extract just the evaluation object
                                                 break;
                                             }
                                         }
