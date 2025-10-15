@@ -506,8 +506,11 @@ public sealed class PipelineStageEntry
 | Evaluator Agent | Declarative agent definition for Evaluating stage | #18 |
 | CLI Application Wiring | Full pipeline execution with approval prompts | #19 |
 | MCP Planning Experiment | Structured planning via tool calling | #20 |
+| MCP Integration | Integrated MCP server into ClaudeCliClient | #21 |
+| MCP Production Fixes | Fixed .cmd wrapper and stream-json parsing | #22 |
+| Agent Loading Smoke Tests | Infrastructure verification without API calls | #23 |
 
-**Total**: 149 tests passing (143 unit + 6 integration)
+**Total**: 175 tests passing (158 unit + 17 integration)
 
 ### 🚧 In Progress
 
@@ -518,25 +521,37 @@ None currently.
 
 ## Next Steps
 
-### ✅ Recently Completed (PR #16-20)
+### ✅ Recently Completed (PR #21-23)
 
-- **PR #16**: Agent Renaming - Aligned agent names with pipeline stages
-- **PR #17**: Tester Agent - Created declarative agent definition
-- **PR #18**: Evaluator Agent - Created declarative agent definition  
-- **PR #19**: CLI Application Wiring - Full pipeline execution with Spectre.Console
-- **PR #20**: MCP Planning Experiment - Structured planning via tool calling
+- **PR #21**: MCP Integration - Wire MCP server into ClaudeCliClient for structured output
+- **PR #22**: MCP Production Fixes - Resolve .cmd wrapper issues and fix stream-json parsing
+- **PR #23**: Agent Loading Tests - Smoke tests verifying all 5 agents load correctly
 
 ### 🎯 Current Focus
 
-**First End-to-End Test**: Run the complete pipeline with a real user request to identify any runtime issues.
+**Findings from PR #23 - End-to-End Testing:**
+
+The first end-to-end test revealed an important performance characteristic:
+
+- **Full Pipeline Duration**: 10-15 minutes with real Claude API calls (5 agents × 2-3 minutes each)
+- **Infrastructure Verification**: All 5 agent definitions load successfully ✅
+- **MCP Configuration**: Planner agent correctly configured with MCP tools ✅
+- **Agent Instantiation**: ClaudeCliAgent creates successfully for all stages ✅
+
+**Current Limitations:**
+1. **Real API calls required**: Full end-to-end testing requires live Claude API access (not suitable for CI/CD)
+2. **No mock execution**: Integration tests currently lack mocked Claude responses
+3. **Patch application pending**: Coder output cannot be applied to workspace yet
+4. **Test execution pending**: Tester agent cannot execute real tests yet
 
 ### 📋 Future Work
 
-1. **Integrate MCP into Planner**: Wire MCP server into planner agent for schema-consistent output
+1. **Add Mock Execution Tests**: Create integration tests with mocked Claude CLI responses for faster feedback
 2. **Implement Patch Application**: Create workspace manager to apply unified diff patches
 3. **Implement Test Runner**: Execute tests and parse results in tester agent
 4. **Add Rollback Capability**: Implement automatic rollback on pipeline failure
 5. **Performance Optimization**: Reduce Claude CLI subprocess overhead
+6. **CI/CD Integration**: Design testing strategy for automated builds without API calls
 
 ---
 ---
