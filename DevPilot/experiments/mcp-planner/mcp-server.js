@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 
 /**
- * MCP Server for DevPilot Planning Tools
+ * MCP Server for DevPilot Pipeline Tools
  *
- * This server exposes tools that Claude can use to build a structured plan
- * instead of returning free-form JSON that varies in schema.
+ * This server exposes tools that Claude can use to build structured outputs
+ * for both planning and evaluation, ensuring consistent schemas instead of
+ * free-form JSON or conversational text.
  */
 
 const readline = require('readline');
@@ -22,6 +23,32 @@ function initPlan() {
     rollback: { strategy: '', commands: [], notes: '' },
     needs_approval: false,
     approval_reason: null
+  };
+}
+
+// In-memory evaluation state
+let currentEvaluation = null;
+
+// Initialize evaluation state
+function initEvaluation() {
+  currentEvaluation = {
+    task_id: '',
+    status: 'success',
+    evaluation: {
+      overall_score: 0.0,
+      scores: {
+        plan_quality: 0,
+        code_quality: 0,
+        test_coverage: 0,
+        documentation: 0,
+        maintainability: 0
+      },
+      strengths: [],
+      weaknesses: [],
+      recommendations: [],
+      final_verdict: 'REJECT',
+      justification: ''
+    }
   };
 }
 
@@ -128,6 +155,88 @@ const tools = [
       properties: {},
       required: []
     }
+  },
+  // Evaluation tools
+  {
+    name: 'evaluation_init',
+    description: 'Initialize a new evaluation with task_id and status',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        task_id: { type: 'string', description: 'Unique task identifier' },
+        status: { type: 'string', enum: ['success', 'failure'], description: 'Evaluation status' }
+      },
+      required: ['task_id', 'status']
+    }
+  },
+  {
+    name: 'set_scores',
+    description: 'Set all 5 dimension scores at once',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        plan_quality: { type: 'number', minimum: 0, maximum: 10, description: 'Plan quality score' },
+        code_quality: { type: 'number', minimum: 0, maximum: 10, description: 'Code quality score' },
+        test_coverage: { type: 'number', minimum: 0, maximum: 10, description: 'Test coverage score' },
+        documentation: { type: 'number', minimum: 0, maximum: 10, description: 'Documentation score' },
+        maintainability: { type: 'number', minimum: 0, maximum: 10, description: 'Maintainability score' }
+      },
+      required: ['plan_quality', 'code_quality', 'test_coverage', 'documentation', 'maintainability']
+    }
+  },
+  {
+    name: 'add_strength',
+    description: 'Add a strength observation (max 5 total)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        strength: { type: 'string', description: 'What was done well' }
+      },
+      required: ['strength']
+    }
+  },
+  {
+    name: 'add_weakness',
+    description: 'Add a weakness observation (max 5 total)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        weakness: { type: 'string', description: 'What needs improvement' }
+      },
+      required: ['weakness']
+    }
+  },
+  {
+    name: 'add_recommendation',
+    description: 'Add an actionable recommendation (max 5 total)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        recommendation: { type: 'string', description: 'Specific improvement suggestion' }
+      },
+      required: ['recommendation']
+    }
+  },
+  {
+    name: 'set_verdict',
+    description: 'Set final verdict and justification (calculates overall_score from dimension scores)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        final_verdict: { type: 'string', enum: ['ACCEPT', 'REJECT'], description: 'Final verdict' },
+        justification: { type: 'string', description: 'Clear justification (1-3 sentences)' }
+      },
+      required: ['final_verdict', 'justification']
+    }
+  },
+  {
+    name: 'finalize_evaluation',
+    description: 'Finalize and return the complete evaluation as JSON',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+      required: []
+    }
   }
 ];
 
@@ -194,6 +303,80 @@ function handleToolCall(name, args) {
       currentPlan = null; // Reset for next request
       return { success: true, plan: plan };
 
+    // Evaluation tool handlers
+    case 'evaluation_init':
+      if (!currentEvaluation) {
+        initEvaluation();
+      }
+      currentEvaluation.task_id = args.task_id;
+      currentEvaluation.status = args.status;
+      return { success: true, message: 'Evaluation initialized' };
+
+    case 'set_scores':
+      if (!currentEvaluation) {
+        initEvaluation();
+      }
+      currentEvaluation.evaluation.scores = {
+        plan_quality: args.plan_quality,
+        code_quality: args.code_quality,
+        test_coverage: args.test_coverage,
+        documentation: args.documentation,
+        maintainability: args.maintainability
+      };
+      return { success: true, message: 'Scores set' };
+
+    case 'add_strength':
+      if (!currentEvaluation) {
+        initEvaluation();
+      }
+      if (currentEvaluation.evaluation.strengths.length < 5) {
+        currentEvaluation.evaluation.strengths.push(args.strength);
+        return { success: true, message: 'Strength added' };
+      }
+      return { success: false, error: 'Maximum 5 strengths allowed' };
+
+    case 'add_weakness':
+      if (!currentEvaluation) {
+        initEvaluation();
+      }
+      if (currentEvaluation.evaluation.weaknesses.length < 5) {
+        currentEvaluation.evaluation.weaknesses.push(args.weakness);
+        return { success: true, message: 'Weakness added' };
+      }
+      return { success: false, error: 'Maximum 5 weaknesses allowed' };
+
+    case 'add_recommendation':
+      if (!currentEvaluation) {
+        initEvaluation();
+      }
+      if (currentEvaluation.evaluation.recommendations.length < 5) {
+        currentEvaluation.evaluation.recommendations.push(args.recommendation);
+        return { success: true, message: 'Recommendation added' };
+      }
+      return { success: false, error: 'Maximum 5 recommendations allowed' };
+
+    case 'set_verdict':
+      if (!currentEvaluation) {
+        initEvaluation();
+      }
+      // Calculate overall_score using weighted average
+      const scores = currentEvaluation.evaluation.scores;
+      const overall = (scores.plan_quality * 1.0 +
+                       scores.code_quality * 1.5 +
+                       scores.test_coverage * 1.5 +
+                       scores.documentation * 1.0 +
+                       scores.maintainability * 1.0) / 6.0;
+
+      currentEvaluation.evaluation.overall_score = Math.round(overall * 10) / 10; // Round to 1 decimal
+      currentEvaluation.evaluation.final_verdict = args.final_verdict;
+      currentEvaluation.evaluation.justification = args.justification;
+      return { success: true, message: 'Verdict set', overall_score: currentEvaluation.evaluation.overall_score };
+
+    case 'finalize_evaluation':
+      const evaluation = currentEvaluation;
+      currentEvaluation = null; // Reset for next request
+      return { success: true, evaluation: evaluation };
+
     default:
       return { success: false, error: `Unknown tool: ${name}` };
   }
@@ -221,7 +404,7 @@ rl.on('line', (line) => {
             tools: {}
           },
           serverInfo: {
-            name: 'planning-tools',
+            name: 'pipeline-tools',
             version: '1.0.0'
           }
         }
@@ -266,4 +449,4 @@ rl.on('line', (line) => {
 });
 
 // Initialize on startup
-console.error('MCP Planning Tools Server started');
+console.error('MCP Pipeline Tools Server started');
