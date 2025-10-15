@@ -104,7 +104,7 @@ internal sealed class Program
     private static void DisplayResults(PipelineResult result)
     {
         AnsiConsole.WriteLine();
-        AnsiConsole.Rule("[bold]Pipeline Result[/]");
+        AnsiConsole.Write(new Rule("[bold]Pipeline Result[/]"));
         AnsiConsole.WriteLine();
 
         if (result.RequiresApproval)
