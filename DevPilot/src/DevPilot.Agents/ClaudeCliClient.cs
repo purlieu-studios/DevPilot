@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text;
+using System.Text.Json;
 
 namespace DevPilot.Agents;
 
@@ -40,6 +41,7 @@ public sealed class ClaudeCliClient
     /// <param name="prompt">The user prompt to send to Claude.</param>
     /// <param name="systemPrompt">The system prompt to configure Claude's behavior.</param>
     /// <param name="model">The model to use (e.g., "sonnet", "opus", or full model name).</param>
+    /// <param name="mcpConfigPath">Optional MCP config file path for tool usage.</param>
     /// <param name="timeout">Optional timeout override.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>A ClaudeCliResponse with the execution result.</returns>
@@ -47,6 +49,7 @@ public sealed class ClaudeCliClient
         string prompt,
         string systemPrompt,
         string model = "sonnet",
+        string? mcpConfigPath = null,
         TimeSpan? timeout = null,
         CancellationToken cancellationToken = default)
     {
@@ -60,7 +63,7 @@ public sealed class ClaudeCliClient
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var arguments = BuildArguments(systemPrompt, model);
+            var arguments = BuildArguments(systemPrompt, model, mcpConfigPath);
             var processStartInfo = new ProcessStartInfo
             {
                 FileName = _cliPath,
@@ -150,7 +153,14 @@ public sealed class ClaudeCliClient
                     exitCode: process.ExitCode);
             }
 
-            return ClaudeCliResponse.CreateSuccess(output);
+            // If MCP was used (stream-json format), extract the final result
+            string finalOutput = output;
+            if (!string.IsNullOrWhiteSpace(mcpConfigPath))
+            {
+                finalOutput = ExtractFinalResultFromStreamJson(output);
+            }
+
+            return ClaudeCliResponse.CreateSuccess(finalOutput);
         }
         catch (System.ComponentModel.Win32Exception ex) when (ex.Message.Contains("system cannot find the file"))
         {
@@ -177,17 +187,35 @@ public sealed class ClaudeCliClient
     /// </summary>
     /// <param name="systemPrompt">The system prompt.</param>
     /// <param name="model">The model name.</param>
+    /// <param name="mcpConfigPath">Optional MCP config file path.</param>
     /// <returns>The arguments string.</returns>
-    private static string BuildArguments(string systemPrompt, string model)
+    private static string BuildArguments(string systemPrompt, string model, string? mcpConfigPath)
     {
         // Use --print for non-interactive mode
         // Use --system-prompt to configure behavior
         // Use --model to select model
-        // Use --output-format text for plain text output
+        // Use appropriate output format based on MCP usage
         var escapedSystemPrompt = EscapeArgument(systemPrompt);
         var escapedModel = EscapeArgument(model);
 
-        return $"--print --system-prompt {escapedSystemPrompt} --model {escapedModel} --output-format text";
+        // When using MCP, use stream-json format for tool interactions
+        // Otherwise, use text format for regular conversation
+        var outputFormat = !string.IsNullOrWhiteSpace(mcpConfigPath) ? "stream-json" : "text";
+
+        var args = $"--print --system-prompt {escapedSystemPrompt} --model {escapedModel} --output-format {outputFormat}";
+
+        // Add MCP config if specified
+        if (!string.IsNullOrWhiteSpace(mcpConfigPath))
+        {
+            // When using stream-json with --print, --verbose is required
+            args += " --verbose";
+            var escapedMcpConfigPath = EscapeArgument(mcpConfigPath);
+            args += $" --mcp-config {escapedMcpConfigPath}";
+            // Add permission bypass for MCP tools
+            args += " --permission-mode bypassPermissions";
+        }
+
+        return args;
     }
 
     /// <summary>
@@ -263,5 +291,71 @@ public sealed class ClaudeCliClient
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Extracts the final result from stream-json output when using MCP tools.
+    /// </summary>
+    /// <param name="streamJsonOutput">The full stream-json output from Claude CLI.</param>
+    /// <returns>The final result JSON string from tool calls.</returns>
+    private static string ExtractFinalResultFromStreamJson(string streamJsonOutput)
+    {
+        if (string.IsNullOrWhiteSpace(streamJsonOutput))
+        {
+            return "{}";
+        }
+
+        // Stream-json format contains one JSON object per line
+        // Look for tool call results, especially the finalize_plan result
+        var lines = streamJsonOutput.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        string? finalResult = null;
+
+        foreach (var line in lines)
+        {
+            if (string.IsNullOrWhiteSpace(line)) continue;
+
+            try
+            {
+                using var doc = JsonDocument.Parse(line);
+                var root = doc.RootElement;
+
+                // Look for tool results
+                if (root.TryGetProperty("tool_result", out var toolResult))
+                {
+                    if (toolResult.TryGetProperty("result", out var result))
+                    {
+                        // Check if this is from finalize_plan tool
+                        if (root.TryGetProperty("tool_name", out var toolName) &&
+                            toolName.GetString() == "finalize_plan")
+                        {
+                            finalResult = result.GetRawText();
+                            break;
+                        }
+                        // Keep the last tool result as fallback
+                        finalResult = result.GetRawText();
+                    }
+                }
+                // Also check for content blocks that might contain the result
+                else if (root.TryGetProperty("content", out var content))
+                {
+                    if (content.ValueKind == JsonValueKind.String)
+                    {
+                        var contentStr = content.GetString();
+                        if (!string.IsNullOrWhiteSpace(contentStr) &&
+                            (contentStr.StartsWith('{') || contentStr.StartsWith('[')))
+                        {
+                            finalResult = contentStr;
+                        }
+                    }
+                }
+            }
+            catch (JsonException)
+            {
+                // Skip malformed JSON lines
+                continue;
+            }
+        }
+
+        return finalResult ?? "{}";
     }
 }

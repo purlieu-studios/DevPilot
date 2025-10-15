@@ -77,7 +77,8 @@ public sealed class AgentLoader
             Version = config.Version,
             Description = config.Description,
             SystemPrompt = systemPrompt,
-            Model = config.Model
+            Model = config.Model,
+            McpConfigPath = ResolveMcpConfigPath(agentPath, config.McpConfigPath)
         };
     }
 
@@ -101,6 +102,26 @@ public sealed class AgentLoader
             .AsReadOnly();
     }
 
+    /// <summary>
+    /// Resolves MCP config path relative to agent directory if it's a relative path.
+    /// </summary>
+    private static string? ResolveMcpConfigPath(string agentPath, string? mcpConfigPath)
+    {
+        if (string.IsNullOrWhiteSpace(mcpConfigPath))
+        {
+            return null;
+        }
+
+        // If already absolute, return as-is
+        if (Path.IsPathRooted(mcpConfigPath))
+        {
+            return mcpConfigPath;
+        }
+
+        // Resolve relative to agent directory
+        return Path.GetFullPath(Path.Combine(agentPath, mcpConfigPath));
+    }
+
     // DTO for deserialization
     private sealed class AgentConfigDto
     {
@@ -115,5 +136,8 @@ public sealed class AgentLoader
 
         [JsonPropertyName("model")]
         public required string Model { get; init; }
+
+        [JsonPropertyName("mcp_config_path")]
+        public string? McpConfigPath { get; init; }
     }
 }
