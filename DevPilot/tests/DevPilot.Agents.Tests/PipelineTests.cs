@@ -285,10 +285,22 @@ public sealed class PipelineTests
             }
             """;
 
+        var validPatch = """
+            diff --git a/Calculator.cs b/Calculator.cs
+            new file mode 100644
+            --- /dev/null
+            +++ b/Calculator.cs
+            @@ -0,0 +1,5 @@
+            +public class Calculator
+            +{
+            +    public int Add(int a, int b) => a + b;
+            +}
+            """;
+
         return new Dictionary<PipelineStage, IAgent>
         {
             [PipelineStage.Planning] = new MockAgent("planner", allSucceed, safePlanJson),
-            [PipelineStage.Coding] = new MockAgent("coder", allSucceed, "diff --git..."),
+            [PipelineStage.Coding] = new MockAgent("coder", allSucceed, validPatch),
             [PipelineStage.Reviewing] = new MockAgent("reviewer", allSucceed, "{\"verdict\": \"APPROVE\"}"),
             [PipelineStage.Testing] = new MockAgent("tester", allSucceed, "{\"pass\": true}"),
             [PipelineStage.Evaluating] = new MockAgent("evaluator", allSucceed, evaluatorJson)

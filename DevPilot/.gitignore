@@ -392,3 +392,6 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml
+
+# DevPilot workspace directories (temporary isolated workspaces)
+.devpilot/workspaces/

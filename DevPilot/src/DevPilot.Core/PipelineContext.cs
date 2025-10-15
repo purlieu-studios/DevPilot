@@ -49,6 +49,16 @@ public sealed class PipelineContext
     public string? Scores { get; private set; }
 
     /// <summary>
+    /// Gets the root directory of the isolated workspace for this pipeline execution.
+    /// </summary>
+    public string? WorkspaceRoot { get; private set; }
+
+    /// <summary>
+    /// Gets the list of files that were created or modified by applying the patch.
+    /// </summary>
+    public IReadOnlyList<string>? AppliedFiles { get; private set; }
+
+    /// <summary>
     /// Gets whether the pipeline requires human approval (hard stop).
     /// </summary>
     public bool ApprovalRequired { get; private set; }
@@ -126,6 +136,26 @@ public sealed class PipelineContext
     {
         ApprovalRequired = false;
         ApprovalReason = null;
+    }
+
+    /// <summary>
+    /// Sets the workspace root directory for this pipeline execution.
+    /// </summary>
+    /// <param name="workspaceRoot">The absolute path to the workspace root directory.</param>
+    public void SetWorkspaceRoot(string workspaceRoot)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
+        WorkspaceRoot = workspaceRoot;
+    }
+
+    /// <summary>
+    /// Sets the list of files that were applied by the patch.
+    /// </summary>
+    /// <param name="appliedFiles">The list of file paths that were created or modified.</param>
+    public void SetAppliedFiles(IReadOnlyList<string> appliedFiles)
+    {
+        ArgumentNullException.ThrowIfNull(appliedFiles);
+        AppliedFiles = appliedFiles;
     }
 
     /// <summary>

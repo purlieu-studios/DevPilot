@@ -35,9 +35,13 @@ public sealed class Pipeline
 
         var stopwatch = Stopwatch.StartNew();
         var context = new PipelineContext { UserRequest = userRequest };
+        WorkspaceManager? workspace = null;
 
         try
         {
+            // Create isolated workspace for this pipeline execution
+            workspace = WorkspaceManager.CreateWorkspace(context.PipelineId);
+            context.SetWorkspaceRoot(workspace.WorkspaceRoot);
             // Execute all stages sequentially
             var stages = new[]
             {
@@ -62,6 +66,31 @@ public sealed class Pipeline
                 }
 
                 context.AdvanceToStage(stage, agentResult.Output);
+
+                // Apply patch to workspace after Coding stage
+                if (stage == PipelineStage.Coding && workspace != null)
+                {
+                    try
+                    {
+                        var patchResult = workspace.ApplyPatch(agentResult.Output);
+                        if (!patchResult.Success)
+                        {
+                            var errorMsg = $"Failed to apply patch: {patchResult.ErrorMessage}";
+                            context.AdvanceToStage(PipelineStage.Failed, errorMsg);
+                            stopwatch.Stop();
+                            return PipelineResult.CreateFailure(context, stopwatch.Elapsed, errorMsg);
+                        }
+
+                        context.SetAppliedFiles(workspace.AppliedFiles);
+                    }
+                    catch (PatchApplicationException ex)
+                    {
+                        var errorMsg = $"Patch application failed: {ex.Message}";
+                        context.AdvanceToStage(PipelineStage.Failed, errorMsg);
+                        stopwatch.Stop();
+                        return PipelineResult.CreateFailure(context, stopwatch.Elapsed, errorMsg);
+                    }
+                }
 
                 // Check approval gates after Planning stage
                 if (stage == PipelineStage.Planning)
@@ -117,6 +146,11 @@ public sealed class Pipeline
             stopwatch.Stop();
             context.AdvanceToStage(PipelineStage.Failed, ex.Message);
             return PipelineResult.CreateFailure(context, stopwatch.Elapsed, $"Pipeline execution failed: {ex.Message}");
+        }
+        finally
+        {
+            // Clean up workspace in all exit paths
+            workspace?.Dispose();
         }
     }
 
