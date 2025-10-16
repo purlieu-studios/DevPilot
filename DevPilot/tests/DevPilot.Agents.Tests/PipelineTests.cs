@@ -62,6 +62,78 @@ public sealed class PipelineTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_ReturnsFailed_WhenReviewerRejects()
+    {
+        // Arrange
+        var reviewerJson = """
+            {
+              "verdict": "REJECT",
+              "issues": [
+                {
+                  "severity": "error",
+                  "file": "Calculator.cs",
+                  "line": 5,
+                  "message": "Poor code quality",
+                  "suggestion": "Refactor for better maintainability"
+                }
+              ],
+              "summary": "Code does not meet quality standards",
+              "metrics": {
+                "complexity": 8,
+                "maintainability": 3
+              }
+            }
+            """;
+
+        var agents = CreateMockAgents(allSucceed: true);
+        agents[PipelineStage.Reviewing] = new MockAgent("reviewer", true, reviewerJson);
+        var pipeline = new Pipeline(agents);
+
+        // Act
+        var result = await pipeline.ExecuteAsync("Create a calculator");
+
+        // Assert
+        result.Success.Should().BeFalse();
+        result.FinalStage.Should().Be(PipelineStage.Failed);
+        result.Context.Plan.Should().NotBeNullOrWhiteSpace();
+        result.Context.Patch.Should().NotBeNullOrWhiteSpace();
+        result.Context.Review.Should().NotBeNullOrWhiteSpace();
+        result.ErrorMessage.Should().Contain("Reviewer rejected code");
+        result.ErrorMessage.Should().Contain("REJECT");
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ContinuesToTesting_WhenReviewerApproves()
+    {
+        // Arrange
+        var reviewerJson = """
+            {
+              "verdict": "APPROVE",
+              "issues": [],
+              "summary": "Code meets all quality standards",
+              "metrics": {
+                "complexity": 2,
+                "maintainability": 9
+              }
+            }
+            """;
+
+        var agents = CreateMockAgents(allSucceed: true);
+        agents[PipelineStage.Reviewing] = new MockAgent("reviewer", true, reviewerJson);
+        var pipeline = new Pipeline(agents);
+
+        // Act
+        var result = await pipeline.ExecuteAsync("Create a calculator");
+
+        // Assert
+        result.Success.Should().BeTrue();
+        result.FinalStage.Should().Be(PipelineStage.Completed);
+        result.Context.Review.Should().NotBeNullOrWhiteSpace();
+        result.Context.TestReport.Should().NotBeNullOrWhiteSpace();
+        result.Context.Scores.Should().NotBeNullOrWhiteSpace();
+    }
+
+    [Fact]
     public async Task ExecuteAsync_ThrowsArgumentException_WhenUserRequestIsEmpty()
     {
         // Arrange
