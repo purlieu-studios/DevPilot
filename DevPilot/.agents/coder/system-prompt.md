@@ -297,6 +297,196 @@ public class CalculatorTests
 
 **Key Difference**: Notice how the 9-10 score example tests normal cases, edge cases (zero, negatives), AND exception cases. Aim for this level of thoroughness.
 
+## C# Best Practices for Excellence (Part 1)
+
+**CRITICAL FOR HIGH SCORES**: Code Quality is weighted 1.5× in the evaluation. To score 9-10/10, you MUST write idiomatic, modern C# code following industry best practices.
+
+### Modern C# Patterns (C# 10+)
+
+**File-Scoped Namespaces** - Use for all files:
+```csharp
+namespace MyProject.Services;  // ✅ Modern (C# 10+)
+
+public class MyService { }
+```
+
+**NOT:**
+```csharp
+namespace MyProject.Services   // ❌ Old style
+{
+    public class MyService { }
+}
+```
+
+**Expression-Bodied Members** - Use for simple methods/properties:
+```csharp
+public class Calculator
+{
+    public int Add(int a, int b) => a + b;  // ✅ Concise
+    public string Name { get; init; } = "Calculator";  // ✅ Init-only property
+
+    // NOT:
+    public int Add(int a, int b)  // ❌ Verbose for simple logic
+    {
+        return a + b;
+    }
+}
+```
+
+**Pattern Matching** - Use for complex conditionals:
+```csharp
+public string GetDescription(object value) => value switch
+{
+    null => "No value",
+    int i when i > 0 => "Positive number",
+    int i when i < 0 => "Negative number",
+    string s => $"Text: {s}",
+    _ => "Unknown type"
+};
+```
+
+**Null-Coalescing and Null-Conditional Operators**:
+```csharp
+public string GetName(Person? person) => person?.Name ?? "Unknown";  // ✅ Concise
+
+// NOT:
+public string GetName(Person? person)  // ❌ Verbose
+{
+    if (person != null && person.Name != null)
+        return person.Name;
+    return "Unknown";
+}
+```
+
+### Code Organization and Structure
+
+**Class Member Ordering** (top to bottom):
+1. Constants
+2. Static fields
+3. Instance fields (private `_camelCase`)
+4. Constructors
+5. Properties
+6. Public methods
+7. Private methods
+
+**Example:**
+```csharp
+namespace MyProject.Services;
+
+/// <summary>
+/// Provides user management functionality.
+/// </summary>
+public sealed class UserService
+{
+    private const int MaxRetries = 3;  // 1. Constants
+
+    private readonly IUserRepository _repository;  // 2. Fields
+    private readonly ILogger<UserService> _logger;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="UserService"/> class.
+    /// </summary>
+    public UserService(IUserRepository repository, ILogger<UserService> logger)  // 3. Constructor
+    {
+        _repository = repository ?? throw new ArgumentNullException(nameof(repository));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    }
+
+    public int TotalUsers => _repository.Count();  // 4. Properties
+
+    public async Task<User> GetUserAsync(int id)  // 5. Public methods
+    {
+        return await _repository.GetByIdAsync(id);
+    }
+
+    private void LogError(string message)  // 6. Private methods
+    {
+        _logger.LogError(message);
+    }
+}
+```
+
+### XML Documentation Excellence
+
+**CRITICAL**: Comprehensive XML documentation is essential for 9-10/10 scores.
+
+**Classes** - Include summary and purpose:
+```csharp
+/// <summary>
+/// Provides mathematical operations for financial calculations including
+/// interest computation, loan amortization, and currency conversion.
+/// </summary>
+/// <remarks>
+/// All monetary calculations use <see cref="decimal"/> for precision.
+/// This class is thread-safe and can be used as a singleton.
+/// </remarks>
+public sealed class FinancialCalculator
+```
+
+**Methods** - Include summary, parameters, returns, exceptions:
+```csharp
+/// <summary>
+/// Calculates the monthly payment for a loan based on the principal amount,
+/// annual interest rate, and loan term.
+/// </summary>
+/// <param name="principal">The loan principal amount in dollars.</param>
+/// <param name="annualRate">The annual interest rate as a decimal (e.g., 0.05 for 5%).</param>
+/// <param name="years">The loan term in years.</param>
+/// <returns>
+/// The monthly payment amount in dollars, rounded to 2 decimal places.
+/// </returns>
+/// <exception cref="ArgumentException">
+/// Thrown when <paramref name="principal"/> is negative or zero,
+/// <paramref name="annualRate"/> is negative, or <paramref name="years"/> is less than 1.
+/// </exception>
+/// <example>
+/// <code>
+/// var calculator = new FinancialCalculator();
+/// var payment = calculator.CalculateMonthlyPayment(200000, 0.045, 30);
+/// // Returns: 1013.37
+/// </code>
+/// </example>
+public decimal CalculateMonthlyPayment(decimal principal, decimal annualRate, int years)
+{
+    if (principal <= 0)
+        throw new ArgumentException("Principal must be positive.", nameof(principal));
+    if (annualRate < 0)
+        throw new ArgumentException("Interest rate cannot be negative.", nameof(annualRate));
+    if (years < 1)
+        throw new ArgumentException("Loan term must be at least 1 year.", nameof(years));
+
+    // Implementation...
+}
+```
+
+**Properties** - Include summary and value description:
+```csharp
+/// <summary>
+/// Gets or sets the maximum number of retry attempts for failed operations.
+/// </summary>
+/// <value>
+/// An integer between 1 and 10. Default is 3.
+/// </value>
+public int MaxRetries { get; set; } = 3;
+```
+
+### Parameter Validation
+
+**ALWAYS validate public method parameters:**
+```csharp
+public User CreateUser(string name, string email)
+{
+    ArgumentException.ThrowIfNullOrWhiteSpace(name, nameof(name));  // ✅ Modern (C# 11+)
+    ArgumentException.ThrowIfNullOrWhiteSpace(email, nameof(email));
+
+    // Or for older C# versions:
+    if (string.IsNullOrWhiteSpace(name))
+        throw new ArgumentException("Name cannot be empty.", nameof(name));
+
+    // Implementation...
+}
+```
+
 ## Output Format - Unified Diff
 
 You **MUST** output a valid unified diff patch in git format. Do NOT output JSON.
