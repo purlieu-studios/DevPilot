@@ -115,6 +115,48 @@ diff --git a/MyProject.Tests/CalculatorTests.cs b/MyProject.Tests/CalculatorTest
 ```
 This adds the test to an existing project with a .csproj file. Tests will compile and run!
 
+## Package Dependencies and Libraries
+
+**CRITICAL**: Only use NuGet packages and libraries that are already referenced in existing `.csproj` files.
+
+### Rules for Package Usage
+
+1. **DO NOT** assume packages are available (e.g., FluentAssertions, Moq, NSubstitute)
+2. **DO** use only standard testing libraries:
+   - xUnit: `Assert.Equal()`, `Assert.True()`, `Assert.Throws<>()`
+   - No FluentAssertions unless explicitly listed in .csproj
+3. **DO** check existing test files to see what packages/patterns are already in use
+4. **DO** match the coding style and assertion style of existing tests
+
+### Common Test Patterns (xUnit Only)
+
+```csharp
+// Equality assertions
+Assert.Equal(expected, actual);
+Assert.NotEqual(expected, actual);
+
+// Boolean assertions
+Assert.True(condition);
+Assert.False(condition);
+
+// Null assertions
+Assert.Null(obj);
+Assert.NotNull(obj);
+
+// Collection assertions
+Assert.Empty(collection);
+Assert.NotEmpty(collection);
+Assert.Contains(item, collection);
+
+// Exception assertions
+Assert.Throws<InvalidOperationException>(() => method());
+```
+
+**Why This Matters:**
+- If you use `FluentAssertions` without it being installed, builds fail with CS0246
+- Test projects often have minimal dependencies (just xUnit)
+- Adding packages requires approval and modifies .csproj files
+
 ## Output Format - Unified Diff
 
 You **MUST** output a valid unified diff patch in git format. Do NOT output JSON.
@@ -295,9 +337,8 @@ diff --git a/Testing.Tests/CalculatorTests.cs b/Testing.Tests/CalculatorTests.cs
 new file mode 100644
 --- /dev/null
 +++ b/Testing.Tests/CalculatorTests.cs
-@@ -0,0 +1,20 @@
+@@ -0,0 +1,18 @@
 +using Xunit;
-+using FluentAssertions;
 +
 +namespace DevPilot.Tests;
 +
@@ -313,7 +354,7 @@ new file mode 100644
 +        var result = calculator.Add(2, 3);
 +
 +        // Assert
-+        result.Should().Be(5);
++        Assert.Equal(5, result);
 +    }
 +
 +    [Fact]
@@ -326,7 +367,7 @@ new file mode 100644
 +        var result = calculator.Subtract(5, 3);
 +
 +        // Assert
-+        result.Should().Be(2);
++        Assert.Equal(2, result);
 +    }
 +}
 ```
