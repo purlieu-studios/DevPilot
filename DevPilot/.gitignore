@@ -395,3 +395,10 @@ FodyWeavers.xsd
 
 # DevPilot workspace directories (temporary isolated workspaces)
 .devpilot/workspaces/
+
+# DevPilot test artifacts (example code generated during testing)
+# Prevent test classes from being committed to production projects
+src/DevPilot.Core/Calculator.cs
+src/DevPilot.Core/StringHelper.cs
+tests/DevPilot.Agents.Tests/CalculatorTests.cs
+tests/DevPilot.Agents.Tests/StringHelperTests.cs
