@@ -75,13 +75,40 @@ internal sealed class Program
     }
 
     /// <summary>
+    /// Finds the .agents directory, checking tool installation directory first, then current directory.
+    /// </summary>
+    private static string FindAgentsDirectory()
+    {
+        // Option 1: Tool installation directory (for global tool usage)
+        var toolDirectory = AppContext.BaseDirectory;
+        var toolAgentsPath = Path.Combine(toolDirectory, ".agents");
+        if (Directory.Exists(toolAgentsPath))
+        {
+            return toolAgentsPath;
+        }
+
+        // Option 2: Current working directory (for running from source during development)
+        var currentDirPath = Path.Combine(Directory.GetCurrentDirectory(), ".agents");
+        if (Directory.Exists(currentDirPath))
+        {
+            return currentDirPath;
+        }
+
+        // If neither exists, throw helpful error
+        throw new DirectoryNotFoundException(
+            $".agents directory not found. Searched:\n" +
+            $"  - Tool directory: {toolAgentsPath}\n" +
+            $"  - Current directory: {currentDirPath}");
+    }
+
+    /// <summary>
     /// Builds the complete MASAI pipeline with all 5 agents.
     /// </summary>
     private static async Task<Pipeline> BuildPipelineAsync()
     {
-        var agentsDirectory = Path.Combine(
-            Directory.GetCurrentDirectory(),
-            ".agents");
+        // Load agents from tool installation directory (for global tool usage)
+        // Falls back to current directory if running from source
+        var agentsDirectory = FindAgentsDirectory();
 
         var loader = new AgentLoader(agentsDirectory);
 

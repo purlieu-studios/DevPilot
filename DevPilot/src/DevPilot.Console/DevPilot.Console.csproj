@@ -13,6 +13,23 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+
+    <!-- Global Tool Configuration -->
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>devpilot</ToolCommandName>
+    <PackageId>DevPilot</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>Purlieu Studios</Authors>
+    <Description>MASAI Pipeline - Automated code generation and review tool</Description>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Include .agents folder in tool package -->
+    <Content Include="..\..\..\.agents\**\*.*">
+      <PackagePath>contentFiles\any\any\.agents\%(RecursiveDir)%(Filename)%(Extension)</PackagePath>
+      <Pack>true</Pack>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
 
 </Project>
