@@ -176,7 +176,8 @@ index 0000000..abc1234
 **Agent**: `tester`
 
 **Input**:
-- Patch (unified diff from Coding stage)
+- Workspace path (isolated directory with applied patches)
+- List of applied files
 - Verify section from Plan (test commands, acceptance criteria)
 
 **Output** (JSON):
@@ -204,9 +205,10 @@ index 0000000..abc1234
 ```
 
 **Responsibilities**:
-- Apply patch to temporary workspace
+- Navigate to isolated workspace (patch already applied by Pipeline)
+- Build solution with `dotnet build`
 - Run `dotnet test` and other test commands
-- Parse test output
+- Parse test output (TRX format)
 - Calculate coverage metrics
 - Detect flaky tests
 - Report performance issues
@@ -412,6 +414,10 @@ public sealed class PipelineContext
     public string? TestReport { get; private set; }      // Testing JSON
     public string? Scores { get; private set; }          // Evaluating JSON
 
+    // Workspace tracking
+    public string? WorkspaceRoot { get; private set; }   // Isolated workspace path
+    public IReadOnlyList<string>? AppliedFiles { get; private set; }  // Files modified by patch
+
     // Current state
     public PipelineStage CurrentStage { get; }           // Current stage
     public bool ApprovalRequired { get; }                // Hard stop flag
@@ -453,30 +459,28 @@ public sealed class PipelineStageEntry
 
 ### Current Agent Definitions (`.agents/`)
 
-| Directory Name     | Status | Needs Action |
-|--------------------|--------|--------------|
-| `planner`          | ✅ Good | None |
-| `code-generator`   | 🔄 Rename | → `coder` |
-| `validator`        | 🔄 Rename | → `reviewer` |
-| `orchestrator`     | ❌ Delete | Not needed in linear pipeline |
+All agents are now implemented and correctly mapped to pipeline stages:
 
-### Missing Agent Definitions
+| Agent Directory | Pipeline Stage | Status | Description |
+|-----------------|----------------|--------|-------------|
+| `planner`       | Planning       | ✅ Complete | Creates execution plan with MCP tools |
+| `coder`         | Coding         | ✅ Complete | Generates unified diff patches |
+| `reviewer`      | Reviewing      | ✅ Complete | Semantic validation with verdicts |
+| `tester`        | Testing        | ✅ Complete | Receives workspace for test execution |
+| `evaluator`     | Evaluating     | ✅ Complete | Quality scoring with MCP tools |
 
-| Agent Name  | Stage      | Status | Description |
-|-------------|------------|--------|-------------|
-| `tester`    | Testing    | ❌ Missing | Executes tests, reports results |
-| `evaluator` | Evaluating | ❌ Missing | Scores quality, final verdict |
-
-### Final Agent Structure (Target)
+### Agent Structure (Current)
 
 ```
 .agents/
-├── planner/           ✅ Already exists
-├── coder/             🔄 Rename from code-generator
-├── reviewer/          🔄 Rename from validator
-├── tester/            ❌ Create new
-└── evaluator/         ❌ Create new
+├── planner/           ✅ MCP tools for structured JSON output
+├── coder/             ✅ Outputs unified diff patches
+├── reviewer/          ✅ Semantic validation (quality, intent, patterns)
+├── tester/            ✅ Workspace-based test execution (placeholder)
+└── evaluator/         ✅ MCP tools for structured scoring
 ```
+
+**Note**: All agents renamed and aligned with pipeline stages (PR #16, #17, #18).
 
 ---
 
@@ -509,8 +513,14 @@ public sealed class PipelineStageEntry
 | MCP Integration | Integrated MCP server into ClaudeCliClient | #21 |
 | MCP Production Fixes | Fixed .cmd wrapper and stream-json parsing | #22 |
 | Agent Loading Smoke Tests | Infrastructure verification without API calls | #23 |
+| MCP Evaluator Integration | Extended MCP tools for structured evaluation output | #24 |
+| Unified Diff Parser | Git-style diff parsing with regex state machine (~320 LOC) | main |
+| Workspace Manager | Isolated workspace creation, patch application, rollback (~400 LOC) | main |
+| Coder Prompt Fix | Updated to output unified diffs instead of JSON | main |
+| Tester Workspace Integration | Tester receives workspace path instead of raw patch | #25 |
+| Reviewer Semantic Validation | Semantic-only validation with verdict enforcement | #26 |
 
-**Total**: 175 tests passing (158 unit + 17 integration)
+**Total**: 199 tests passing (160 unit + 39 orchestrator)
 
 ### 🚧 In Progress
 
@@ -567,18 +577,51 @@ Successfully validated the complete pipeline infrastructure and fixed critical e
 - Weighted score calculation: `(plan×1.0 + code×1.5 + test×1.5 + doc×1.0 + maint×1.0) / 6.0`
 - Documented "Extend vs Duplicate" principle in CLAUDE.md
 
+**✅ PR #25 - Tester Workspace Integration:**
+
+Integrated Tester with workspace-based test execution instead of raw patch processing.
+
+**Changes:**
+- Updated `Pipeline.cs` to pass workspace path to Tester instead of raw patch
+- Updated Tester system prompt to navigate to workspace and run tests there
+- Tester now receives: workspace path + list of applied files
+
+**✅ PR #26 - Reviewer Semantic Validation & Verdict Enforcement:**
+
+Fixed Reviewer to perform semantic validation and enforce REJECT verdicts.
+
+**Changes:**
+- Rewrote Reviewer system prompt (~327 LOC) for semantic-only validation
+- Clear separation: Reviewer judges quality/intent, Tester verifies mechanics
+- Added `ParseReviewerVerdict()` method to `Pipeline.cs`
+- Pipeline now fails when Reviewer returns REJECT verdict
+- Added 2 unit tests for verdict enforcement (160 total tests passing)
+
+**Direct-to-Main Commits (Unified Diff & Workspace):**
+- `f4f50af`: Implemented unified diff parsing (~320 LOC)
+- `f4f50af`: Implemented workspace manager (~400 LOC)
+- `f4f50af`: Integrated patch application into Pipeline.cs
+- `5dc8c68`: Fixed Coder system prompt to output unified diffs (not JSON)
+
+**Infrastructure Now Complete:**
+- ✅ Unified diff parsing and validation
+- ✅ Workspace creation and management (isolated per pipeline execution)
+- ✅ Patch application with rollback capability
+- ✅ Workspace cleanup in all exit paths
+- ✅ Reviewer verdict enforcement
+- ✅ Tester workspace integration
+
 **Current Limitations (Known & Documented):**
-1. **Patch application pending**: Coder generates diffs but cannot apply to workspace yet
-2. **Test execution pending**: Tester agent cannot execute real `dotnet test` yet
-3. **Placeholder responses**: Coder/Reviewer/Tester return placeholder data (expected)
-4. **Real API calls required**: Integration tests require live Claude API access (not suitable for CI/CD)
+1. **Test execution pending**: Tester receives workspace path but still returns placeholder responses (doesn't actually run `dotnet test`)
+2. **Real API calls required**: Integration tests require live Claude API access (not suitable for CI/CD without mocking)
+3. **Reviewer feedback loop**: REVISE verdict exists but feedback loop to Coder not yet implemented
 
 ### 📋 Future Work
 
-1. **Add Mock Execution Tests**: Create integration tests with mocked Claude CLI responses for faster feedback
-2. **Implement Patch Application**: Create workspace manager to apply unified diff patches
-3. **Implement Test Runner**: Execute tests and parse results in tester agent
-4. **Add Rollback Capability**: Implement automatic rollback on pipeline failure
+1. **Implement Real Test Execution**: Make Tester actually run `dotnet test` and parse TRX results
+2. **Add Mock Execution Tests**: Create integration tests with mocked Claude CLI responses for faster feedback
+3. **Implement Reviewer Feedback Loop**: Support REVISE verdict with iterative improvements
+4. **Add Rollback UI**: User interface for triggering rollback on pipeline failure
 5. **Performance Optimization**: Reduce Claude CLI subprocess overhead
 6. **CI/CD Integration**: Design testing strategy for automated builds without API calls
 
