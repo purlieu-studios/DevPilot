@@ -326,6 +326,98 @@ public sealed class PipelineTests
         result.Context.ApprovalReason.Should().Contain("450");
     }
 
+    [Fact]
+    public async Task ExecuteAsync_RevisesCode_WhenReviewerReturnsRevise()
+    {
+        // Arrange
+        var reviseJson = """
+            {
+              "verdict": "REVISE",
+              "issues": [
+                {
+                  "severity": "warning",
+                  "file": "Calculator.cs",
+                  "line": 3,
+                  "message": "Missing XML documentation",
+                  "suggestion": "Add /// <summary> comment"
+                }
+              ],
+              "summary": "Minor improvements needed",
+              "metrics": {"complexity": 2, "maintainability": 8}
+            }
+            """;
+
+        var approveJson = """{"verdict": "APPROVE", "issues": [], "summary": "Improved", "metrics": {"complexity": 2, "maintainability": 9}}""";
+
+        var agents = CreateMockAgents(allSucceed: true);
+        var reviewerOutputs = new Queue<string>(new[] { reviseJson, approveJson });
+        agents[PipelineStage.Reviewing] = new MultiOutputMockAgent("reviewer", reviewerOutputs);
+
+        var pipeline = new Pipeline(agents);
+
+        // Act
+        var result = await pipeline.ExecuteAsync("Create a calculator");
+
+        // Assert
+        result.Success.Should().BeTrue("reviewer should approve after revision");
+        result.FinalStage.Should().Be(PipelineStage.Completed);
+        result.Context.RevisionIteration.Should().Be(1, "one revision loop should have occurred");
+        result.Context.StageHistory.Should().Contain(e => e.Stage == PipelineStage.Coding);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_FailsAfterMaxRevisions_WhenReviewerKeepsRequestingRevisions()
+    {
+        // Arrange
+        var reviseJson = """
+            {
+              "verdict": "REVISE",
+              "issues": [{"severity": "warning", "file": "Test.cs", "line": 1, "message": "Needs work", "suggestion": "Fix it"}],
+              "summary": "Still needs work",
+              "metrics": {"complexity": 5, "maintainability": 5}
+            }
+            """;
+
+        var agents = CreateMockAgents(allSucceed: true);
+        // Reviewer always returns REVISE (will hit max iterations)
+        agents[PipelineStage.Reviewing] = new MockAgent("reviewer", true, reviseJson);
+
+        var pipeline = new Pipeline(agents);
+
+        // Act
+        var result = await pipeline.ExecuteAsync("Create a calculator");
+
+        // Assert
+        result.Success.Should().BeFalse("should fail after max revisions");
+        result.FinalStage.Should().Be(PipelineStage.Failed);
+        result.ErrorMessage.Should().Contain("Maximum revision iterations");
+        result.ErrorMessage.Should().Contain("2");
+        result.Context.RevisionIteration.Should().Be(2, "should reach max revisions");
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_FailsIfReviewerRejectsAfterRevision()
+    {
+        // Arrange
+        var reviseJson = """{"verdict": "REVISE", "issues": [{"severity": "warning", "file": "Test.cs", "line": 1, "message": "Fix this", "suggestion": "Do better"}], "summary": "Needs work", "metrics": {"complexity": 3, "maintainability": 7}}""";
+        var rejectJson = """{"verdict": "REJECT", "issues": [{"severity": "error", "file": "Test.cs", "line": 1, "message": "Critical issue", "suggestion": "Major refactor needed"}], "summary": "Still not acceptable", "metrics": {"complexity": 8, "maintainability": 2}}""";
+
+        var agents = CreateMockAgents(allSucceed: true);
+        var reviewerOutputs = new Queue<string>(new[] { reviseJson, rejectJson });
+        agents[PipelineStage.Reviewing] = new MultiOutputMockAgent("reviewer", reviewerOutputs);
+
+        var pipeline = new Pipeline(agents);
+
+        // Act
+        var result = await pipeline.ExecuteAsync("Create a calculator");
+
+        // Assert
+        result.Success.Should().BeFalse();
+        result.FinalStage.Should().Be(PipelineStage.Failed);
+        result.ErrorMessage.Should().Contain("Reviewer rejected revised code");
+        result.Context.RevisionIteration.Should().Be(1);
+    }
+
     private static Dictionary<PipelineStage, IAgent> CreateMockAgents(bool allSucceed)
     {
         var safePlanJson = """
@@ -407,6 +499,39 @@ public sealed class PipelineTests
             var result = _succeeds
                 ? AgentResult.CreateSuccess(Definition.Name, _output)
                 : AgentResult.CreateFailure(Definition.Name, _output);
+
+            return Task.FromResult(result);
+        }
+    }
+
+    /// <summary>
+    /// Mock agent that returns different outputs on successive calls (for testing revision loops).
+    /// </summary>
+    private sealed class MultiOutputMockAgent : IAgent
+    {
+        private readonly Queue<string> _outputs;
+
+        public MultiOutputMockAgent(string name, Queue<string> outputs)
+        {
+            _outputs = outputs;
+            Definition = new AgentDefinition
+            {
+                Name = name,
+                Version = "1.0.0",
+                Description = "Multi-output mock agent for testing",
+                SystemPrompt = "Test prompt",
+                Model = "sonnet"
+            };
+        }
+
+        public AgentDefinition Definition { get; }
+
+        public Task<AgentResult> ExecuteAsync(string input, AgentContext context, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var output = _outputs.Count > 0 ? _outputs.Dequeue() : "{}";
+            var result = AgentResult.CreateSuccess(Definition.Name, output);
 
             return Task.FromResult(result);
         }

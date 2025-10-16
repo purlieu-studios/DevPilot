@@ -59,6 +59,11 @@ public sealed class PipelineContext
     public IReadOnlyList<string>? AppliedFiles { get; private set; }
 
     /// <summary>
+    /// Gets the current revision iteration count (0 = first attempt, 1+ = revisions after reviewer feedback).
+    /// </summary>
+    public int RevisionIteration { get; private set; }
+
+    /// <summary>
     /// Gets whether the pipeline requires human approval (hard stop).
     /// </summary>
     public bool ApprovalRequired { get; private set; }
@@ -156,6 +161,14 @@ public sealed class PipelineContext
     {
         ArgumentNullException.ThrowIfNull(appliedFiles);
         AppliedFiles = appliedFiles;
+    }
+
+    /// <summary>
+    /// Increments the revision iteration count when the reviewer requests code revision.
+    /// </summary>
+    public void IncrementRevisionIteration()
+    {
+        RevisionIteration++;
     }
 
     /// <summary>
