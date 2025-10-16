@@ -1,4 +1,5 @@
 using DevPilot.Core;
+using DevPilot.Orchestrator.Validation;
 using System.Diagnostics;
 using System.Text.Json;
 
@@ -86,6 +87,17 @@ public sealed class Pipeline
 
                         // Copy project files (.csproj and .sln) to workspace for compilation
                         workspace.CopyProjectFiles(Directory.GetCurrentDirectory());
+
+                        // Validate workspace before building to catch errors early
+                        var validator = new CodeValidator();
+                        var validationResult = validator.ValidateWorkspace(workspace.WorkspaceRoot);
+                        if (!validationResult.Success)
+                        {
+                            var errorMsg = $"Pre-build validation failed: {validationResult.Summary}\n\n{validationResult.Details}";
+                            context.AdvanceToStage(PipelineStage.Failed, errorMsg);
+                            stopwatch.Stop();
+                            return PipelineResult.CreateFailure(context, stopwatch.Elapsed, errorMsg);
+                        }
                     }
                     catch (PatchApplicationException ex)
                     {
@@ -154,6 +166,17 @@ public sealed class Pipeline
 
                                     // Copy project files (.csproj and .sln) to workspace for compilation
                                     workspace.CopyProjectFiles(Directory.GetCurrentDirectory());
+
+                                    // Validate revised code before building
+                                    var validator = new CodeValidator();
+                                    var validationResult = validator.ValidateWorkspace(workspace.WorkspaceRoot);
+                                    if (!validationResult.Success)
+                                    {
+                                        var errorMsg = $"Pre-build validation failed on revised code: {validationResult.Summary}\n\n{validationResult.Details}";
+                                        context.AdvanceToStage(PipelineStage.Failed, errorMsg);
+                                        stopwatch.Stop();
+                                        return PipelineResult.CreateFailure(context, stopwatch.Elapsed, errorMsg);
+                                    }
                                 }
                                 catch (PatchApplicationException ex)
                                 {
