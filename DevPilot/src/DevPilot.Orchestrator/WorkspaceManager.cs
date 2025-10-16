@@ -95,7 +95,26 @@ public sealed class WorkspaceManager : IDisposable
             .Concat(Directory.GetFiles(solutionRoot, "*.sln", SearchOption.TopDirectoryOnly))
             .ToList();
 
-        foreach (var sourceFile in projectFiles)
+        // Also find common configuration files in project directories
+        var configFiles = new List<string>();
+        foreach (var projectFile in projectFiles.Where(f => f.EndsWith(".csproj")))
+        {
+            var projectDir = Path.GetDirectoryName(projectFile);
+            if (projectDir != null)
+            {
+                // Common config file patterns
+                var patterns = new[] { "*.json", "*.config", "*.settings", ".editorconfig" };
+                foreach (var pattern in patterns)
+                {
+                    var files = Directory.GetFiles(projectDir, pattern, SearchOption.TopDirectoryOnly);
+                    configFiles.AddRange(files);
+                }
+            }
+        }
+
+        var allFiles = projectFiles.Concat(configFiles).Distinct().ToList();
+
+        foreach (var sourceFile in allFiles)
         {
             // Get relative path from solution root
             var relativePath = Path.GetRelativePath(solutionRoot, sourceFile);
