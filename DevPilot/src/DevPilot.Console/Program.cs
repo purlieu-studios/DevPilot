@@ -87,11 +87,23 @@ internal sealed class Program
 
         var agents = new Dictionary<PipelineStage, IAgent>();
 
-        // Load all agent definitions and create ClaudeCliAgent instances
+        // Load all agent definitions and create agent instances
         foreach (var (agentName, stage) in agentMappings)
         {
-            var definition = await loader.LoadAgentAsync(agentName);
-            var agent = new ClaudeCliAgent(definition);
+            IAgent agent;
+
+            // Use TestingAgent for Testing stage (real test execution)
+            if (stage == PipelineStage.Testing)
+            {
+                agent = new TestingAgent();
+            }
+            else
+            {
+                // Use ClaudeCliAgent for all other stages (LLM-based)
+                var definition = await loader.LoadAgentAsync(agentName);
+                agent = new ClaudeCliAgent(definition);
+            }
+
             agents[stage] = agent;
         }
 
