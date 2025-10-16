@@ -27,7 +27,11 @@ public static class TestRunner
         var buildResult = await RunDotnetCommandAsync(workspaceRoot, "build");
         if (!buildResult.Success)
         {
-            return TestRunResultExtensions.CreateFailure($"Build failed: {buildResult.ErrorOutput}");
+            // Combine both stdout and stderr for complete diagnostics
+            var errorDetails = string.IsNullOrWhiteSpace(buildResult.ErrorOutput)
+                ? buildResult.Output
+                : $"{buildResult.Output}\n{buildResult.ErrorOutput}";
+            return TestRunResultExtensions.CreateFailure($"Build failed:\n{errorDetails}");
         }
 
         // Step 2: Run tests with TRX logger
