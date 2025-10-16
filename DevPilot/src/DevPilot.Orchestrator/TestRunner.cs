@@ -35,7 +35,8 @@ public static class TestRunner
         }
 
         // Step 2: Run tests with TRX logger
-        var testResultsDir = Path.Combine(workspaceRoot, "TestResults");
+        // Use simple "TestResults" since we're already in the workspace directory
+        const string testResultsDir = "TestResults";
         var testResult = await RunDotnetCommandAsync(workspaceRoot, $"test --logger \"trx\" --results-directory \"{testResultsDir}\"");
 
         // Check if test command failed
@@ -49,7 +50,8 @@ public static class TestRunner
         }
 
         // Step 3: Find and parse TRX file
-        var trxFile = FindLatestTrxFile(testResultsDir);
+        var testResultsFullPath = Path.Combine(workspaceRoot, testResultsDir);
+        var trxFile = FindLatestTrxFile(testResultsFullPath);
         if (trxFile == null)
         {
             // Include test output to help diagnose why no TRX was generated
