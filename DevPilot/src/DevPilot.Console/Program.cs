@@ -48,6 +48,16 @@ internal sealed class Program
             // Display results
             DisplayResults(result);
 
+            // Prompt to apply changes if pipeline succeeded
+            if (result.Success && result.Context.AppliedFiles?.Count > 0)
+            {
+                var applied = await PromptAndApplyChanges(result);
+                if (!applied)
+                {
+                    AnsiConsole.MarkupLine("[yellow]Changes not applied. Workspace preserved for review.[/]");
+                }
+            }
+
             return result.Success ? 0 : 1;
         }
         catch (FileNotFoundException ex)
@@ -263,6 +273,93 @@ internal sealed class Program
             }
 
             AnsiConsole.Write(historyTable);
+        }
+    }
+
+    /// <summary>
+    /// Prompts the user to apply changes and copies files from workspace to project.
+    /// </summary>
+    private static async Task<bool> PromptAndApplyChanges(PipelineResult result)
+    {
+        if (result.Context.WorkspaceRoot == null || result.Context.AppliedFiles == null)
+        {
+            return false;
+        }
+
+        try
+        {
+            AnsiConsole.WriteLine();
+            AnsiConsole.Write(new Rule("[bold]Apply Changes[/]"));
+            AnsiConsole.WriteLine();
+
+            // Display file change summary
+            var changeTable = new Table()
+                .Border(TableBorder.Rounded)
+                .AddColumn(new TableColumn("File").Width(60))
+                .AddColumn(new TableColumn("Status").RightAligned());
+
+            foreach (var file in result.Context.AppliedFiles)
+            {
+                var fullPath = Path.Combine(result.Context.WorkspaceRoot, file);
+                var exists = File.Exists(file);
+                var status = exists ? "[yellow]Modified[/]" : "[green]Created[/]";
+                changeTable.AddRow(file, status);
+            }
+
+            AnsiConsole.Write(changeTable);
+            AnsiConsole.WriteLine();
+
+            // Prompt for confirmation
+            if (!AnsiConsole.Confirm("Apply these changes to your project?", defaultValue: true))
+            {
+                return false;
+            }
+
+            // Copy files from workspace to project directory
+            await AnsiConsole.Status()
+                .Spinner(Spinner.Known.Dots)
+                .StartAsync("Applying changes...", async ctx =>
+                {
+                    foreach (var file in result.Context.AppliedFiles)
+                    {
+                        var sourcePath = Path.Combine(result.Context.WorkspaceRoot, file);
+                        var destPath = file;
+
+                        // Ensure destination directory exists
+                        var destDir = Path.GetDirectoryName(destPath);
+                        if (!string.IsNullOrEmpty(destDir) && !Directory.Exists(destDir))
+                        {
+                            Directory.CreateDirectory(destDir);
+                        }
+
+                        // Copy file
+                        File.Copy(sourcePath, destPath, overwrite: true);
+                        ctx.Status($"Copied {file}");
+                    }
+
+                    await Task.CompletedTask;
+                });
+
+            AnsiConsole.MarkupLine("[green]✓ Changes applied successfully[/]");
+            AnsiConsole.WriteLine();
+
+            return true;
+        }
+        finally
+        {
+            // Clean up workspace after user decision (apply or decline)
+            if (Directory.Exists(result.Context.WorkspaceRoot))
+            {
+                try
+                {
+                    Directory.Delete(result.Context.WorkspaceRoot, recursive: true);
+                }
+                catch
+                {
+                    // Ignore cleanup failures
+                    AnsiConsole.MarkupLine($"[dim]Note: Failed to clean up workspace at {result.Context.WorkspaceRoot}[/]");
+                }
+            }
         }
     }
 
