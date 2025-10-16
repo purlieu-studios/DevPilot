@@ -9,6 +9,7 @@ namespace DevPilot.Orchestrator;
 /// </summary>
 public sealed class Pipeline
 {
+    private const int MaxRevisionIterations = 2;
     private readonly IReadOnlyDictionary<PipelineStage, IAgent> _agents;
 
     /// <summary>
@@ -112,6 +113,81 @@ public sealed class Pipeline
                         context.AdvanceToStage(PipelineStage.Failed, errorMsg);
                         stopwatch.Stop();
                         return PipelineResult.CreateFailure(context, stopwatch.Elapsed, errorMsg);
+                    }
+                    else if (verdict == "REVISE")
+                    {
+                        // Revision loop: continue until APPROVE, REJECT, or max iterations
+                        while (verdict == "REVISE" && context.RevisionIteration < MaxRevisionIterations)
+                        {
+                            context.IncrementRevisionIteration();
+                            var reviewerFeedback = ExtractReviewerFeedback(agentResult.Output);
+                            var coderInput = BuildCoderRevisionInput(context, reviewerFeedback);
+                            var coderResult = await RunStageAsync(PipelineStage.Coding, context, cancellationToken, coderInput);
+
+                            if (!coderResult.Success)
+                            {
+                                context.AdvanceToStage(PipelineStage.Failed, coderResult.ErrorMessage ?? "Unknown error");
+                                stopwatch.Stop();
+                                return PipelineResult.CreateFailure(context, stopwatch.Elapsed, coderResult.ErrorMessage ?? "Unknown error");
+                            }
+
+                            context.AdvanceToStage(PipelineStage.Coding, coderResult.Output);
+
+                            // Rollback and re-apply revised patch
+                            if (workspace != null)
+                            {
+                                try
+                                {
+                                    workspace.Rollback();
+                                    var patchResult = workspace.ApplyPatch(coderResult.Output);
+                                    if (!patchResult.Success)
+                                    {
+                                        var errorMsg = $"Failed to apply revised patch: {patchResult.ErrorMessage}";
+                                        context.AdvanceToStage(PipelineStage.Failed, errorMsg);
+                                        stopwatch.Stop();
+                                        return PipelineResult.CreateFailure(context, stopwatch.Elapsed, errorMsg);
+                                    }
+                                    context.SetAppliedFiles(workspace.AppliedFiles);
+                                }
+                                catch (PatchApplicationException ex)
+                                {
+                                    var errorMsg = $"Revised patch application failed: {ex.Message}";
+                                    context.AdvanceToStage(PipelineStage.Failed, errorMsg);
+                                    stopwatch.Stop();
+                                    return PipelineResult.CreateFailure(context, stopwatch.Elapsed, errorMsg);
+                                }
+                            }
+
+                            // Re-run Reviewer
+                            var reviewerResult = await RunStageAsync(PipelineStage.Reviewing, context, cancellationToken);
+                            if (!reviewerResult.Success)
+                            {
+                                context.AdvanceToStage(PipelineStage.Failed, reviewerResult.ErrorMessage ?? "Unknown error");
+                                stopwatch.Stop();
+                                return PipelineResult.CreateFailure(context, stopwatch.Elapsed, reviewerResult.ErrorMessage ?? "Unknown error");
+                            }
+
+                            context.AdvanceToStage(PipelineStage.Reviewing, reviewerResult.Output);
+                            verdict = ParseReviewerVerdict(reviewerResult.Output);
+                            agentResult = reviewerResult; // Update for next iteration
+
+                            if (verdict == "REJECT")
+                            {
+                                var errorMsg = $"Reviewer rejected revised code (verdict: {verdict})";
+                                context.AdvanceToStage(PipelineStage.Failed, errorMsg);
+                                stopwatch.Stop();
+                                return PipelineResult.CreateFailure(context, stopwatch.Elapsed, errorMsg);
+                            }
+                        }
+
+                        // If still REVISE after loop, max iterations exceeded
+                        if (verdict == "REVISE")
+                        {
+                            var errorMsg = $"Maximum revision iterations ({MaxRevisionIterations}) exceeded. Code still needs improvement.";
+                            context.AdvanceToStage(PipelineStage.Failed, errorMsg);
+                            stopwatch.Stop();
+                            return PipelineResult.CreateFailure(context, stopwatch.Elapsed, errorMsg);
+                        }
                     }
                 }
 
@@ -335,5 +411,93 @@ public sealed class Pipeline
             // If verdict property is missing, treat as unknown (will not fail pipeline)
             return "UNKNOWN";
         }
+    }
+
+    /// <summary>
+    /// Executes a single pipeline stage using custom input (for revision loops).
+    /// </summary>
+    /// <param name="stage">The stage to execute.</param>
+    /// <param name="context">The pipeline context.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <param name="customInput">Custom input to pass to the agent.</param>
+    /// <returns>The agent execution result.</returns>
+    private async Task<AgentResult> RunStageAsync(PipelineStage stage, PipelineContext context, CancellationToken cancellationToken, string customInput)
+    {
+        if (!_agents.TryGetValue(stage, out var agent))
+        {
+            return AgentResult.CreateFailure($"Agent for stage {stage}", $"No agent configured for stage: {stage}");
+        }
+
+        var agentContext = new AgentContext();
+        agentContext.SetValue("PipelineId", context.PipelineId);
+        agentContext.SetValue("CurrentStage", stage);
+        agentContext.SetValue("RevisionIteration", context.RevisionIteration);
+
+        return await agent.ExecuteAsync(customInput, agentContext, cancellationToken);
+    }
+
+    /// <summary>
+    /// Extracts reviewer feedback from the review JSON output.
+    /// </summary>
+    /// <param name="reviewerOutput">The JSON output from the reviewer.</param>
+    /// <returns>Formatted feedback string with issues and suggestions.</returns>
+    private static string ExtractReviewerFeedback(string reviewerOutput)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(reviewerOutput);
+            var root = doc.RootElement;
+
+            var summary = root.GetProperty("summary").GetString() ?? "No summary provided";
+            var issues = root.GetProperty("issues");
+
+            var feedback = $"Reviewer Feedback:\n\nSummary: {summary}\n\nIssues to address:\n";
+
+            foreach (var issue in issues.EnumerateArray())
+            {
+                var severity = issue.GetProperty("severity").GetString();
+                var file = issue.GetProperty("file").GetString();
+                var line = issue.GetProperty("line").GetInt32();
+                var message = issue.GetProperty("message").GetString();
+                var suggestion = issue.GetProperty("suggestion").GetString();
+
+                feedback += $"\n- [{severity}] {file}:{line}\n";
+                feedback += $"  Problem: {message}\n";
+                feedback += $"  Suggestion: {suggestion}\n";
+            }
+
+            return feedback;
+        }
+        catch (JsonException)
+        {
+            return "Could not parse reviewer feedback. Please review the code carefully.";
+        }
+        catch (KeyNotFoundException)
+        {
+            return "Reviewer feedback incomplete. Please improve code quality.";
+        }
+    }
+
+    /// <summary>
+    /// Builds the input for the Coder agent when revising code based on reviewer feedback.
+    /// </summary>
+    /// <param name="context">The pipeline context.</param>
+    /// <param name="reviewerFeedback">The formatted feedback from the reviewer.</param>
+    /// <returns>The input string for the Coder with revision instructions.</returns>
+    private static string BuildCoderRevisionInput(PipelineContext context, string reviewerFeedback)
+    {
+        return $"""
+            You are revising code based on reviewer feedback. This is revision iteration {context.RevisionIteration + 1}.
+
+            Original Plan:
+            {context.Plan}
+
+            Previous Code (requires improvement):
+            {context.Patch}
+
+            {reviewerFeedback}
+
+            Please generate an improved unified diff patch that addresses all the reviewer's concerns while maintaining the original intent of the plan.
+            """;
     }
 }
