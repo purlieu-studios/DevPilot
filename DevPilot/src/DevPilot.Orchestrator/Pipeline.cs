@@ -102,6 +102,19 @@ public sealed class Pipeline
                     }
                 }
 
+                // Check reviewer verdict after Reviewing stage
+                if (stage == PipelineStage.Reviewing)
+                {
+                    var verdict = ParseReviewerVerdict(agentResult.Output);
+                    if (verdict == "REJECT")
+                    {
+                        var errorMsg = $"Reviewer rejected code (verdict: {verdict})";
+                        context.AdvanceToStage(PipelineStage.Failed, errorMsg);
+                        stopwatch.Stop();
+                        return PipelineResult.CreateFailure(context, stopwatch.Elapsed, errorMsg);
+                    }
+                }
+
                 // Check evaluator verdict after Evaluating stage
                 if (stage == PipelineStage.Evaluating)
                 {
@@ -296,6 +309,31 @@ public sealed class Pipeline
         {
             // If required properties are missing, treat as unknown/failed evaluation
             return (0.0, "UNKNOWN");
+        }
+    }
+
+    /// <summary>
+    /// Parses the reviewer's JSON output to extract the verdict.
+    /// </summary>
+    /// <param name="reviewerOutput">The JSON output from the reviewer agent.</param>
+    /// <returns>The verdict string (APPROVE, REJECT, REVISE). Returns "UNKNOWN" if parsing fails.</returns>
+    private static string ParseReviewerVerdict(string reviewerOutput)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(reviewerOutput);
+            var verdict = doc.RootElement.GetProperty("verdict").GetString() ?? "UNKNOWN";
+            return verdict;
+        }
+        catch (JsonException)
+        {
+            // If JSON parsing fails, treat as unknown (will not fail pipeline)
+            return "UNKNOWN";
+        }
+        catch (KeyNotFoundException)
+        {
+            // If verdict property is missing, treat as unknown (will not fail pipeline)
+            return "UNKNOWN";
         }
     }
 }
