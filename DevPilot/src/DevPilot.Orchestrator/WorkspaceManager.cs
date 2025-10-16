@@ -68,6 +68,7 @@ public sealed class WorkspaceManager : IDisposable
 
     /// <summary>
     /// Copies project infrastructure files (.csproj, .sln) from source to workspace.
+    /// Automatically finds the solution root to ensure all referenced projects are copied.
     /// </summary>
     /// <param name="sourceRoot">The source directory containing project files.</param>
     /// <exception cref="ArgumentException">Thrown when sourceRoot is null or whitespace.</exception>
@@ -81,15 +82,23 @@ public sealed class WorkspaceManager : IDisposable
             throw new DirectoryNotFoundException($"Source directory does not exist: {sourceRoot}");
         }
 
-        // Find all .csproj and .sln files
-        var projectFiles = Directory.GetFiles(sourceRoot, "*.csproj", SearchOption.AllDirectories)
-            .Concat(Directory.GetFiles(sourceRoot, "*.sln", SearchOption.TopDirectoryOnly))
+        // Find solution root (directory containing .sln file)
+        var solutionRoot = FindSolutionRoot(sourceRoot);
+        if (solutionRoot == null)
+        {
+            // No solution file found, use sourceRoot as-is
+            solutionRoot = sourceRoot;
+        }
+
+        // Find all .csproj and .sln files from solution root
+        var projectFiles = Directory.GetFiles(solutionRoot, "*.csproj", SearchOption.AllDirectories)
+            .Concat(Directory.GetFiles(solutionRoot, "*.sln", SearchOption.TopDirectoryOnly))
             .ToList();
 
         foreach (var sourceFile in projectFiles)
         {
-            // Get relative path from source root
-            var relativePath = Path.GetRelativePath(sourceRoot, sourceFile);
+            // Get relative path from solution root
+            var relativePath = Path.GetRelativePath(solutionRoot, sourceFile);
             var destFile = Path.Combine(_workspaceRoot, relativePath);
 
             // Ensure destination directory exists
@@ -102,6 +111,31 @@ public sealed class WorkspaceManager : IDisposable
             // Copy the file
             File.Copy(sourceFile, destFile, overwrite: true);
         }
+    }
+
+    /// <summary>
+    /// Finds the solution root by walking up the directory tree looking for .sln files.
+    /// </summary>
+    /// <param name="startDirectory">The directory to start searching from.</param>
+    /// <returns>The solution root directory, or null if no solution file is found.</returns>
+    private static string? FindSolutionRoot(string startDirectory)
+    {
+        var currentDir = new DirectoryInfo(startDirectory);
+
+        while (currentDir != null)
+        {
+            // Check if this directory contains a .sln file
+            var slnFiles = currentDir.GetFiles("*.sln");
+            if (slnFiles.Length > 0)
+            {
+                return currentDir.FullName;
+            }
+
+            // Move up to parent directory
+            currentDir = currentDir.Parent;
+        }
+
+        return null;
     }
 
     /// <summary>
