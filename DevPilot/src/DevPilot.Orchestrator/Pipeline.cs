@@ -37,6 +37,7 @@ public sealed class Pipeline
         var stopwatch = Stopwatch.StartNew();
         var context = new PipelineContext { UserRequest = userRequest };
         WorkspaceManager? workspace = null;
+        var succeeded = false;
 
         try
         {
@@ -222,6 +223,7 @@ public sealed class Pipeline
             context.CompletedAt = DateTimeOffset.UtcNow;
             stopwatch.Stop();
 
+            succeeded = true;
             return PipelineResult.CreateSuccess(context, stopwatch.Elapsed);
         }
         catch (OperationCanceledException)
@@ -238,8 +240,11 @@ public sealed class Pipeline
         }
         finally
         {
-            // Clean up workspace in all exit paths
-            workspace?.Dispose();
+            // Clean up workspace only on failure (preserve workspace on success for user to apply changes)
+            if (!succeeded)
+            {
+                workspace?.Dispose();
+            }
         }
     }
 

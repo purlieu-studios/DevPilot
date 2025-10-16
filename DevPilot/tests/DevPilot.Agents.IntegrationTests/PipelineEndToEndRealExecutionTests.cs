@@ -195,8 +195,14 @@ public sealed class PipelineEndToEndRealExecutionTests
         result.Context.AppliedFiles.Should().NotBeNull();
         result.Context.AppliedFiles.Should().Contain("Calculator.cs", "patch should be applied to workspace");
 
-        // Assert - Workspace Cleanup (directory should be deleted after pipeline completes)
-        Directory.Exists(result.Context.WorkspaceRoot).Should().BeFalse("workspace should be cleaned up after completion");
+        // Assert - Workspace Preservation (workspace should be preserved on success for user to apply changes)
+        Directory.Exists(result.Context.WorkspaceRoot).Should().BeTrue("workspace should be preserved after successful completion");
+
+        // Cleanup workspace after test
+        if (Directory.Exists(result.Context.WorkspaceRoot))
+        {
+            Directory.Delete(result.Context.WorkspaceRoot, recursive: true);
+        }
     }
 
     /// <summary>
