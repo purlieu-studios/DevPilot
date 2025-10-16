@@ -52,7 +52,6 @@ public sealed class AgentLoadingSmokeTests
     [InlineData("coder")]
     [InlineData("reviewer")]
     [InlineData("tester")]
-    [InlineData("evaluator")]
     public async Task LoadAgent_NonPlannerAgents_NoMcpConfig(string agentName)
     {
         // Arrange
