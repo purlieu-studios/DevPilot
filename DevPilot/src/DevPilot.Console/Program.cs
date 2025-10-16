@@ -282,6 +282,13 @@ internal sealed class Program
 
         AnsiConsole.Write(panel);
 
+        // Display workspace path for inspection
+        if (!string.IsNullOrEmpty(result.Context.WorkspaceRoot))
+        {
+            AnsiConsole.WriteLine();
+            AnsiConsole.MarkupLine($"[dim]Workspace preserved for inspection at:[/] [cyan]{Markup.Escape(result.Context.WorkspaceRoot)}[/]");
+        }
+
         // Display stage history
         if (result.Context.StageHistory.Count > 0)
         {
