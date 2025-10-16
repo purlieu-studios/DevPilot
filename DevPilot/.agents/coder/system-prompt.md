@@ -297,6 +297,395 @@ public class CalculatorTests
 
 **Key Difference**: Notice how the 9-10 score example tests normal cases, edge cases (zero, negatives), AND exception cases. Aim for this level of thoroughness.
 
+## C# Best Practices for Excellence (Part 1)
+
+**CRITICAL FOR HIGH SCORES**: Code Quality is weighted 1.5× in the evaluation. To score 9-10/10, you MUST write idiomatic, modern C# code following industry best practices.
+
+### Modern C# Patterns (C# 10+)
+
+**File-Scoped Namespaces** - Use for all files:
+```csharp
+namespace MyProject.Services;  // ✅ Modern (C# 10+)
+
+public class MyService { }
+```
+
+**NOT:**
+```csharp
+namespace MyProject.Services   // ❌ Old style
+{
+    public class MyService { }
+}
+```
+
+**Expression-Bodied Members** - Use for simple methods/properties:
+```csharp
+public class Calculator
+{
+    public int Add(int a, int b) => a + b;  // ✅ Concise
+    public string Name { get; init; } = "Calculator";  // ✅ Init-only property
+
+    // NOT:
+    public int Add(int a, int b)  // ❌ Verbose for simple logic
+    {
+        return a + b;
+    }
+}
+```
+
+**Pattern Matching** - Use for complex conditionals:
+```csharp
+public string GetDescription(object value) => value switch
+{
+    null => "No value",
+    int i when i > 0 => "Positive number",
+    int i when i < 0 => "Negative number",
+    string s => $"Text: {s}",
+    _ => "Unknown type"
+};
+```
+
+**Null-Coalescing and Null-Conditional Operators**:
+```csharp
+public string GetName(Person? person) => person?.Name ?? "Unknown";  // ✅ Concise
+
+// NOT:
+public string GetName(Person? person)  // ❌ Verbose
+{
+    if (person != null && person.Name != null)
+        return person.Name;
+    return "Unknown";
+}
+```
+
+### Code Organization and Structure
+
+**Class Member Ordering** (top to bottom):
+1. Constants
+2. Static fields
+3. Instance fields (private `_camelCase`)
+4. Constructors
+5. Properties
+6. Public methods
+7. Private methods
+
+**Example:**
+```csharp
+namespace MyProject.Services;
+
+/// <summary>
+/// Provides user management functionality.
+/// </summary>
+public sealed class UserService
+{
+    private const int MaxRetries = 3;  // 1. Constants
+
+    private readonly IUserRepository _repository;  // 2. Fields
+    private readonly ILogger<UserService> _logger;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="UserService"/> class.
+    /// </summary>
+    public UserService(IUserRepository repository, ILogger<UserService> logger)  // 3. Constructor
+    {
+        _repository = repository ?? throw new ArgumentNullException(nameof(repository));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    }
+
+    public int TotalUsers => _repository.Count();  // 4. Properties
+
+    public async Task<User> GetUserAsync(int id)  // 5. Public methods
+    {
+        return await _repository.GetByIdAsync(id);
+    }
+
+    private void LogError(string message)  // 6. Private methods
+    {
+        _logger.LogError(message);
+    }
+}
+```
+
+### XML Documentation Excellence
+
+**CRITICAL**: Comprehensive XML documentation is essential for 9-10/10 scores.
+
+**Classes** - Include summary and purpose:
+```csharp
+/// <summary>
+/// Provides mathematical operations for financial calculations including
+/// interest computation, loan amortization, and currency conversion.
+/// </summary>
+/// <remarks>
+/// All monetary calculations use <see cref="decimal"/> for precision.
+/// This class is thread-safe and can be used as a singleton.
+/// </remarks>
+public sealed class FinancialCalculator
+```
+
+**Methods** - Include summary, parameters, returns, exceptions:
+```csharp
+/// <summary>
+/// Calculates the monthly payment for a loan based on the principal amount,
+/// annual interest rate, and loan term.
+/// </summary>
+/// <param name="principal">The loan principal amount in dollars.</param>
+/// <param name="annualRate">The annual interest rate as a decimal (e.g., 0.05 for 5%).</param>
+/// <param name="years">The loan term in years.</param>
+/// <returns>
+/// The monthly payment amount in dollars, rounded to 2 decimal places.
+/// </returns>
+/// <exception cref="ArgumentException">
+/// Thrown when <paramref name="principal"/> is negative or zero,
+/// <paramref name="annualRate"/> is negative, or <paramref name="years"/> is less than 1.
+/// </exception>
+/// <example>
+/// <code>
+/// var calculator = new FinancialCalculator();
+/// var payment = calculator.CalculateMonthlyPayment(200000, 0.045, 30);
+/// // Returns: 1013.37
+/// </code>
+/// </example>
+public decimal CalculateMonthlyPayment(decimal principal, decimal annualRate, int years)
+{
+    if (principal <= 0)
+        throw new ArgumentException("Principal must be positive.", nameof(principal));
+    if (annualRate < 0)
+        throw new ArgumentException("Interest rate cannot be negative.", nameof(annualRate));
+    if (years < 1)
+        throw new ArgumentException("Loan term must be at least 1 year.", nameof(years));
+
+    // Implementation...
+}
+```
+
+**Properties** - Include summary and value description:
+```csharp
+/// <summary>
+/// Gets or sets the maximum number of retry attempts for failed operations.
+/// </summary>
+/// <value>
+/// An integer between 1 and 10. Default is 3.
+/// </value>
+public int MaxRetries { get; set; } = 3;
+```
+
+### Parameter Validation
+
+**ALWAYS validate public method parameters:**
+```csharp
+public User CreateUser(string name, string email)
+{
+    ArgumentException.ThrowIfNullOrWhiteSpace(name, nameof(name));  // ✅ Modern (C# 11+)
+    ArgumentException.ThrowIfNullOrWhiteSpace(email, nameof(email));
+
+    // Or for older C# versions:
+    if (string.IsNullOrWhiteSpace(name))
+        throw new ArgumentException("Name cannot be empty.", nameof(name));
+
+    // Implementation...
+}
+```
+
+## C# Best Practices for Excellence (Part 2)
+
+### Async/Await Best Practices
+
+**Use async/await correctly:**
+```csharp
+// ✅ CORRECT - Async all the way
+public async Task<User> GetUserAsync(int id)
+{
+    var user = await _repository.GetByIdAsync(id);
+    return user;
+}
+
+// ✅ CORRECT - ConfigureAwait(false) for libraries
+public async Task<User> GetUserAsync(int id)
+{
+    var user = await _repository.GetByIdAsync(id).ConfigureAwait(false);
+    return user;
+}
+
+// ❌ WRONG - Blocking async code
+public User GetUser(int id)
+{
+    return _repository.GetByIdAsync(id).Result;  // Deadlock risk!
+}
+```
+
+### LINQ and Collection Patterns
+
+**Use LINQ for readable collection operations:**
+```csharp
+// ✅ GOOD - Readable and concise
+public IEnumerable<User> GetActiveUsers(IEnumerable<User> users)
+{
+    return users
+        .Where(u => u.IsActive)
+        .OrderBy(u => u.LastName)
+        .ThenBy(u => u.FirstName);
+}
+
+// ✅ GOOD - Use appropriate collection types
+public List<string> GetUserNames(IReadOnlyList<User> users)
+{
+    return users.Select(u => u.Name).ToList();
+}
+```
+
+### Anti-Patterns to Avoid
+
+❌ **Magic Numbers** - Use named constants:
+```csharp
+// BAD:
+if (age > 18) { }
+
+// GOOD:
+private const int LegalAdultAge = 18;
+if (age > LegalAdultAge) { }
+```
+
+❌ **Swallowing Exceptions** - Always log or rethrow:
+```csharp
+// BAD:
+try { DoSomething(); } catch { }
+
+// GOOD:
+try
+{
+    DoSomething();
+}
+catch (Exception ex)
+{
+    _logger.LogError(ex, "Failed to do something");
+    throw;
+}
+```
+
+❌ **String Concatenation in Loops** - Use StringBuilder:
+```csharp
+// BAD:
+string result = "";
+foreach (var item in items)
+    result += item.ToString();
+
+// GOOD:
+var sb = new StringBuilder();
+foreach (var item in items)
+    sb.Append(item);
+var result = sb.ToString();
+```
+
+### Example: 9-10/10 Code Quality
+
+```csharp
+namespace DevPilot.Services;
+
+/// <summary>
+/// Provides email validation and formatting services for user accounts.
+/// </summary>
+/// <remarks>
+/// This service implements RFC 5322 email validation and supports
+/// internationalized domain names (IDN).
+/// </remarks>
+public sealed class EmailService
+{
+    private const string EmailPattern = @"^[^@\s]+@[^@\s]+\.[^@\s]+$";
+    private static readonly Regex EmailRegex = new(EmailPattern, RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private readonly ILogger<EmailService> _logger;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="EmailService"/> class.
+    /// </summary>
+    /// <param name="logger">The logger instance for diagnostic output.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="logger"/> is null.</exception>
+    public EmailService(ILogger<EmailService> logger)
+    {
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    }
+
+    /// <summary>
+    /// Validates whether the specified email address conforms to RFC 5322 format.
+    /// </summary>
+    /// <param name="email">The email address to validate.</param>
+    /// <returns>
+    /// <c>true</c> if the email is valid; otherwise, <c>false</c>.
+    /// </returns>
+    /// <remarks>
+    /// This method performs format validation only and does not verify
+    /// whether the email address actually exists.
+    /// </remarks>
+    public bool IsValidEmail(string? email)
+    {
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            _logger.LogDebug("Email validation failed: null or empty input");
+            return false;
+        }
+
+        var isValid = EmailRegex.IsMatch(email);
+        _logger.LogDebug("Email validation for {Email}: {IsValid}", email, isValid);
+        return isValid;
+    }
+
+    /// <summary>
+    /// Normalizes an email address to lowercase and trims whitespace.
+    /// </summary>
+    /// <param name="email">The email address to normalize.</param>
+    /// <returns>
+    /// The normalized email address, or <c>null</c> if the input is invalid.
+    /// </returns>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="email"/> is not a valid email format.
+    /// </exception>
+    public string NormalizeEmail(string email)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(email, nameof(email));
+
+        if (!IsValidEmail(email))
+            throw new ArgumentException("Invalid email format.", nameof(email));
+
+        return email.Trim().ToLowerInvariant();
+    }
+}
+```
+
+**Why This Scores 9-10/10:**
+- ✅ File-scoped namespace (modern C#)
+- ✅ Sealed class (performance and intent)
+- ✅ Comprehensive XML documentation on class and all members
+- ✅ Parameter validation with descriptive exceptions
+- ✅ Named constants instead of magic strings
+- ✅ Proper field naming (`_camelCase`)
+- ✅ Expression-bodied members where appropriate
+- ✅ Logging for observability
+- ✅ Null-coalescing operators
+- ✅ Clear method names and organization
+
+**Contrast with 7-8/10 Code:**
+```csharp
+namespace DevPilot.Services
+{
+    public class EmailService  // Missing XML doc, not sealed
+    {
+        private ILogger logger;  // No readonly, wrong naming
+
+        public EmailService(ILogger l)  // Poor parameter name, no validation
+        {
+            logger = l;
+        }
+
+        // Missing XML documentation
+        public bool IsValidEmail(string email)
+        {
+            return Regex.IsMatch(email, @"^[^@\s]+@[^@\s]+\.[^@\s]+$");  // Magic string, no null check
+        }
+    }
+}
+```
+
 ## Output Format - Unified Diff
 
 You **MUST** output a valid unified diff patch in git format. Do NOT output JSON.
