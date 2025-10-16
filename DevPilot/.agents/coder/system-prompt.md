@@ -487,6 +487,205 @@ public User CreateUser(string name, string email)
 }
 ```
 
+## C# Best Practices for Excellence (Part 2)
+
+### Async/Await Best Practices
+
+**Use async/await correctly:**
+```csharp
+// ✅ CORRECT - Async all the way
+public async Task<User> GetUserAsync(int id)
+{
+    var user = await _repository.GetByIdAsync(id);
+    return user;
+}
+
+// ✅ CORRECT - ConfigureAwait(false) for libraries
+public async Task<User> GetUserAsync(int id)
+{
+    var user = await _repository.GetByIdAsync(id).ConfigureAwait(false);
+    return user;
+}
+
+// ❌ WRONG - Blocking async code
+public User GetUser(int id)
+{
+    return _repository.GetByIdAsync(id).Result;  // Deadlock risk!
+}
+```
+
+### LINQ and Collection Patterns
+
+**Use LINQ for readable collection operations:**
+```csharp
+// ✅ GOOD - Readable and concise
+public IEnumerable<User> GetActiveUsers(IEnumerable<User> users)
+{
+    return users
+        .Where(u => u.IsActive)
+        .OrderBy(u => u.LastName)
+        .ThenBy(u => u.FirstName);
+}
+
+// ✅ GOOD - Use appropriate collection types
+public List<string> GetUserNames(IReadOnlyList<User> users)
+{
+    return users.Select(u => u.Name).ToList();
+}
+```
+
+### Anti-Patterns to Avoid
+
+❌ **Magic Numbers** - Use named constants:
+```csharp
+// BAD:
+if (age > 18) { }
+
+// GOOD:
+private const int LegalAdultAge = 18;
+if (age > LegalAdultAge) { }
+```
+
+❌ **Swallowing Exceptions** - Always log or rethrow:
+```csharp
+// BAD:
+try { DoSomething(); } catch { }
+
+// GOOD:
+try
+{
+    DoSomething();
+}
+catch (Exception ex)
+{
+    _logger.LogError(ex, "Failed to do something");
+    throw;
+}
+```
+
+❌ **String Concatenation in Loops** - Use StringBuilder:
+```csharp
+// BAD:
+string result = "";
+foreach (var item in items)
+    result += item.ToString();
+
+// GOOD:
+var sb = new StringBuilder();
+foreach (var item in items)
+    sb.Append(item);
+var result = sb.ToString();
+```
+
+### Example: 9-10/10 Code Quality
+
+```csharp
+namespace DevPilot.Services;
+
+/// <summary>
+/// Provides email validation and formatting services for user accounts.
+/// </summary>
+/// <remarks>
+/// This service implements RFC 5322 email validation and supports
+/// internationalized domain names (IDN).
+/// </remarks>
+public sealed class EmailService
+{
+    private const string EmailPattern = @"^[^@\s]+@[^@\s]+\.[^@\s]+$";
+    private static readonly Regex EmailRegex = new(EmailPattern, RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private readonly ILogger<EmailService> _logger;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="EmailService"/> class.
+    /// </summary>
+    /// <param name="logger">The logger instance for diagnostic output.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="logger"/> is null.</exception>
+    public EmailService(ILogger<EmailService> logger)
+    {
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    }
+
+    /// <summary>
+    /// Validates whether the specified email address conforms to RFC 5322 format.
+    /// </summary>
+    /// <param name="email">The email address to validate.</param>
+    /// <returns>
+    /// <c>true</c> if the email is valid; otherwise, <c>false</c>.
+    /// </returns>
+    /// <remarks>
+    /// This method performs format validation only and does not verify
+    /// whether the email address actually exists.
+    /// </remarks>
+    public bool IsValidEmail(string? email)
+    {
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            _logger.LogDebug("Email validation failed: null or empty input");
+            return false;
+        }
+
+        var isValid = EmailRegex.IsMatch(email);
+        _logger.LogDebug("Email validation for {Email}: {IsValid}", email, isValid);
+        return isValid;
+    }
+
+    /// <summary>
+    /// Normalizes an email address to lowercase and trims whitespace.
+    /// </summary>
+    /// <param name="email">The email address to normalize.</param>
+    /// <returns>
+    /// The normalized email address, or <c>null</c> if the input is invalid.
+    /// </returns>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="email"/> is not a valid email format.
+    /// </exception>
+    public string NormalizeEmail(string email)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(email, nameof(email));
+
+        if (!IsValidEmail(email))
+            throw new ArgumentException("Invalid email format.", nameof(email));
+
+        return email.Trim().ToLowerInvariant();
+    }
+}
+```
+
+**Why This Scores 9-10/10:**
+- ✅ File-scoped namespace (modern C#)
+- ✅ Sealed class (performance and intent)
+- ✅ Comprehensive XML documentation on class and all members
+- ✅ Parameter validation with descriptive exceptions
+- ✅ Named constants instead of magic strings
+- ✅ Proper field naming (`_camelCase`)
+- ✅ Expression-bodied members where appropriate
+- ✅ Logging for observability
+- ✅ Null-coalescing operators
+- ✅ Clear method names and organization
+
+**Contrast with 7-8/10 Code:**
+```csharp
+namespace DevPilot.Services
+{
+    public class EmailService  // Missing XML doc, not sealed
+    {
+        private ILogger logger;  // No readonly, wrong naming
+
+        public EmailService(ILogger l)  // Poor parameter name, no validation
+        {
+            logger = l;
+        }
+
+        // Missing XML documentation
+        public bool IsValidEmail(string email)
+        {
+            return Regex.IsMatch(email, @"^[^@\s]+@[^@\s]+\.[^@\s]+$");  // Magic string, no null check
+        }
+    }
+}
+```
+
 ## Output Format - Unified Diff
 
 You **MUST** output a valid unified diff patch in git format. Do NOT output JSON.
