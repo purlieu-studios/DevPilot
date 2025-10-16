@@ -1,4 +1,5 @@
 using DevPilot.Core;
+using DevPilot.Orchestrator.Validation;
 using System.Diagnostics;
 using System.Text.Json;
 
@@ -66,6 +67,19 @@ public sealed class Pipeline
                     return PipelineResult.CreateFailure(context, stopwatch.Elapsed, agentResult.ErrorMessage ?? "Unknown error");
                 }
 
+                // Validate Planner output contains required JSON structure
+                if (stage == PipelineStage.Planning)
+                {
+                    var validationError = ValidatePlannerOutput(agentResult.Output);
+                    if (validationError != null)
+                    {
+                        var detailedError = $"{validationError}\n\nPlanner returned:\n{TruncateOutput(agentResult.Output, 500)}";
+                        context.AdvanceToStage(PipelineStage.Failed, detailedError);
+                        stopwatch.Stop();
+                        return PipelineResult.CreateFailure(context, stopwatch.Elapsed, detailedError);
+                    }
+                }
+
                 context.AdvanceToStage(stage, agentResult.Output);
 
                 // Apply patch to workspace after Coding stage
@@ -86,6 +100,17 @@ public sealed class Pipeline
 
                         // Copy project files (.csproj and .sln) to workspace for compilation
                         workspace.CopyProjectFiles(Directory.GetCurrentDirectory());
+
+                        // Validate workspace before building to catch errors early
+                        var validator = new CodeValidator();
+                        var validationResult = validator.ValidateWorkspace(workspace.WorkspaceRoot);
+                        if (!validationResult.Success)
+                        {
+                            var errorMsg = $"Pre-build validation failed: {validationResult.Summary}\n\n{validationResult.Details}";
+                            context.AdvanceToStage(PipelineStage.Failed, errorMsg);
+                            stopwatch.Stop();
+                            return PipelineResult.CreateFailure(context, stopwatch.Elapsed, errorMsg);
+                        }
                     }
                     catch (PatchApplicationException ex)
                     {
@@ -154,6 +179,17 @@ public sealed class Pipeline
 
                                     // Copy project files (.csproj and .sln) to workspace for compilation
                                     workspace.CopyProjectFiles(Directory.GetCurrentDirectory());
+
+                                    // Validate revised code before building
+                                    var validator = new CodeValidator();
+                                    var validationResult = validator.ValidateWorkspace(workspace.WorkspaceRoot);
+                                    if (!validationResult.Success)
+                                    {
+                                        var errorMsg = $"Pre-build validation failed on revised code: {validationResult.Summary}\n\n{validationResult.Details}";
+                                        context.AdvanceToStage(PipelineStage.Failed, errorMsg);
+                                        stopwatch.Stop();
+                                        return PipelineResult.CreateFailure(context, stopwatch.Elapsed, errorMsg);
+                                    }
                                 }
                                 catch (PatchApplicationException ex)
                                 {
@@ -506,5 +542,69 @@ public sealed class Pipeline
 
             Please generate an improved unified diff patch that addresses all the reviewer's concerns while maintaining the original intent of the plan.
             """;
+    }
+
+    /// <summary>
+    /// Validates that the Planner output contains the required JSON structure.
+    /// </summary>
+    /// <param name="plannerOutput">The output from the Planner agent.</param>
+    /// <returns>Error message if validation fails; null if valid.</returns>
+    private static string? ValidatePlannerOutput(string plannerOutput)
+    {
+        if (string.IsNullOrWhiteSpace(plannerOutput))
+        {
+            return "ERROR: Planner returned empty output. Did you use the MCP planning tools (mcp__pipeline-tools__*)?";
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(plannerOutput);
+            var root = doc.RootElement;
+
+            // Check for required top-level properties
+            var requiredProps = new[] { "plan", "file_list", "risk", "verify", "rollback" };
+            var missingProps = new List<string>();
+
+            foreach (var prop in requiredProps)
+            {
+                if (!root.TryGetProperty(prop, out _))
+                {
+                    missingProps.Add(prop);
+                }
+            }
+
+            if (missingProps.Count > 0)
+            {
+                var missing = string.Join(", ", missingProps);
+                return $"ERROR: Planner output is missing required properties: {missing}\n\n" +
+                       "Did you use the MCP planning tools? Your first tool call MUST be mcp__pipeline-tools__plan_init,\n" +
+                       "and your last tool call MUST be mcp__pipeline-tools__finalize_plan.\n\n" +
+                       "DO NOT use Write, Bash, Edit, or any other tools - ONLY use mcp__pipeline-tools__* tools.";
+            }
+
+            return null; // Valid
+        }
+        catch (JsonException)
+        {
+            return "ERROR: Planner did not return valid JSON.\n\n" +
+                   "Did you use the MCP planning tools? You must use mcp__pipeline-tools__finalize_plan to get the final JSON.\n\n" +
+                   "DO NOT write JSON directly or use conversational responses.";
+        }
+    }
+
+    /// <summary>
+    /// Truncates output to a maximum length for error messages.
+    /// </summary>
+    /// <param name="output">The output to truncate.</param>
+    /// <param name="maxLength">Maximum length.</param>
+    /// <returns>Truncated output with ellipsis if needed.</returns>
+    private static string TruncateOutput(string output, int maxLength)
+    {
+        if (string.IsNullOrEmpty(output) || output.Length <= maxLength)
+        {
+            return output;
+        }
+
+        return output.Substring(0, maxLength) + "\n... (truncated)";
     }
 }

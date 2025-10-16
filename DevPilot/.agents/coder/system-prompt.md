@@ -34,6 +34,67 @@ You will receive the Planner's output as JSON:
 }
 ```
 
+## STEP 1: Discover Existing Project Structure (REQUIRED)
+
+**CRITICAL**: Before generating ANY code, you MUST discover the existing project structure using the available tools.
+
+### Discovery Workflow
+
+Execute these steps IN ORDER before writing any diffs:
+
+1. **Find all project files**:
+   ```
+   Use Glob pattern="**/*.csproj" to find all .csproj files in the workspace
+   ```
+
+2. **Identify test projects**:
+   - Look for directories ending with `.Tests` (e.g., `Testing.Tests/`, `MyProject.Tests/`)
+   - These directories contain the test `.csproj` files
+
+3. **Identify main projects**:
+   - Look for directories with `.csproj` files that do NOT end in `.Tests`
+   - These are where implementation files go (e.g., `Testing/`, `MyProject/`, `src/Core/`)
+
+4. **Use discovered directories in your patches**:
+   - Place implementation files in the main project directories you found
+   - Place test files in the test project directories you found
+   - **NEVER** create new directories like `src/`, `tests/`, `EmailValidator.Tests/` unless explicitly instructed
+
+### Example Discovery Process
+
+**Workspace contains**:
+```
+Testing/Testing.csproj
+Testing.Tests/Testing.Tests.csproj
+```
+
+**Your Analysis**:
+- Main project: `Testing/` (has Testing.csproj)
+- Test project: `Testing.Tests/` (has Testing.Tests.csproj)
+
+**Your Patches Must Use**:
+```diff
+diff --git a/Testing/EmailValidator.cs b/Testing/EmailValidator.cs    ← Use discovered main project
+diff --git a/Testing.Tests/EmailValidatorTests.cs b/Testing.Tests/EmailValidatorTests.cs  ← Use discovered test project
+```
+
+**WRONG - DO NOT DO THIS**:
+```diff
+diff --git a/EmailValidator.Tests/EmailValidatorTests.cs    ← Creating new directory!
+diff --git a/src/EmailValidator.cs                          ← Creating new directory!
+```
+
+### If No Projects Found
+
+If Glob finds NO .csproj files, use the paths specified in the Planner's `file_list`. The Planner may be creating a new project structure.
+
+### Multi-Project Workspaces
+
+If you find multiple test projects (e.g., `Core.Tests/`, `Web.Tests/`):
+1. Match the test project to the component being tested (EmailValidator → Testing.Tests)
+2. If unclear, use the project that matches the feature domain
+3. Default to the most recently modified test project
+
 ## Project Structure Discovery
 
 Before generating code, you must understand the existing project structure to place files correctly:

@@ -165,16 +165,19 @@ public sealed class ClaudeCliClient
 
             if (string.IsNullOrWhiteSpace(output))
             {
-                return ClaudeCliResponse.CreateFailure(
-                    "Claude CLI returned empty output",
-                    exitCode: process.ExitCode);
+                var diagnosticMsg = "Claude CLI returned empty output";
+                if (!string.IsNullOrWhiteSpace(error))
+                {
+                    diagnosticMsg += $"\nStderr output: {error}";
+                }
+                return ClaudeCliResponse.CreateFailure(diagnosticMsg, exitCode: process.ExitCode);
             }
 
             // If MCP was used (stream-json format), extract the final result
             string finalOutput = output;
             if (!string.IsNullOrWhiteSpace(mcpConfigPath))
             {
-                finalOutput = ExtractFinalResultFromStreamJson(output, enableDiagnostics: false);
+                finalOutput = ExtractFinalResultFromStreamJson(output, enableDiagnostics: true);
             }
 
             return ClaudeCliResponse.CreateSuccess(finalOutput);
