@@ -157,6 +157,146 @@ Assert.Throws<InvalidOperationException>(() => method());
 - Test projects often have minimal dependencies (just xUnit)
 - Adding packages requires approval and modifies .csproj files
 
+## Test Coverage Excellence
+
+**CRITICAL FOR HIGH SCORES**: Test coverage is weighted 1.5× in the evaluation. To score 9-10/10, you MUST achieve ≥90% line coverage with comprehensive edge case testing.
+
+### Coverage Requirements
+
+1. **≥90% line coverage** - Every method, property, and branch should be tested
+2. **Edge cases** - Test boundaries, nulls, empty inputs, exceptions
+3. **Meaningful assertions** - Verify correct behavior, not just execution
+4. **Well-organized tests** - Clear arrange-act-assert pattern
+
+### Required Test Cases Per Method
+
+For EVERY public method, generate tests for:
+
+✅ **Happy path** - Normal, expected inputs
+✅ **Boundary cases** - Min/max values, empty collections, zero
+✅ **Null handling** - Null parameters, null returns (if applicable)
+✅ **Exception cases** - Invalid inputs that should throw
+✅ **Special values** - Empty strings, negative numbers, large numbers
+
+### Edge Case Patterns
+
+```csharp
+// For methods accepting nullable parameters
+[Fact]
+public void Method_WithNullParameter_HandlesCorrectly()
+{
+    // Test null handling
+}
+
+// For methods with numeric parameters
+[Fact]
+public void Method_WithZero_HandlesCorrectly() { }
+
+[Fact]
+public void Method_WithNegativeValue_HandlesCorrectly() { }
+
+[Fact]
+public void Method_WithMaxValue_HandlesCorrectly() { }
+
+// For methods with string parameters
+[Fact]
+public void Method_WithEmptyString_HandlesCorrectly() { }
+
+[Fact]
+public void Method_WithWhitespace_HandlesCorrectly() { }
+
+// For methods with collections
+[Fact]
+public void Method_WithEmptyCollection_HandlesCorrectly() { }
+
+[Fact]
+public void Method_WithNullCollection_HandlesCorrectly() { }
+
+[Fact]
+public void Method_WithSingleItem_HandlesCorrectly() { }
+
+// For methods that can throw exceptions
+[Fact]
+public void Method_WithInvalidInput_ThrowsException()
+{
+    // Arrange
+    var sut = new ClassUnderTest();
+
+    // Act & Assert
+    Assert.Throws<ArgumentException>(() => sut.Method(invalidInput));
+}
+```
+
+### Test Suite Quality Checklist
+
+Before finalizing your tests, verify:
+
+- [ ] Every public method has at least 3-5 test cases
+- [ ] All edge cases from the list above are covered
+- [ ] Exception paths are tested with `Assert.Throws<>()`
+- [ ] Tests follow naming pattern: `Method_Scenario_ExpectedResult`
+- [ ] Each test has clear Arrange-Act-Assert sections
+- [ ] Assertions verify specific values, not just "doesn't crash"
+- [ ] Test class has proper namespace and follows naming convention
+
+### Example: Comprehensive Test Suite (9-10/10 Score)
+
+```csharp
+using Xunit;
+
+namespace MyProject.Tests;
+
+public class CalculatorTests
+{
+    [Fact]
+    public void Add_TwoPositiveNumbers_ReturnsSum()
+    {
+        // Arrange
+        var calc = new Calculator();
+
+        // Act
+        var result = calc.Add(5, 3);
+
+        // Assert
+        Assert.Equal(8, result);
+    }
+
+    [Fact]
+    public void Add_NegativeNumbers_ReturnsCorrectSum()
+    {
+        var calc = new Calculator();
+        Assert.Equal(-8, calc.Add(-5, -3));
+    }
+
+    [Fact]
+    public void Add_ZeroValues_ReturnsCorrectSum()
+    {
+        var calc = new Calculator();
+        Assert.Equal(5, calc.Add(5, 0));
+        Assert.Equal(0, calc.Add(0, 0));
+    }
+
+    [Fact]
+    public void Divide_ValidNumbers_ReturnsQuotient()
+    {
+        var calc = new Calculator();
+        Assert.Equal(2.5, calc.Divide(5, 2));
+    }
+
+    [Fact]
+    public void Divide_ByZero_ThrowsDivideByZeroException()
+    {
+        // Arrange
+        var calc = new Calculator();
+
+        // Act & Assert
+        Assert.Throws<DivideByZeroException>(() => calc.Divide(5, 0));
+    }
+}
+```
+
+**Key Difference**: Notice how the 9-10 score example tests normal cases, edge cases (zero, negatives), AND exception cases. Aim for this level of thoroughness.
+
 ## Output Format - Unified Diff
 
 You **MUST** output a valid unified diff patch in git format. Do NOT output JSON.
