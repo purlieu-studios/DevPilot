@@ -476,7 +476,7 @@ All agents are now implemented and correctly mapped to pipeline stages:
 ├── planner/           ✅ MCP tools for structured JSON output
 ├── coder/             ✅ Outputs unified diff patches
 ├── reviewer/          ✅ Semantic validation (quality, intent, patterns)
-├── tester/            ✅ Workspace-based test execution (placeholder)
+├── tester/            ✅ Real test execution with TestRunner utility
 └── evaluator/         ✅ MCP tools for structured scoring
 ```
 
@@ -519,8 +519,12 @@ All agents are now implemented and correctly mapped to pipeline stages:
 | Coder Prompt Fix | Updated to output unified diffs instead of JSON | main |
 | Tester Workspace Integration | Tester receives workspace path instead of raw patch | #25 |
 | Reviewer Semantic Validation | Semantic-only validation with verdict enforcement | #26 |
+| PIPELINE.md Updates | Documentation updates for PRs #24-26 | #27 |
+| E2E Workspace Tests | Comprehensive workspace infrastructure validation tests | #28 |
+| Reviewer Feedback Loop | REVISE verdict with iterative code improvements (max 2 iterations) | #29 |
+| Real Test Execution | TestRunner utility with TRX parsing and native test execution | #30 |
 
-**Total**: 199 tests passing (160 unit + 39 orchestrator)
+**Total**: 170 unit tests passing + 19 integration tests (189 total)
 
 ### 🚧 In Progress
 
@@ -531,11 +535,12 @@ None currently.
 
 ## Next Steps
 
-### ✅ Recently Completed (PR #21-23)
+### ✅ Recently Completed (PR #27-30)
 
-- **PR #21**: MCP Integration - Wire MCP server into ClaudeCliClient for structured output
-- **PR #22**: MCP Production Fixes - Resolve .cmd wrapper issues and fix stream-json parsing
-- **PR #23**: Agent Loading Tests - Smoke tests verifying all 5 agents load correctly
+- **PR #27**: PIPELINE.md Documentation Updates - Updated docs for PRs #24-26
+- **PR #28**: E2E Workspace Tests - Comprehensive workspace infrastructure validation without API calls
+- **PR #29**: Reviewer Feedback Loop - REVISE verdict with iterative code improvements (max 2 iterations)
+- **PR #30**: Real Test Execution - TestRunner utility with TRX parsing and native test execution
 
 ### 🎯 Current Focus
 
@@ -612,15 +617,15 @@ Fixed Reviewer to perform semantic validation and enforce REJECT verdicts.
 - ✅ Tester workspace integration
 
 **Current Limitations (Known & Documented):**
-1. **Test execution pending**: Tester receives workspace path but still returns placeholder responses (doesn't actually run `dotnet test`)
+1. ✅ ~~Test execution pending~~ → **RESOLVED in PR #30**: Tester now runs real tests with TestRunner utility
 2. **Real API calls required**: Integration tests require live Claude API access (not suitable for CI/CD without mocking)
-3. **Reviewer feedback loop**: REVISE verdict exists but feedback loop to Coder not yet implemented
+3. ✅ ~~Reviewer feedback loop~~ → **RESOLVED in PR #29**: REVISE verdict implemented with 2-iteration feedback loop
 
 ### 📋 Future Work
 
-1. **Implement Real Test Execution**: Make Tester actually run `dotnet test` and parse TRX results
-2. **Add Mock Execution Tests**: Create integration tests with mocked Claude CLI responses for faster feedback
-3. **Implement Reviewer Feedback Loop**: Support REVISE verdict with iterative improvements
+1. ✅ ~~Implement Real Test Execution~~ → **COMPLETED in PR #30**
+2. **Add Mock Execution Tests**: Create integration tests with mocked Claude CLI responses for faster feedback (next priority)
+3. ✅ ~~Implement Reviewer Feedback Loop~~ → **COMPLETED in PR #29**
 4. **Add Rollback UI**: User interface for triggering rollback on pipeline failure
 5. **Performance Optimization**: Reduce Claude CLI subprocess overhead
 6. **CI/CD Integration**: Design testing strategy for automated builds without API calls
