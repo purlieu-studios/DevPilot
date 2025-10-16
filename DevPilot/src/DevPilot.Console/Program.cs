@@ -269,9 +269,10 @@ internal sealed class Program
         AnsiConsole.MarkupLine("[red bold]✗ Pipeline failed[/]");
         AnsiConsole.WriteLine();
 
+        var errorMessage = Markup.Escape(result.ErrorMessage ?? "Unknown error");
         var panel = new Panel(new Markup($"""
             [bold]Stage:[/] {result.FinalStage}
-            [bold]Error:[/] {result.ErrorMessage ?? "Unknown error"}
+            [bold]Error:[/] {errorMessage}
             """))
         {
             Header = new PanelHeader("Failure Details", Justify.Left),

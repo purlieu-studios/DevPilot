@@ -84,6 +84,9 @@ public sealed class Pipeline
                         }
 
                         context.SetAppliedFiles(workspace.AppliedFiles);
+
+                        // Copy project files (.csproj and .sln) to workspace for compilation
+                        workspace.CopyProjectFiles(Directory.GetCurrentDirectory());
                     }
                     catch (PatchApplicationException ex)
                     {
@@ -149,6 +152,9 @@ public sealed class Pipeline
                                         return PipelineResult.CreateFailure(context, stopwatch.Elapsed, errorMsg);
                                     }
                                     context.SetAppliedFiles(workspace.AppliedFiles);
+
+                                    // Copy project files (.csproj and .sln) to workspace for compilation
+                                    workspace.CopyProjectFiles(Directory.GetCurrentDirectory());
                                 }
                                 catch (PatchApplicationException ex)
                                 {

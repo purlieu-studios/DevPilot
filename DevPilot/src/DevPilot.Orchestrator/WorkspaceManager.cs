@@ -67,6 +67,44 @@ public sealed class WorkspaceManager : IDisposable
     }
 
     /// <summary>
+    /// Copies project infrastructure files (.csproj, .sln) from source to workspace.
+    /// </summary>
+    /// <param name="sourceRoot">The source directory containing project files.</param>
+    /// <exception cref="ArgumentException">Thrown when sourceRoot is null or whitespace.</exception>
+    /// <exception cref="DirectoryNotFoundException">Thrown when source directory does not exist.</exception>
+    public void CopyProjectFiles(string sourceRoot)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourceRoot);
+
+        if (!Directory.Exists(sourceRoot))
+        {
+            throw new DirectoryNotFoundException($"Source directory does not exist: {sourceRoot}");
+        }
+
+        // Find all .csproj and .sln files
+        var projectFiles = Directory.GetFiles(sourceRoot, "*.csproj", SearchOption.AllDirectories)
+            .Concat(Directory.GetFiles(sourceRoot, "*.sln", SearchOption.TopDirectoryOnly))
+            .ToList();
+
+        foreach (var sourceFile in projectFiles)
+        {
+            // Get relative path from source root
+            var relativePath = Path.GetRelativePath(sourceRoot, sourceFile);
+            var destFile = Path.Combine(_workspaceRoot, relativePath);
+
+            // Ensure destination directory exists
+            var destDir = Path.GetDirectoryName(destFile);
+            if (destDir != null && !Directory.Exists(destDir))
+            {
+                Directory.CreateDirectory(destDir);
+            }
+
+            // Copy the file
+            File.Copy(sourceFile, destFile, overwrite: true);
+        }
+    }
+
+    /// <summary>
     /// Applies a unified diff patch to the workspace.
     /// </summary>
     /// <param name="patch">The unified diff patch content.</param>

@@ -25,11 +25,18 @@
 
   <ItemGroup>
     <!-- Include .agents folder in tool package -->
-    <Content Include="..\..\..\.agents\**\*.*">
-      <PackagePath>contentFiles\any\any\.agents\%(RecursiveDir)%(Filename)%(Extension)</PackagePath>
+    <None Include="..\..\.agents\**\*.*">
       <Pack>true</Pack>
+      <PackagePath>tools\net8.0\any\.agents\%(RecursiveDir)%(Filename)%(Extension)</PackagePath>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
+    </None>
+
+    <!-- Include experiments folder in tool package (for MCP configs) -->
+    <None Include="..\..\experiments\**\*.*">
+      <Pack>true</Pack>
+      <PackagePath>tools\net8.0\any\experiments\%(RecursiveDir)%(Filename)%(Extension)</PackagePath>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
 </Project>
