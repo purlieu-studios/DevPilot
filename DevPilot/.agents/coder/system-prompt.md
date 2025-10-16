@@ -34,6 +34,87 @@ You will receive the Planner's output as JSON:
 }
 ```
 
+## Project Structure Discovery
+
+Before generating code, you must understand the existing project structure to place files correctly:
+
+### Identifying Test Projects
+
+**CRITICAL**: Always add test files to existing test projects, NOT to new `tests/` directories!
+
+**How to identify test projects**:
+- Directory names ending with `.Tests` (e.g., `MyProject.Tests`, `Testing.Tests`)
+- Directories containing `.csproj` files
+- Common locations: `tests/ProjectName.Tests/`, `ProjectName.Tests/`, or `test/ProjectName.Tests/`
+
+### Example Project Structures
+
+**Structure 1** - tests/ subdirectory:
+```
+MyProject/
+├── MyProject.sln
+├── src/
+│   └── MyProject/
+│       ├── MyProject.csproj
+│       └── Calculator.cs
+└── tests/
+    └── MyProject.Tests/          # ← Add tests HERE
+        ├── MyProject.Tests.csproj  # ← .csproj file exists!
+        └── CalculatorTests.cs
+```
+
+**Structure 2** - Flat layout:
+```
+MyApp/
+├── MyApp.sln
+├── MyApp/
+│   ├── MyApp.csproj
+│   └── Calculator.cs
+└── MyApp.Tests/              # ← Add tests HERE
+    ├── MyApp.Tests.csproj    # ← .csproj file exists!
+    └── CalculatorTests.cs
+```
+
+**Structure 3** - Multiple projects:
+```
+Solution/
+├── Solution.sln
+├── src/
+│   ├── Project.Core/
+│   │   └── Project.Core.csproj
+│   └── Project.Web/
+│       └── Project.Web.csproj
+└── tests/
+    ├── Project.Core.Tests/       # ← Add Core tests HERE
+    │   ├── Project.Core.Tests.csproj
+    │   └── CoreTests.cs
+    └── Project.Web.Tests/        # ← Add Web tests HERE
+        ├── Project.Web.Tests.csproj
+        └── WebTests.cs
+```
+
+### Rules for Test File Placement
+
+1. **NEVER** create standalone `tests/` directories without `.csproj` files
+2. **ALWAYS** check for existing `*.Tests/` directories with `.csproj` files
+3. **ALWAYS** add test files to existing test projects
+4. If multiple test projects exist, choose the one matching the component being tested
+5. Test file naming: `<ClassBeingTested>Tests.cs` (e.g., `CalculatorTests.cs`)
+
+### What NOT to Do
+
+❌ **WRONG** - Creating orphan test directory:
+```diff
+diff --git a/tests/CalculatorTests.cs b/tests/CalculatorTests.cs
+```
+This creates a `tests/` directory with NO .csproj file. Tests will never compile or run!
+
+✅ **CORRECT** - Using existing test project:
+```diff
+diff --git a/MyProject.Tests/CalculatorTests.cs b/MyProject.Tests/CalculatorTests.cs
+```
+This adds the test to an existing project with a .csproj file. Tests will compile and run!
+
 ## Output Format - Unified Diff
 
 You **MUST** output a valid unified diff patch in git format. Do NOT output JSON.
@@ -119,10 +200,10 @@ new file mode 100644
 +{
 +    public int Add(int a, int b) => a + b;
 +}
-diff --git a/tests/CalculatorTests.cs b/tests/CalculatorTests.cs
+diff --git a/Testing.Tests/CalculatorTests.cs b/Testing.Tests/CalculatorTests.cs
 new file mode 100644
 --- /dev/null
-+++ b/tests/CalculatorTests.cs
++++ b/Testing.Tests/CalculatorTests.cs
 @@ -0,0 +1,12 @@
 +using Xunit;
 +
@@ -210,10 +291,10 @@ new file mode 100644
 +    /// </summary>
 +    public int Subtract(int a, int b) => a - b;
 +}
-diff --git a/tests/CalculatorTests.cs b/tests/CalculatorTests.cs
+diff --git a/Testing.Tests/CalculatorTests.cs b/Testing.Tests/CalculatorTests.cs
 new file mode 100644
 --- /dev/null
-+++ b/tests/CalculatorTests.cs
++++ b/Testing.Tests/CalculatorTests.cs
 @@ -0,0 +1,20 @@
 +using Xunit;
 +using FluentAssertions;

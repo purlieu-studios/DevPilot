@@ -67,6 +67,97 @@ public sealed class WorkspaceManager : IDisposable
     }
 
     /// <summary>
+    /// Copies project infrastructure files (.csproj, .sln) from source to workspace.
+    /// Automatically finds the solution root to ensure all referenced projects are copied.
+    /// </summary>
+    /// <param name="sourceRoot">The source directory containing project files.</param>
+    /// <exception cref="ArgumentException">Thrown when sourceRoot is null or whitespace.</exception>
+    /// <exception cref="DirectoryNotFoundException">Thrown when source directory does not exist.</exception>
+    public void CopyProjectFiles(string sourceRoot)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourceRoot);
+
+        if (!Directory.Exists(sourceRoot))
+        {
+            throw new DirectoryNotFoundException($"Source directory does not exist: {sourceRoot}");
+        }
+
+        // Find solution root (directory containing .sln file)
+        var solutionRoot = FindSolutionRoot(sourceRoot);
+        if (solutionRoot == null)
+        {
+            // No solution file found, use sourceRoot as-is
+            solutionRoot = sourceRoot;
+        }
+
+        // Find all .csproj and .sln files from solution root
+        var projectFiles = Directory.GetFiles(solutionRoot, "*.csproj", SearchOption.AllDirectories)
+            .Concat(Directory.GetFiles(solutionRoot, "*.sln", SearchOption.TopDirectoryOnly))
+            .ToList();
+
+        // Also find common configuration files in project directories
+        var configFiles = new List<string>();
+        foreach (var projectFile in projectFiles.Where(f => f.EndsWith(".csproj")))
+        {
+            var projectDir = Path.GetDirectoryName(projectFile);
+            if (projectDir != null)
+            {
+                // Common config file patterns
+                var patterns = new[] { "*.json", "*.config", "*.settings", ".editorconfig" };
+                foreach (var pattern in patterns)
+                {
+                    var files = Directory.GetFiles(projectDir, pattern, SearchOption.TopDirectoryOnly);
+                    configFiles.AddRange(files);
+                }
+            }
+        }
+
+        var allFiles = projectFiles.Concat(configFiles).Distinct().ToList();
+
+        foreach (var sourceFile in allFiles)
+        {
+            // Get relative path from solution root
+            var relativePath = Path.GetRelativePath(solutionRoot, sourceFile);
+            var destFile = Path.Combine(_workspaceRoot, relativePath);
+
+            // Ensure destination directory exists
+            var destDir = Path.GetDirectoryName(destFile);
+            if (destDir != null && !Directory.Exists(destDir))
+            {
+                Directory.CreateDirectory(destDir);
+            }
+
+            // Copy the file
+            File.Copy(sourceFile, destFile, overwrite: true);
+        }
+    }
+
+    /// <summary>
+    /// Finds the solution root by walking up the directory tree looking for .sln files.
+    /// </summary>
+    /// <param name="startDirectory">The directory to start searching from.</param>
+    /// <returns>The solution root directory, or null if no solution file is found.</returns>
+    private static string? FindSolutionRoot(string startDirectory)
+    {
+        var currentDir = new DirectoryInfo(startDirectory);
+
+        while (currentDir != null)
+        {
+            // Check if this directory contains a .sln file
+            var slnFiles = currentDir.GetFiles("*.sln");
+            if (slnFiles.Length > 0)
+            {
+                return currentDir.FullName;
+            }
+
+            // Move up to parent directory
+            currentDir = currentDir.Parent;
+        }
+
+        return null;
+    }
+
+    /// <summary>
     /// Applies a unified diff patch to the workspace.
     /// </summary>
     /// <param name="patch">The unified diff patch content.</param>

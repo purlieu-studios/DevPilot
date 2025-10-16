@@ -35,14 +35,32 @@ public static class TestRunner
         }
 
         // Step 2: Run tests with TRX logger
-        var testResultsDir = Path.Combine(workspaceRoot, "TestResults");
+        // Use simple "TestResults" since we're already in the workspace directory
+        const string testResultsDir = "TestResults";
         var testResult = await RunDotnetCommandAsync(workspaceRoot, $"test --logger \"trx\" --results-directory \"{testResultsDir}\"");
 
+        // Check if test command failed
+        if (!testResult.Success)
+        {
+            // Combine both stdout and stderr for complete diagnostics
+            var errorDetails = string.IsNullOrWhiteSpace(testResult.ErrorOutput)
+                ? testResult.Output
+                : $"{testResult.Output}\n{testResult.ErrorOutput}";
+            return TestRunResultExtensions.CreateFailure($"Test execution failed:\n{errorDetails}");
+        }
+
         // Step 3: Find and parse TRX file
-        var trxFile = FindLatestTrxFile(testResultsDir);
+        var testResultsFullPath = Path.Combine(workspaceRoot, testResultsDir);
+        var trxFile = FindLatestTrxFile(testResultsFullPath);
         if (trxFile == null)
         {
-            return TestRunResultExtensions.CreateFailure("No TRX file found after test execution");
+            // Include test output to help diagnose why no TRX was generated
+            var diagnosticInfo = $"Test command output:\n{testResult.Output}";
+            if (!string.IsNullOrWhiteSpace(testResult.ErrorOutput))
+            {
+                diagnosticInfo += $"\nError output:\n{testResult.ErrorOutput}";
+            }
+            return TestRunResultExtensions.CreateFailure($"No TRX file found after test execution.\n{diagnosticInfo}");
         }
 
         // Step 4: Parse TRX and return results

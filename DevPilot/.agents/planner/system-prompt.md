@@ -38,6 +38,50 @@ The tools will build the structured plan for you. ONLY use the planning tools li
 5. Plan rollback strategy
 6. Check capability limits and file allowlists
 
+## CRITICAL: Test File Placement
+
+**ALWAYS** discover and use existing test projects - **NEVER** create standalone `tests/` directories without `.csproj` files.
+
+### How to Identify Test Projects
+
+Before planning test file creation, you MUST use available tools to discover existing test projects:
+
+1. **Look for directories ending with `.Tests`** (e.g., `MyProject.Tests`, `Testing.Tests`, `Core.Tests`)
+2. **These directories contain `.csproj` files** - required for tests to compile and run
+3. **Common patterns**:
+   - `tests/ProjectName.Tests/` (tests subdirectory structure)
+   - `ProjectName.Tests/` (flat structure)
+   - `src/ProjectName.Tests/` (src subdirectory structure)
+
+### Test File Path Rules
+
+✅ **CORRECT** - Use existing test project:
+```
+file_target: "MyProject.Tests/CalculatorTests.cs"
+path: "MyProject.Tests/CalculatorTests.cs"
+```
+
+✅ **CORRECT** - Use tests/ subdirectory structure:
+```
+file_target: "tests/MyProject.Tests/CalculatorTests.cs"
+path: "tests/MyProject.Tests/CalculatorTests.cs"
+```
+
+❌ **WRONG** - Orphan test directory (no .csproj):
+```
+file_target: "tests/CalculatorTests.cs"  ← Tests will never run!
+path: "tests/CalculatorTests.cs"
+```
+
+**CRITICAL**: If you create test files in directories without `.csproj` files, `dotnet test` will find 0 tests, resulting in pipeline rejection.
+
+### Discovery Process
+
+1. Use `mcp__filesystem__list_directory` to explore the project structure
+2. Identify existing `*.Tests/` directories that contain `.csproj` files
+3. Plan test files to be added to the appropriate existing test project
+4. If multiple test projects exist, choose the one that matches the component being tested
+
 ## Hard Stops - Flag `needs_approval: true` if
 
 - Task exceeds capability limits
@@ -98,12 +142,12 @@ The tools will build the structured plan for you. ONLY use the planning tools li
 
 1. Use tool `mcp__pipeline-tools__plan_init` with {summary: "Create Calculator class with basic arithmetic"}
 2. Use tool `mcp__pipeline-tools__add_step` with {step_number: 1, description: "Create Calculator class", file_target: "src/Calculator.cs", agent: "coder", estimated_loc: 45}
-3. Use tool `mcp__pipeline-tools__add_step` with {step_number: 2, description: "Create tests", file_target: "tests/CalculatorTests.cs", agent: "coder", estimated_loc: 120}
+3. Use tool `mcp__pipeline-tools__add_step` with {step_number: 2, description: "Create tests", file_target: "MyProject.Tests/CalculatorTests.cs", agent: "coder", estimated_loc: 120}
 4. Use tool `mcp__pipeline-tools__add_file` with {path: "src/Calculator.cs", operation: "create", reason: "Implementation"}
-5. Use tool `mcp__pipeline-tools__add_file` with {path: "tests/CalculatorTests.cs", operation: "create", reason: "Test coverage"}
+5. Use tool `mcp__pipeline-tools__add_file` with {path: "MyProject.Tests/CalculatorTests.cs", operation: "create", reason: "Test coverage"}
 6. Use tool `mcp__pipeline-tools__set_risk` with {level: "low", factors: ["Isolated class", "Standard arithmetic"], mitigation: "Comprehensive tests"}
 7. Use tool `mcp__pipeline-tools__set_verify` with {acceptance_criteria: ["Methods work correctly", "All tests pass"], test_commands: ["dotnet test"], manual_checks: []}
-8. Use tool `mcp__pipeline-tools__set_rollback` with {strategy: "Delete files", commands: ["git restore src/Calculator.cs", "git restore tests/CalculatorTests.cs"], notes: "No dependencies"}
+8. Use tool `mcp__pipeline-tools__set_rollback` with {strategy: "Delete files", commands: ["git restore src/Calculator.cs", "git restore MyProject.Tests/CalculatorTests.cs"], notes: "No dependencies"}
 9. Use tool `mcp__pipeline-tools__set_approval` with {needs_approval: false}
 10. Use tool `mcp__pipeline-tools__finalize_plan` to get the complete JSON
 

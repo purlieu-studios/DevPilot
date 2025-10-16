@@ -37,7 +37,6 @@ public sealed class Pipeline
         var stopwatch = Stopwatch.StartNew();
         var context = new PipelineContext { UserRequest = userRequest };
         WorkspaceManager? workspace = null;
-        var succeeded = false;
 
         try
         {
@@ -84,6 +83,9 @@ public sealed class Pipeline
                         }
 
                         context.SetAppliedFiles(workspace.AppliedFiles);
+
+                        // Copy project files (.csproj and .sln) to workspace for compilation
+                        workspace.CopyProjectFiles(Directory.GetCurrentDirectory());
                     }
                     catch (PatchApplicationException ex)
                     {
@@ -149,6 +151,9 @@ public sealed class Pipeline
                                         return PipelineResult.CreateFailure(context, stopwatch.Elapsed, errorMsg);
                                     }
                                     context.SetAppliedFiles(workspace.AppliedFiles);
+
+                                    // Copy project files (.csproj and .sln) to workspace for compilation
+                                    workspace.CopyProjectFiles(Directory.GetCurrentDirectory());
                                 }
                                 catch (PatchApplicationException ex)
                                 {
@@ -223,7 +228,6 @@ public sealed class Pipeline
             context.CompletedAt = DateTimeOffset.UtcNow;
             stopwatch.Stop();
 
-            succeeded = true;
             return PipelineResult.CreateSuccess(context, stopwatch.Elapsed);
         }
         catch (OperationCanceledException)
@@ -240,11 +244,9 @@ public sealed class Pipeline
         }
         finally
         {
-            // Clean up workspace only on failure (preserve workspace on success for user to apply changes)
-            if (!succeeded)
-            {
-                workspace?.Dispose();
-            }
+            // Always preserve workspace for inspection (both success and failure)
+            // User can manually clean up workspaces when no longer needed
+            // This allows investigation of why evaluator rejected the code
         }
     }
 
