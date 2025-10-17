@@ -14,6 +14,19 @@ internal sealed class Program
     {
         try
         {
+            // Check if running in interactive mode (required for user prompts)
+            if (!AnsiConsole.Profile.Capabilities.Interactive)
+            {
+                System.Console.WriteLine("ERROR: DevPilot requires an interactive terminal.");
+                System.Console.WriteLine();
+                System.Console.WriteLine("DevPilot is designed to run interactively and will prompt you to");
+                System.Console.WriteLine("review and apply code changes after pipeline execution.");
+                System.Console.WriteLine();
+                System.Console.WriteLine("Please run DevPilot directly in a terminal (not piped or redirected):");
+                System.Console.WriteLine("  devpilot \"your request here\"");
+                return 1;
+            }
+
             // Parse command-line arguments
             if (args.Length == 0 || string.IsNullOrWhiteSpace(args[0]))
             {
@@ -408,7 +421,20 @@ internal sealed class Program
             AnsiConsole.WriteLine();
 
             // Prompt for confirmation
-            if (!AnsiConsole.Confirm("Apply these changes to your project?", defaultValue: true))
+            bool shouldApply;
+            try
+            {
+                shouldApply = AnsiConsole.Confirm("Apply these changes to your project?", defaultValue: true);
+            }
+            catch (InvalidOperationException ex) when (ex.Message.Contains("non-interactive"))
+            {
+                AnsiConsole.WriteLine();
+                AnsiConsole.MarkupLine("[red]ERROR:[/] Cannot prompt for confirmation in non-interactive mode.");
+                AnsiConsole.MarkupLine("[yellow]Hint:[/] Run DevPilot directly in a terminal (not piped or redirected).");
+                return false;
+            }
+
+            if (!shouldApply)
             {
                 return false;
             }
