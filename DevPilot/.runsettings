@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RunSettings>
+  <!-- VSTest Platform Configuration -->
+  <RunConfiguration>
+    <!-- Use all available CPU cores for parallel test execution -->
+    <MaxCpuCount>0</MaxCpuCount>
+
+    <!-- Directory where test results and coverage reports are stored -->
+    <ResultsDirectory>.\TestResults</ResultsDirectory>
+
+    <!-- Test session timeout: 30 seconds (30000ms) -->
+    <!-- Prevents test runner from hanging indefinitely -->
+    <!-- Tests typically run in <100ms, 30s provides huge safety buffer -->
+    <!-- CRITICAL: This fixes the coverlet.collector hang issue -->
+    <TestSessionTimeout>30000</TestSessionTimeout>
+
+    <!-- Treat no tests as error to catch empty test runs -->
+    <TreatNoTestsAsError>true</TreatNoTestsAsError>
+
+    <!-- Disable auto-detection of test adapters to prevent hangs -->
+    <DisableAppDomain>true</DisableAppDomain>
+  </RunConfiguration>
+
+  <!-- Data Collection Configuration -->
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <!-- Coverlet Code Coverage Collector -->
+      <DataCollector friendlyName="XPlat Code Coverage">
+        <Configuration>
+          <!-- Output formats: OpenCover (for ReportGenerator) + Cobertura (for Azure DevOps) -->
+          <Format>opencover,cobertura</Format>
+
+          <!-- Exclude test assemblies from coverage measurement -->
+          <!-- Pattern: [AssemblyName]Namespace.Type -->
+          <Exclude>[*.Tests]*,[*.IntegrationTests]*</Exclude>
+
+          <!-- Include only DevPilot production assemblies -->
+          <Include>[DevPilot.*]*</Include>
+
+          <!-- Exclude generated files (e.g., EF migrations) -->
+          <ExcludeByFile>**/Migrations/**</ExcludeByFile>
+
+          <!-- SingleHit=false: Count multiple hits to same line (accurate coverage) -->
+          <SingleHit>false</SingleHit>
+
+          <!-- Skip auto-implemented properties (cleaner metrics) -->
+          <SkipAutoProps>true</SkipAutoProps>
+
+          <!-- Deterministic reports: Same input = same output (reproducible builds) -->
+          <DeterministicReport>true</DeterministicReport>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+
+  <!-- Logging Configuration -->
+  <LoggerRunSettings>
+    <Loggers>
+      <Logger friendlyName="console" enabled="true">
+        <Configuration>
+          <Verbosity>normal</Verbosity>
+        </Configuration>
+      </Logger>
+    </Loggers>
+  </LoggerRunSettings>
+</RunSettings>
