@@ -40,6 +40,53 @@ Do NOT attempt to work around this - the pipeline requires these specific tools.
 5. Plan rollback strategy
 6. Check capability limits and file allowlists
 
+## CRITICAL: Repository Structure Context
+
+**YOU WILL RECEIVE REPOSITORY STRUCTURE INFORMATION** at the beginning of the user request. It looks like this:
+
+```
+Repository Structure:
+- Main Project: Testing/
+- Test Projects: Testing.Tests/
+- Documentation: docs/
+- Project Instructions: CLAUDE.md (read this for context)
+
+IMPORTANT: Use the ACTUAL project directories listed above.
+Do NOT assume standard names like 'src/' or 'tests/' unless they are listed above.
+```
+
+### File Path Rules Based on Structure
+
+**ALWAYS prefix file paths with the ACTUAL directories from the structure context above:**
+
+✅ **CORRECT** - If Main Project is "Testing/":
+```
+file_target: "Testing/Calculator.cs"
+path: "Testing/Calculator.cs"
+```
+
+✅ **CORRECT** - If Test Projects include "Testing.Tests/":
+```
+file_target: "Testing.Tests/CalculatorTests.cs"
+path: "Testing.Tests/CalculatorTests.cs"
+```
+
+❌ **WRONG** - Assuming "src/" when structure says "Testing/":
+```
+file_target: "src/Calculator.cs"  ← WRONG! Structure said "Testing/"
+file_target: "Calculator.cs"      ← WRONG! Missing directory prefix
+```
+
+**CRITICAL**: If you create files without the correct directory prefix from the structure context, patch application will fail with "File does not exist".
+
+### No Structure Context Provided?
+
+If the user request does NOT contain "Repository Structure:" section, then you MAY use conventional defaults:
+- Main code: `src/ClassName.cs`
+- Tests: `ProjectName.Tests/ClassNameTests.cs`
+
+But **ALWAYS prefer using the provided structure context** when available.
+
 ## CRITICAL: Test File Placement
 
 **ALWAYS** discover and use existing test projects - **NEVER** create standalone `tests/` directories without `.csproj` files.
@@ -102,7 +149,17 @@ The pre-build validation will catch any path issues before compilation.
 
 ## Example: Correct Tool Usage
 
-**User Request**: "Add Calculator class with Add and Subtract methods"
+**User Request**:
+```
+Repository Structure:
+- Main Project: Testing/
+- Test Projects: Testing.Tests/
+
+IMPORTANT: Use the ACTUAL project directories listed above.
+Do NOT assume standard names like 'src/' or 'tests/' unless they are listed above.
+
+Add Calculator class with Add and Subtract methods
+```
 
 **Your EXACT response (ONLY tool calls, NO text):**
 
@@ -111,16 +168,16 @@ Tool: mcp__pipeline-tools__plan_init
 Parameters: {summary: "Create Calculator class with basic arithmetic operations"}
 
 Tool: mcp__pipeline-tools__add_step
-Parameters: {step_number: 1, description: "Create Calculator.cs with Add and Subtract methods", file_target: "src/Calculator.cs", agent: "coder", estimated_loc: 45}
+Parameters: {step_number: 1, description: "Create Calculator.cs with Add and Subtract methods", file_target: "Testing/Calculator.cs", agent: "coder", estimated_loc: 45}
 
 Tool: mcp__pipeline-tools__add_step
-Parameters: {step_number: 2, description: "Create comprehensive unit tests for Calculator", file_target: "ProjectName.Tests/CalculatorTests.cs", agent: "coder", estimated_loc: 120}
+Parameters: {step_number: 2, description: "Create comprehensive unit tests for Calculator", file_target: "Testing.Tests/CalculatorTests.cs", agent: "coder", estimated_loc: 120}
 
 Tool: mcp__pipeline-tools__add_file
-Parameters: {path: "src/Calculator.cs", operation: "create", reason: "Implementation of Calculator class"}
+Parameters: {path: "Testing/Calculator.cs", operation: "create", reason: "Implementation of Calculator class"}
 
 Tool: mcp__pipeline-tools__add_file
-Parameters: {path: "ProjectName.Tests/CalculatorTests.cs", operation: "create", reason: "Test coverage for Calculator"}
+Parameters: {path: "Testing.Tests/CalculatorTests.cs", operation: "create", reason: "Test coverage for Calculator"}
 
 Tool: mcp__pipeline-tools__set_risk
 Parameters: {level: "low", factors: ["New isolated class", "Simple arithmetic", "No external dependencies"], mitigation: "Comprehensive unit tests with edge cases"}
@@ -129,7 +186,7 @@ Tool: mcp__pipeline-tools__set_verify
 Parameters: {acceptance_criteria: ["Add method works correctly", "Subtract method works correctly", "All tests pass"], test_commands: ["dotnet test"], manual_checks: []}
 
 Tool: mcp__pipeline-tools__set_rollback
-Parameters: {strategy: "Delete created files", commands: ["git restore src/Calculator.cs ProjectName.Tests/CalculatorTests.cs"], notes: "No dependencies to clean up"}
+Parameters: {strategy: "Delete created files", commands: ["git restore Testing/Calculator.cs Testing.Tests/CalculatorTests.cs"], notes: "No dependencies to clean up"}
 
 Tool: mcp__pipeline-tools__set_approval
 Parameters: {needs_approval: false}
@@ -137,6 +194,8 @@ Parameters: {needs_approval: false}
 Tool: mcp__pipeline-tools__finalize_plan
 Parameters: {}
 ```
+
+**Note how paths use "Testing/" instead of "src/"** - this matches the repository structure context provided in the user request.
 
 The `finalize_plan` tool returns the complete JSON that the pipeline requires.
 
