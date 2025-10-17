@@ -274,6 +274,8 @@ public sealed class PipelineTests
               "plan": {"summary": "Blocked", "steps": []},
               "file_list": [],
               "risk": {"level": "low", "factors": [], "mitigation": ""},
+              "verify": {"acceptance_criteria": [], "test_commands": ["dotnet test"], "manual_checks": []},
+              "rollback": {"strategy": "Delete files", "commands": [], "notes": ""},
               "needs_approval": true,
               "approval_reason": "Ambiguous requirements"
             }
@@ -308,6 +310,8 @@ public sealed class PipelineTests
               },
               "file_list": [],
               "risk": {"level": "low", "factors": [], "mitigation": ""},
+              "verify": {"acceptance_criteria": [], "test_commands": ["dotnet test"], "manual_checks": []},
+              "rollback": {"strategy": "Delete files", "commands": [], "notes": ""},
               "needs_approval": false
             }
             """;
@@ -425,6 +429,8 @@ public sealed class PipelineTests
               "plan": {"summary": "Safe operation", "steps": [{"step_number": 1, "description": "Test", "file_target": null, "agent": "coder", "estimated_loc": 50}]},
               "file_list": [],
               "risk": {"level": "low", "factors": [], "mitigation": ""},
+              "verify": {"acceptance_criteria": [], "test_commands": ["dotnet test"], "manual_checks": []},
+              "rollback": {"strategy": "Delete files", "commands": [], "notes": ""},
               "needs_approval": false
             }
             """;
