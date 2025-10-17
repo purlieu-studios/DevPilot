@@ -103,20 +103,13 @@ public sealed class WorkspaceManager : IDisposable
             if (projectDir != null)
             {
                 // Common config file patterns
-                var patterns = new[] { "*.json", "*.config", "*.settings", ".editorconfig", ".runsettings" };
+                var patterns = new[] { "*.json", "*.config", "*.settings", ".editorconfig" };
                 foreach (var pattern in patterns)
                 {
                     var files = Directory.GetFiles(projectDir, pattern, SearchOption.TopDirectoryOnly);
                     configFiles.AddRange(files);
                 }
             }
-        }
-
-        // Also check for .runsettings at solution root (critical for test execution)
-        var solutionRunSettings = Path.Combine(solutionRoot, ".runsettings");
-        if (File.Exists(solutionRunSettings) && !configFiles.Contains(solutionRunSettings))
-        {
-            configFiles.Add(solutionRunSettings);
         }
 
         var allFiles = projectFiles.Concat(configFiles).Distinct().ToList();
