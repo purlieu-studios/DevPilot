@@ -12,17 +12,21 @@ public sealed class Pipeline
 {
     private const int MaxRevisionIterations = 2;
     private readonly IReadOnlyDictionary<PipelineStage, IAgent> _agents;
+    private readonly WorkspaceManager _workspace;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="Pipeline"/> class.
     /// </summary>
     /// <param name="agents">Dictionary mapping pipeline stages to agent implementations.</param>
-    public Pipeline(IReadOnlyDictionary<PipelineStage, IAgent> agents)
+    /// <param name="workspace">The workspace manager for this pipeline execution.</param>
+    public Pipeline(IReadOnlyDictionary<PipelineStage, IAgent> agents, WorkspaceManager workspace)
     {
         ArgumentNullException.ThrowIfNull(agents);
+        ArgumentNullException.ThrowIfNull(workspace);
 
         ValidateAgents(agents);
         _agents = agents;
+        _workspace = workspace;
     }
 
     /// <summary>
@@ -37,13 +41,16 @@ public sealed class Pipeline
 
         var stopwatch = Stopwatch.StartNew();
         var context = new PipelineContext { UserRequest = userRequest };
-        WorkspaceManager? workspace = null;
 
         try
         {
-            // Create isolated workspace for this pipeline execution
-            workspace = WorkspaceManager.CreateWorkspace(context.PipelineId);
-            context.SetWorkspaceRoot(workspace.WorkspaceRoot);
+            // Use the workspace provided in constructor
+            context.SetWorkspaceRoot(_workspace.WorkspaceRoot);
+
+            // Analyze project structure for agent context
+            var projectStructure = _workspace.AnalyzeProjectStructure();
+            context.SetProjectStructure(projectStructure);
+
             // Execute all stages sequentially
             var stages = new[]
             {
@@ -87,7 +94,7 @@ public sealed class Pipeline
                 {
                     try
                     {
-                        var patchResult = workspace.ApplyPatch(agentResult.Output);
+                        var patchResult = _workspace.ApplyPatch(agentResult.Output);
                         if (!patchResult.Success)
                         {
                             var errorMsg = $"Failed to apply patch: {patchResult.ErrorMessage}";
@@ -96,14 +103,14 @@ public sealed class Pipeline
                             return PipelineResult.CreateFailure(context, stopwatch.Elapsed, errorMsg);
                         }
 
-                        context.SetAppliedFiles(workspace.AppliedFiles);
+                        context.SetAppliedFiles(_workspace.AppliedFiles);
 
                         // Copy project files (.csproj and .sln) to workspace for compilation
-                        workspace.CopyProjectFiles(Directory.GetCurrentDirectory());
+                        _workspace.CopyProjectFiles(Directory.GetCurrentDirectory());
 
                         // Validate workspace before building to catch errors early
                         var validator = new CodeValidator();
-                        var validationResult = validator.ValidateWorkspace(workspace.WorkspaceRoot);
+                        var validationResult = validator.ValidateWorkspace(_workspace.WorkspaceRoot);
                         if (!validationResult.Success)
                         {
                             var errorMsg = $"Pre-build validation failed: {validationResult.Summary}\n\n{validationResult.Details}";
@@ -164,8 +171,8 @@ public sealed class Pipeline
                             // Rollback and re-apply revised patch
                             try
                             {
-                                workspace.Rollback();
-                                var patchResult = workspace.ApplyPatch(coderResult.Output);
+                                _workspace.Rollback();
+                                var patchResult = _workspace.ApplyPatch(coderResult.Output);
                                 if (!patchResult.Success)
                                 {
                                     var errorMsg = $"Failed to apply revised patch: {patchResult.ErrorMessage}";
@@ -173,14 +180,14 @@ public sealed class Pipeline
                                     stopwatch.Stop();
                                     return PipelineResult.CreateFailure(context, stopwatch.Elapsed, errorMsg);
                                 }
-                                context.SetAppliedFiles(workspace.AppliedFiles);
+                                context.SetAppliedFiles(_workspace.AppliedFiles);
 
                                 // Copy project files (.csproj and .sln) to workspace for compilation
-                                workspace.CopyProjectFiles(Directory.GetCurrentDirectory());
+                                _workspace.CopyProjectFiles(Directory.GetCurrentDirectory());
 
                                 // Validate revised code before building
                                 var validator = new CodeValidator();
-                                var validationResult = validator.ValidateWorkspace(workspace.WorkspaceRoot);
+                                var validationResult = validator.ValidateWorkspace(_workspace.WorkspaceRoot);
                                 if (!validationResult.Success)
                                 {
                                     var errorMsg = $"Pre-build validation failed on revised code: {validationResult.Summary}\n\n{validationResult.Details}";
@@ -337,7 +344,7 @@ public sealed class Pipeline
     /// <returns>The input string for the stage.</returns>
     private static string BuildStageInput(PipelineStage stage, PipelineContext context)
     {
-        return stage switch
+        var baseInput = stage switch
         {
             PipelineStage.Planning => context.UserRequest,
             PipelineStage.Coding => context.Plan ?? string.Empty,
@@ -346,6 +353,26 @@ public sealed class Pipeline
             PipelineStage.Evaluating => BuildEvaluatorInput(context),
             _ => string.Empty
         };
+
+        // Prepend project structure context for stages that need it
+        if (context.ProjectStructure != null && ShouldIncludeStructureContext(stage))
+        {
+            return context.ProjectStructure.ToAgentContext() + "\n\n" + baseInput;
+        }
+
+        return baseInput;
+    }
+
+    /// <summary>
+    /// Determines if a pipeline stage should receive project structure context.
+    /// </summary>
+    /// <param name="stage">The pipeline stage.</param>
+    /// <returns>True if structure context should be included; otherwise, false.</returns>
+    private static bool ShouldIncludeStructureContext(PipelineStage stage)
+    {
+        // Planning and Coding stages need structure context to generate correct file paths
+        // Other stages work with existing outputs that already reference the correct paths
+        return stage is PipelineStage.Planning or PipelineStage.Coding;
     }
 
     /// <summary>

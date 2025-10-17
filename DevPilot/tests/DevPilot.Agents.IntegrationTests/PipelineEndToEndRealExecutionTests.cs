@@ -49,7 +49,8 @@ public sealed class PipelineEndToEndRealExecutionTests
             agents[stage] = agent;
         }
 
-        var pipeline = new Pipeline(agents);
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var pipeline = new Pipeline(agents, workspace);
         var userRequest = "Create a Calculator class with Add and Subtract methods";
 
         // Act
@@ -120,7 +121,8 @@ public sealed class PipelineEndToEndRealExecutionTests
             agents[stage] = agent;
         }
 
-        var pipeline = new Pipeline(agents);
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var pipeline = new Pipeline(agents, workspace);
         var userRequest = "Delete all user authentication files and remove database migration scripts";
 
         // Act
@@ -179,7 +181,8 @@ public sealed class PipelineEndToEndRealExecutionTests
             [PipelineStage.Evaluating] = new MockAgent("evaluator", true, highScores)
         };
 
-        var pipeline = new Pipeline(agents);
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var pipeline = new Pipeline(agents, workspace);
         var userRequest = "Create a Calculator class";
 
         // Act
@@ -258,7 +261,8 @@ public sealed class PipelineEndToEndRealExecutionTests
             [PipelineStage.Evaluating] = new MockAgent("evaluator", true, "{}")
         };
 
-        var pipeline = new Pipeline(agents);
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var pipeline = new Pipeline(agents, workspace);
         var userRequest = "Create a Calculator class";
 
         // Act
@@ -339,7 +343,8 @@ public sealed class PipelineEndToEndRealExecutionTests
             [PipelineStage.Evaluating] = new MockAgent("evaluator", true, lowScores)
         };
 
-        var pipeline = new Pipeline(agents);
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var pipeline = new Pipeline(agents, workspace);
         var userRequest = "Create a Calculator class";
 
         // Act

@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RunSettings>
+  <!-- VSTest Platform Configuration -->
+  <RunConfiguration>
+    <!-- Use all available CPU cores for parallel test execution -->
+    <MaxCpuCount>0</MaxCpuCount>
+
+    <!-- Directory where test results and coverage reports are stored -->
+    <ResultsDirectory>.\TestResults</ResultsDirectory>
+
+    <!-- ========================================================================
+         Test Session Timeout: Defense-in-Depth Protection
+         ========================================================================
+
+         PROBLEM: VSTest platform can hang indefinitely after tests complete if
+         data collectors fail to terminate cleanly.
+
+         SOLUTION HISTORY & RESEARCH:
+         1. coverlet.collector v6.0.0 has hanging bug (issue #989)
+            - All 124 tests run and pass successfully
+            - Hangs during coverage file write phase (never prints summary)
+         2. Attempted upgrade to v6.0.3/6.0.4 (claimed fix for #989)
+            - REGRESSION: Both hang at "Starting test execution" (tests never run)
+         3. Researched alternatives to coverlet
+            - Microsoft.CodeCoverage recommended by Microsoft (2025)
+            - Better performance, reliability, and child process handling
+            - Already included as dependency of Microsoft.NET.Test.Sdk
+         4. FINAL SOLUTION: Switched to Microsoft.CodeCoverage
+            - Remove coverlet.collector package entirely
+            - Use Microsoft Code Coverage data collector
+            - Keep timeout as defense-in-depth safety net
+
+         TIMEOUT VALUE: 10 seconds
+         - Unit tests run in ~85ms
+         - Integration tests run in <10s
+         - 10s is sufficient buffer for test execution + coverage attempt
+         - Much faster iteration than 120s
+
+         BEHAVIOR WHEN TIMEOUT EXPIRES:
+         1. VSTest prints test summary (shows pass/fail counts)
+         2. Sends abort signal to test host process
+         3. Kills entire process tree (no zombie processes)
+         4. Returns exit code 1 (aborted) or 0 (clean exit)
+
+         CRITICAL: Do NOT remove this timeout! It prevents infinite hangs.
+         If tests are timing out during normal runs, increase this value
+         rather than removing it.
+
+         TESTING RESULT: Required even without coverage! VSTest quirk.
+         Without this timeout, VSTest hangs at startup (undocumented behavior).
+         With coverage disabled, tests complete in ~50-100ms total time.
+         ======================================================================== -->
+    <TestSessionTimeout>10000</TestSessionTimeout>
+
+    <!-- Treat no tests as error to catch empty test runs -->
+    <TreatNoTestsAsError>true</TreatNoTestsAsError>
+
+    <!-- Disable auto-detection of test adapters to prevent hangs -->
+    <DisableAppDomain>true</DisableAppDomain>
+
+    <!-- ========================================================================
+         Test Host Shutdown Timeout
+         ========================================================================
+
+         PROBLEM: Test host needs time to write coverage files before shutting down.
+
+         SOLUTION: Extend shutdown timeout to 10 seconds.
+         - Gives coverage collector time to flush data to disk
+         - Prevents hang during coverage file write
+         - Default is too short, causing incomplete writes
+
+         VALUE: 10000 milliseconds (10 seconds)
+         ======================================================================== -->
+    <EnvironmentVariables>
+      <VSTEST_TESTHOST_SHUTDOWN_TIMEOUT>10000</VSTEST_TESTHOST_SHUTDOWN_TIMEOUT>
+    </EnvironmentVariables>
+  </RunConfiguration>
+
+  <!-- Data Collection Configuration -->
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <!-- Microsoft Code Coverage Collector (Recommended by Microsoft 2025) -->
+      <!-- Better performance and reliability than coverlet.collector -->
+      <!-- Included automatically with Microsoft.NET.Test.Sdk -->
+      <DataCollector friendlyName="Code Coverage">
+        <Configuration>
+          <CodeCoverage>
+            <!-- Exclude test assemblies from coverage measurement -->
+            <ModulePaths>
+              <Exclude>
+                <ModulePath>.*Tests\.dll$</ModulePath>
+                <ModulePath>.*IntegrationTests\.dll$</ModulePath>
+              </Exclude>
+              <Include>
+                <ModulePath>.*DevPilot\..*\.dll$</ModulePath>
+              </Include>
+            </ModulePaths>
+
+            <!-- Exclude specific files (e.g., EF migrations) -->
+            <Sources>
+              <Exclude>
+                <Source>.*\\Migrations\\.*</Source>
+              </Exclude>
+            </Sources>
+
+            <!-- Exclude auto-implemented properties for cleaner metrics -->
+            <Attributes>
+              <Exclude>
+                <Attribute>^System\.Diagnostics\.DebuggerHiddenAttribute$</Attribute>
+                <Attribute>^System\.Diagnostics\.DebuggerNonUserCodeAttribute$</Attribute>
+                <Attribute>^System\.CodeDom\.Compiler\.GeneratedCodeAttribute$</Attribute>
+                <Attribute>^System\.Diagnostics\.CodeAnalysis\.ExcludeFromCodeCoverageAttribute$</Attribute>
+              </Exclude>
+            </Attributes>
+          </CodeCoverage>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+
+  <!-- Logging Configuration -->
+  <LoggerRunSettings>
+    <Loggers>
+      <Logger friendlyName="console" enabled="true">
+        <Configuration>
+          <Verbosity>normal</Verbosity>
+        </Configuration>
+      </Logger>
+    </Loggers>
+  </LoggerRunSettings>
+</RunSettings>

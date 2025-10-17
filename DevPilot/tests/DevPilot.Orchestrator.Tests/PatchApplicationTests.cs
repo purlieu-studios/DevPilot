@@ -25,7 +25,8 @@ new file mode 100644
 ";
 
         var agents = CreateMockAgentsWithPatch(coderPatch);
-        var pipeline = new Pipeline(agents);
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var pipeline = new Pipeline(agents, workspace);
 
         // Act
         var result = await pipeline.ExecuteAsync("Create a calculator");
@@ -49,7 +50,8 @@ new file mode 100644
 +public class Test { }";
 
         var agents = CreateMockAgentsWithPatch(coderPatch);
-        var pipeline = new Pipeline(agents);
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var pipeline = new Pipeline(agents, workspace);
 
         // Act
         var result = await pipeline.ExecuteAsync("Create a test class");
@@ -77,7 +79,8 @@ new file mode 100644
 +public class File2 { }";
 
         var agents = CreateMockAgentsWithPatch(coderPatch);
-        var pipeline = new Pipeline(agents);
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var pipeline = new Pipeline(agents, workspace);
 
         // Act
         var result = await pipeline.ExecuteAsync("Create two classes");
@@ -96,7 +99,8 @@ new file mode 100644
         var invalidPatch = "This is not a valid unified diff";
 
         var agents = CreateMockAgentsWithPatch(invalidPatch);
-        var pipeline = new Pipeline(agents);
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var pipeline = new Pipeline(agents, workspace);
 
         // Act
         var result = await pipeline.ExecuteAsync("Invalid request");
@@ -119,7 +123,8 @@ new file mode 100644
 +public class Test { }";
 
         var agents = CreateMockAgentsWithPatch(coderPatch);
-        var pipeline = new Pipeline(agents);
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var pipeline = new Pipeline(agents, workspace);
 
         // Act
         var result = await pipeline.ExecuteAsync("Create a test");
@@ -137,7 +142,8 @@ new file mode 100644
         var invalidPatch = "invalid patch content";
 
         var agents = CreateMockAgentsWithPatch(invalidPatch);
-        var pipeline = new Pipeline(agents);
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var pipeline = new Pipeline(agents, workspace);
 
         // Act
         var result = await pipeline.ExecuteAsync("This will fail");
@@ -163,7 +169,8 @@ new file mode 100644
 +}";
 
         var agents = CreateMockAgentsWithPatch(coderPatch);
-        var pipeline = new Pipeline(agents);
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var pipeline = new Pipeline(agents, workspace);
 
         // Act
         var result = await pipeline.ExecuteAsync("Create calculator");

@@ -1,4 +1,6 @@
 using System.Text;
+using System.Text.Json;
+using DevPilot.Core;
 
 namespace DevPilot.Orchestrator;
 
@@ -90,8 +92,10 @@ public sealed class WorkspaceManager : IDisposable
             solutionRoot = sourceRoot;
         }
 
-        // Find all .csproj and .sln files from solution root
+        // Find all .csproj and .sln files from solution root (exclude .devpilot and other build artifacts)
+        var excludedPaths = new[] { ".devpilot", "bin", "obj", ".git", ".vs", "node_modules", "packages" };
         var projectFiles = Directory.GetFiles(solutionRoot, "*.csproj", SearchOption.AllDirectories)
+            .Where(f => !excludedPaths.Any(excluded => f.Contains(Path.DirectorySeparatorChar + excluded + Path.DirectorySeparatorChar)))
             .Concat(Directory.GetFiles(solutionRoot, "*.sln", SearchOption.TopDirectoryOnly))
             .ToList();
 
@@ -155,6 +159,255 @@ public sealed class WorkspaceManager : IDisposable
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Loads the DevPilot configuration from devpilot.json in the source repository.
+    /// Returns default configuration if the file does not exist.
+    /// </summary>
+    /// <param name="sourceRoot">The source directory to search for devpilot.json.</param>
+    /// <returns>The loaded configuration, or default configuration if not found.</returns>
+    private static DevPilotConfig LoadConfig(string sourceRoot)
+    {
+        var configPath = Path.Combine(sourceRoot, "devpilot.json");
+
+        if (!File.Exists(configPath))
+        {
+            return DevPilotConfig.Default;
+        }
+
+        try
+        {
+            var json = File.ReadAllText(configPath);
+            var config = JsonSerializer.Deserialize<DevPilotConfig>(json, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+
+            return config ?? DevPilotConfig.Default;
+        }
+        catch (JsonException)
+        {
+            // Invalid JSON, return default config
+            return DevPilotConfig.Default;
+        }
+    }
+
+    /// <summary>
+    /// Copies domain-specific files from the target repository to the workspace.
+    /// This includes:
+    /// - Individual files: CLAUDE.md, .editorconfig
+    /// - Default directories: .agents/, docs/, src/, tests/
+    /// - Auto-detected project directories: Any directory containing .csproj files (except bin, obj, .git, etc.)
+    /// - Configured folders: Additional folders specified in devpilot.json
+    /// </summary>
+    /// <param name="sourceRoot">The source directory containing the target repository.</param>
+    /// <exception cref="ArgumentException">Thrown when sourceRoot is null or whitespace.</exception>
+    /// <exception cref="DirectoryNotFoundException">Thrown when source directory does not exist.</exception>
+    public void CopyDomainFiles(string sourceRoot)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourceRoot);
+
+        if (!Directory.Exists(sourceRoot))
+        {
+            throw new DirectoryNotFoundException($"Source directory does not exist: {sourceRoot}");
+        }
+
+        // Load configuration
+        var config = LoadConfig(sourceRoot);
+
+        // If CopyAllFiles is true, copy entire repository
+        if (config.CopyAllFiles == true)
+        {
+            CopyDirectoryRecursive(sourceRoot, _workspaceRoot);
+            return;
+        }
+
+        // Copy individual files
+        var filesToCopy = new[] { "CLAUDE.md", ".editorconfig" };
+        foreach (var fileName in filesToCopy)
+        {
+            var sourceFile = Path.Combine(sourceRoot, fileName);
+            if (File.Exists(sourceFile))
+            {
+                var destFile = Path.Combine(_workspaceRoot, fileName);
+                File.Copy(sourceFile, destFile, overwrite: true);
+            }
+        }
+
+        // Collect all directories to copy
+        var directoriesToCopy = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // Add default directories (for backward compatibility)
+        var defaultDirectories = new[] { ".agents", "docs", "src", "tests" };
+        foreach (var dirName in defaultDirectories)
+        {
+            var sourceDir = Path.Combine(sourceRoot, dirName);
+            if (Directory.Exists(sourceDir))
+            {
+                directoriesToCopy.Add(dirName);
+            }
+        }
+
+        // Auto-detect project directories (any directory containing .csproj files)
+        var excludedDirectories = new[] { "bin", "obj", ".git", ".vs", "node_modules", ".devpilot", "packages" };
+        foreach (var directory in Directory.GetDirectories(sourceRoot))
+        {
+            var dirName = Path.GetFileName(directory);
+
+            // Skip excluded directories
+            if (excludedDirectories.Contains(dirName, StringComparer.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            // Check if directory contains .csproj files (project directory)
+            var hasCsproj = Directory.GetFiles(directory, "*.csproj", SearchOption.TopDirectoryOnly).Length > 0;
+            if (hasCsproj)
+            {
+                directoriesToCopy.Add(dirName);
+            }
+        }
+
+        // Add configured additional folders from devpilot.json
+        if (config.Folders != null && config.Folders.Length > 0)
+        {
+            foreach (var folder in config.Folders)
+            {
+                var sourceDir = Path.Combine(sourceRoot, folder);
+                if (Directory.Exists(sourceDir))
+                {
+                    directoriesToCopy.Add(folder);
+                }
+            }
+        }
+
+        // Copy all collected directories
+        foreach (var dirName in directoriesToCopy)
+        {
+            var sourceDir = Path.Combine(sourceRoot, dirName);
+            var destDir = Path.Combine(_workspaceRoot, dirName);
+            CopyDirectoryRecursive(sourceDir, destDir);
+        }
+    }
+
+    /// <summary>
+    /// Analyzes the project structure of the workspace to detect main/test projects and other artifacts.
+    /// </summary>
+    /// <returns>ProjectStructureInfo containing detected project organization.</returns>
+    public ProjectStructureInfo AnalyzeProjectStructure()
+    {
+        // Find all .csproj files in workspace
+        var projectFiles = Directory.GetFiles(_workspaceRoot, "*.csproj", SearchOption.AllDirectories)
+            .Where(f => !f.Contains(Path.DirectorySeparatorChar + "bin" + Path.DirectorySeparatorChar) &&
+                       !f.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar))
+            .ToList();
+
+        var allProjects = new List<string>();
+        var testProjects = new List<string>();
+        string? mainProject = null;
+
+        foreach (var projectFile in projectFiles)
+        {
+            var projectDir = Path.GetDirectoryName(projectFile);
+            if (projectDir == null) continue;
+
+            // Get relative path from workspace root
+            var relativePath = Path.GetRelativePath(_workspaceRoot, projectDir);
+            var projectName = Path.GetFileName(projectDir);
+
+            allProjects.Add(relativePath + "/");
+
+            // Determine if this is a test project
+            if (IsTestProject(projectFile, projectName))
+            {
+                testProjects.Add(relativePath + "/");
+            }
+            else if (mainProject == null)
+            {
+                // First non-test project is assumed to be main project
+                mainProject = relativePath + "/";
+            }
+        }
+
+        // Detect other structure elements
+        var hasDocs = Directory.Exists(Path.Combine(_workspaceRoot, "docs"));
+        var hasAgents = Directory.Exists(Path.Combine(_workspaceRoot, ".agents"));
+        var hasClaudeMd = File.Exists(Path.Combine(_workspaceRoot, "CLAUDE.md"));
+
+        return new ProjectStructureInfo
+        {
+            MainProject = mainProject,
+            TestProjects = testProjects,
+            AllProjects = allProjects,
+            HasDocs = hasDocs,
+            HasAgents = hasAgents,
+            HasClaudeMd = hasClaudeMd
+        };
+    }
+
+    /// <summary>
+    /// Determines if a project is a test project based on its name and dependencies.
+    /// </summary>
+    /// <param name="projectPath">Path to the .csproj file.</param>
+    /// <param name="projectName">Name of the project directory.</param>
+    /// <returns>True if this is a test project; otherwise, false.</returns>
+    private static bool IsTestProject(string projectPath, string projectName)
+    {
+        // Check name patterns first (fast heuristic)
+        var testNamePatterns = new[] { ".Tests", ".Test", "Tests.", "Test." };
+        if (testNamePatterns.Any(pattern => projectName.Contains(pattern, StringComparison.OrdinalIgnoreCase)))
+        {
+            return true;
+        }
+
+        try
+        {
+            // Check project file for test framework references
+            var projectContent = File.ReadAllText(projectPath);
+            var testFrameworks = new[]
+            {
+                "xunit", "nunit", "mstest", "NUnit", "MSTest", "xUnit",
+                "Microsoft.NET.Test.Sdk", "coverlet.collector"
+            };
+
+            return testFrameworks.Any(framework => projectContent.Contains(framework, StringComparison.OrdinalIgnoreCase));
+        }
+        catch
+        {
+            // If we can't read the file, use name-based heuristic only
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Recursively copies a directory and all its contents.
+    /// </summary>
+    /// <param name="sourceDir">The source directory to copy from.</param>
+    /// <param name="destDir">The destination directory to copy to.</param>
+    private static void CopyDirectoryRecursive(string sourceDir, string destDir)
+    {
+        // Create destination directory if it doesn't exist
+        if (!Directory.Exists(destDir))
+        {
+            Directory.CreateDirectory(destDir);
+        }
+
+        // Copy all files
+        foreach (var file in Directory.GetFiles(sourceDir))
+        {
+            var fileName = Path.GetFileName(file);
+            var destFile = Path.Combine(destDir, fileName);
+            File.Copy(file, destFile, overwrite: true);
+        }
+
+        // Recursively copy subdirectories
+        foreach (var directory in Directory.GetDirectories(sourceDir))
+        {
+            var dirName = Path.GetFileName(directory);
+            var destSubDir = Path.Combine(destDir, dirName);
+            CopyDirectoryRecursive(directory, destSubDir);
+        }
     }
 
     /// <summary>

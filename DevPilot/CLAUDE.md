@@ -182,6 +182,542 @@ This enables structured planning with 8 tools:
 
 Other agents use plain text output (no MCP tools).
 
+## MASAI Pipeline Architecture: DevPilot as Reusable Engine
+
+**CORE VISION**: DevPilot is a **reusable MASAI pipeline orchestrator** that operates on ANY C# repository without requiring code changes. You maintain ONE DevPilot repository, install it globally, and use it across hundreds of different projects - each with their own domain knowledge, agents, and conventions.
+
+### The Framework/Engine Model
+
+DevPilot follows the proven framework architecture pattern:
+
+| Framework | Engine (Reusable) | Domain (Project-Specific) |
+|-----------|-------------------|---------------------------|
+| **Django** | Web framework | Your models/views |
+| **.NET** | Runtime/SDK | Your application logic |
+| **DevPilot** | MASAI orchestrator | Your CLAUDE.md/agents |
+
+**Key Principle**: DevPilot's code, documentation, and configuration are **IRRELEVANT** when executing in target repositories. Only the target repository's context matters.
+
+### Two Distinct Contexts
+
+DevPilot operates in TWO completely separate contexts that must NOT be confused:
+
+#### 1. DevPilot Repository (The Engine)
+
+**Location**: `C:\DevPilot\DevPilot` (or wherever you cloned it)
+
+**Purpose**: Provides reusable MASAI pipeline infrastructure
+
+**Contents**:
+```
+C:\DevPilot\DevPilot/
+├── src/DevPilot.Orchestrator/     ← Pipeline orchestration (Planning → Coding → Review → Test → Eval)
+├── src/DevPilot.Agents/           ← Agent execution infrastructure (ClaudeCliClient, MCP integration)
+├── src/DevPilot.Console/          ← CLI entry point (global tool)
+├── .agents/                       ← DEFAULT agents (fallback if target repo has none)
+│   ├── planner/
+│   ├── coder/
+│   ├── reviewer/
+│   ├── tester/
+│   └── evaluator/
+├── CLAUDE.md                      ← How to develop DevPilot ITSELF (NOT read by target repos)
+├── .runsettings                   ← For testing DevPilot's own code (NOT used in workspaces)
+└── tests/                         ← DevPilot's unit tests
+
+** This repository's context is IRRELEVANT when running in EcommerceApp **
+```
+
+**Installation**:
+```bash
+# One-time setup (or after updates)
+dotnet tool install --global DevPilot
+
+# Now available in ANY directory
+cd C:\Projects\EcommerceApp
+devpilot "Add email validation to User model"
+```
+
+#### 2. Target Repository (Domain-Specific Context)
+
+**Location**: ANY C# repository (e.g., `C:\Projects\EcommerceApp`)
+
+**Purpose**: Contains domain knowledge, custom agents, and project-specific conventions
+
+**Contents**:
+```
+C:\Projects\EcommerceApp/
+├── CLAUDE.md                      ← "This is an e-commerce app. User has email/password. Payments via Stripe..."
+├── .agents/                       ← CUSTOM agents (override DevPilot defaults)
+│   ├── planner/
+│   │   └── system-prompt.md       ← "You are planning features for an e-commerce platform..."
+│   ├── security-reviewer/         ← CUSTOM agent (doesn't exist in DevPilot)
+│   │   └── system-prompt.md       ← "Check for PCI compliance, SQL injection, OWASP Top 10..."
+│   └── stripe-integration-tester/ ← Domain-specific testing agent
+├── .commands/                     ← Custom slash commands
+│   ├── deploy-to-prod.md
+│   └── run-load-tests.md
+├── .runsettings                   ← Test configuration for THIS app
+├── docs/
+│   ├── api-design.md
+│   └── payment-flows.md
+├── src/
+│   ├── Models/User.cs
+│   ├── Services/PaymentService.cs
+│   └── ...
+└── tests/EcommerceApp.Tests/
+
+** This is what gets indexed by RAG **
+** This is what agents read **
+** This is the ONLY context that matters during execution **
+```
+
+**Target Repository Controls**:
+- ✅ Project domain knowledge (CLAUDE.md)
+- ✅ Custom agents and tools (.agents/)
+- ✅ Testing framework and configuration (.runsettings, xUnit/NUnit/MSTest)
+- ✅ Documentation structure (docs/)
+- ✅ Code style and conventions (.editorconfig)
+- ✅ Custom workflows (.commands/)
+
+### Execution Flow: DevPilot in Target Repository
+
+```bash
+cd C:\Projects\EcommerceApp
+devpilot "Add email validation to User model"
+```
+
+**Step-by-Step Execution**:
+
+```
+1. WorkspaceManager creates isolated workspace:
+   .devpilot/workspaces/abc123-def4-5678/
+
+2. WorkspaceManager copies files FROM EcommerceApp:
+   .devpilot/workspaces/abc123/
+   ├── CLAUDE.md                  ← EcommerceApp's domain knowledge
+   ├── .agents/                   ← EcommerceApp's custom agents (if exist)
+   ├── .runsettings               ← EcommerceApp's test config (if exists)
+   ├── src/Models/User.cs
+   ├── src/Services/PaymentService.cs
+   └── tests/EcommerceApp.Tests/
+
+3. RAG indexing (future):
+   RAG.Index(".devpilot/workspaces/abc123/")
+   ↓
+   Vector embeddings of:
+   - EcommerceApp/CLAUDE.md          ← E-commerce domain
+   - EcommerceApp/src/**/*.cs        ← Existing code
+   - EcommerceApp/docs/**/*.md       ← API design, payment flows
+
+   NOT DevPilot's files!
+   NOT DevPilot's CLAUDE.md!
+
+4. Planner Agent:
+   System Prompt: .devpilot/workspaces/abc123/.agents/planner/system-prompt.md
+                  (if exists, else DevPilot's default)
+
+   Context: RAG query results from EcommerceApp
+
+   Reads: .devpilot/workspaces/abc123/CLAUDE.md
+          ↓
+          "This is an e-commerce app. User model has email/password.
+           Payments processed via Stripe. Follow PCI compliance..."
+
+5. Coder Agent:
+   Generates unified diff patch:
+   --- a/src/Models/User.cs
+   +++ b/src/Models/User.cs
+   @@ -5,6 +5,12 @@ public class User
+       public string Email { get; set; }
+   +
+   +   public bool IsValidEmail()
+   +   {
+   +       return Email.Contains("@");
+   +   }
+
+6. WorkspaceManager applies patch:
+   .devpilot/workspaces/abc123/src/Models/User.cs
+
+7. Tester Agent:
+   cd .devpilot/workspaces/abc123
+   dotnet test
+
+   ↓ VSTest looks for .runsettings:
+   .devpilot/workspaces/abc123/.runsettings
+   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   EcommerceApp's config! (if exists)
+
+   If not found: Uses VSTest defaults
+   DevPilot's .runsettings is NEVER used
+
+8. Custom Agents (if defined):
+   .devpilot/workspaces/abc123/.agents/security-reviewer/
+   ↓
+   DevPilot discovers custom agent
+   ↓
+   Runs as part of pipeline (after standard Reviewer)
+   ↓
+   Checks PCI compliance, SQL injection, etc.
+
+9. Evaluator Agent:
+   Provides quality scores and recommendations
+```
+
+### The Reusability Vision
+
+**You maintain ONE DevPilot repository**, but use it across unlimited projects:
+
+```
+DevPilot (installed globally via dotnet tool)
+    ↓
+    ├─→ C:\Projects\EcommerceApp
+    │   ├── CLAUDE.md: "E-commerce platform, Stripe payments, PCI compliance..."
+    │   └── .agents/security-reviewer/ (custom agent)
+    │
+    ├─→ C:\Projects\HealthcareApp
+    │   ├── CLAUDE.md: "HIPAA-compliant patient records, HL7 integration..."
+    │   └── .agents/hipaa-compliance-checker/ (custom agent)
+    │
+    ├─→ C:\Projects\GameEngine
+    │   ├── CLAUDE.md: "Unity 3D game engine, physics simulation, rendering..."
+    │   └── .agents/performance-profiler/ (custom agent)
+    │
+    └─→ C:\Projects\FinanceApp
+        ├── CLAUDE.md: "Banking app, ACH transfers, SOX compliance..."
+        └── .agents/financial-audit-reviewer/ (custom agent)
+```
+
+**Each project gets**:
+- ✅ Same MASAI pipeline quality (Planning → Coding → Review → Test → Eval)
+- ✅ Domain-specific context (their CLAUDE.md, not DevPilot's)
+- ✅ Custom agents (their .agents/, merged with DevPilot defaults)
+- ✅ Test configurations (their .runsettings, not DevPilot's)
+- ✅ Isolated workspaces (no cross-contamination)
+
+### What's Currently Implemented vs Future Work
+
+**✅ Working Today**:
+- WorkspaceManager creates isolated workspaces
+- WorkspaceManager copies files from target repo
+- Agents execute in workspace context
+- Default agents (planner, coder, reviewer, tester, evaluator)
+
+**⚠️ Needs Verification**:
+- [ ] Do agents read CLAUDE.md from workspace? (Or DevPilot's CLAUDE.md?)
+- [ ] Does DevPilot discover custom agents from `.devpilot/workspaces/abc123/.agents/`?
+- [ ] Are custom agents merged with default pipeline?
+
+**📋 Future Enhancements**:
+- RAG indexing of workspace files (not DevPilot files)
+- Custom agent discovery and execution
+- .commands/ support (domain-specific workflows)
+- WPF UI for repository selection and pipeline monitoring
+
+### DevPilot Repository (This Codebase)
+
+**Scope**: Contains ONLY the MASAI pipeline engine implementation
+
+**What Lives Here**:
+- ✅ Pipeline orchestration logic (src/DevPilot.Orchestrator)
+- ✅ Agent execution infrastructure (src/DevPilot.Agents)
+- ✅ Default agents (fallback if target repo has none)
+- ✅ DevPilot's own tests (tests/)
+- ✅ DevPilot's .runsettings (for testing DevPilot code only)
+- ✅ DevPilot's CLAUDE.md (how to develop DevPilot itself)
+
+**What Does NOT Live Here**:
+- ❌ Domain knowledge for target repositories
+- ❌ Custom agents for specific projects
+- ❌ Test configurations for external repos
+- ❌ Project-specific documentation
+
+### Example: Running DevPilot in External Repo
+
+```bash
+cd C:\TestProject
+devpilot "Add authentication to User class"
+```
+
+**What Happens**:
+1. DevPilot reads `C:\TestProject\CLAUDE.md` (NOT `C:\DevPilot\DevPilot\CLAUDE.md`)
+2. WorkspaceManager copies files from `C:\TestProject` to `.devpilot/workspaces/<id>/`
+3. Planner agent reads `C:\TestProject\CLAUDE.md` and generates plan
+4. Coder agent generates unified diff patch
+5. WorkspaceManager applies patch to workspace files
+6. Tester agent runs `dotnet test` in workspace (uses `C:\TestProject\.runsettings` if present)
+7. Reviewer and Evaluator agents analyze results
+8. Pipeline completes, workspace preserved for inspection
+
+### Testing Configuration Scopes
+
+| Configuration File | Scope | Purpose |
+|-------------------|-------|---------|
+| `C:\DevPilot\DevPilot\.runsettings` | DevPilot's own tests | Prevents DevPilot unit tests from hanging (10s timeout, Microsoft.CodeCoverage) |
+| `C:\TestProject\.runsettings` | Target repo tests | Used by TestRunner when executing tests in workspace (optional) |
+
+**Important**: TestRunner.cs does NOT force .runsettings usage. It respects whatever test configuration exists in the target repository.
+
+### Why This Matters
+
+❌ **WRONG Thinking**: "Let me add .runsettings to WorkspaceManager so all tests use it"
+- This would force DevPilot's test configuration on external repositories
+- Breaks repos using NUnit, MSTest, or custom xUnit configurations
+- Violates principle of respecting target repo's conventions
+
+✅ **RIGHT Thinking**: "Target repos control their own test configuration"
+- TestRunner uses whatever .runsettings exists in workspace (or none)
+- DevPilot's .runsettings only affects DevPilot's own CI/CD tests
+- Workspaces inherit target repo's test configuration naturally
+
+### Development Guidelines
+
+When modifying DevPilot:
+
+1. **WorkspaceManager**: Only copies files from target repo. Do NOT inject DevPilot's configuration files.
+2. **TestRunner**: Must work with ANY test framework/configuration. No assumptions about .runsettings existence.
+3. **Agents**: Read target repo's CLAUDE.md, NOT DevPilot's CLAUDE.md.
+4. **Pipeline**: Executes in workspace context, NOT DevPilot repo context.
+
+## Repository Structure Awareness
+
+**Status**: ✅ Implemented in PR #42
+
+DevPilot now automatically detects and understands target repository structure, enabling agents to generate correct file paths for any project layout.
+
+### The Problem This Solves
+
+Previously, agents assumed standard directory names like `src/` and `tests/`, causing failures in repositories using different conventions:
+
+```
+❌ Before: Agent generates "src/Calculator.cs"
+   But repo uses "MyApp/Calculator.cs"
+   → Patch application fails: "File does not exist"
+
+✅ After: Agent receives structure context and generates "MyApp/Calculator.cs"
+   → Patch applies successfully
+```
+
+### How It Works
+
+1. **WorkspaceManager.AnalyzeProjectStructure()** detects:
+   - Main project directory (first non-test .csproj found)
+   - Test project directories (projects with test framework references or ".Test" in name)
+   - All project directories in the repository
+   - Presence of docs/, .agents/, CLAUDE.md
+
+2. **ProjectStructureInfo.ToAgentContext()** formats structure as human-readable text:
+   ```
+   Repository Structure:
+   - Main Project: Testing/
+   - Test Projects: Testing.Tests/
+   - Documentation: docs/
+   - Project Instructions: CLAUDE.md (read this for context)
+
+   IMPORTANT: Use the ACTUAL project directories listed above.
+   Do NOT assume standard names like 'src/' or 'tests/' unless they are listed above.
+   ```
+
+3. **Pipeline.BuildStageInput()** prepends structure context to Planning and Coding stages
+   - These stages generate file paths, so they need structure awareness
+   - Other stages work with existing outputs that already have correct paths
+
+### Test Project Detection
+
+WorkspaceManager identifies test projects using two methods:
+
+**1. Name Heuristics** (fast):
+- Contains `.Tests`, `.Test`, `Tests.`, or `Test.` in project name
+
+**2. Framework References** (accurate):
+```csharp
+// Checks .csproj content for:
+- xunit, nunit, mstest
+- Microsoft.NET.Test.Sdk
+- coverlet.collector
+```
+
+### Verified Working
+
+Tested successfully with non-standard repository structure:
+- Repository uses `Testing/` instead of `src/`
+- Repository uses `Testing.Tests/` instead of `tests/`
+- Planner correctly generated `Testing/Calculator.cs`
+- Patch applied successfully
+- Overall quality score: 9.2/10
+
+### Implementation Details
+
+**Files Modified**:
+- `src/DevPilot.Core/ProjectStructureInfo.cs` (NEW) - Structure metadata
+- `src/DevPilot.Core/PipelineContext.cs` - Added ProjectStructure property
+- `src/DevPilot.Orchestrator/WorkspaceManager.cs` - Added AnalyzeProjectStructure()
+- `src/DevPilot.Orchestrator/Pipeline.cs` - Structure context injection
+
+**Critical Bug Fixed**:
+WorkspaceManager was recursively copying `.devpilot/workspaces/` directories, creating infinite nesting:
+```
+❌ Before: .devpilot\workspaces\id1\.devpilot\workspaces\id2\.devpilot\...
+✅ After: Added exclusion filter to prevent recursive .devpilot copying
+```
+
+## devpilot.json Configuration
+
+Target repositories can customize file copying behavior with an optional `devpilot.json` file in the repository root.
+
+### Schema
+
+```json
+{
+  "folders": ["custom-lib", "shared"],
+  "copyAllFiles": false
+}
+```
+
+**Properties**:
+- `folders` (string[]): Additional directories to copy to workspace (beyond auto-detected .csproj directories)
+- `copyAllFiles` (boolean): Override selective copying (default: false)
+
+### Auto-Detection Behavior
+
+WorkspaceManager automatically copies:
+
+1. **Default directories** (if they exist):
+   - `.agents/` - Custom agent definitions
+   - `docs/` - Documentation
+   - `src/` - Common main project directory (backward compatibility)
+   - `tests/` - Common test directory (backward compatibility)
+
+2. **Auto-detected project directories**:
+   - Any directory containing `.csproj` files (recursive search)
+   - Excludes: `bin/`, `obj/`, `.git/`, `.vs/`, `node_modules/`, `.devpilot/`, `packages/`
+
+3. **Configured additional folders** (from devpilot.json):
+   - Custom libraries, shared code, or domain-specific directories
+
+### Example: Monorepo Configuration
+
+```json
+{
+  "folders": [
+    "shared-models",
+    "common-utilities",
+    "third-party-integrations"
+  ]
+}
+```
+
+This ensures agents have access to shared code when generating patches.
+
+### Default Behavior (No devpilot.json)
+
+If no `devpilot.json` exists, WorkspaceManager uses:
+```csharp
+DevPilotConfig.Default
+{
+    Folders = null,
+    CopyAllFiles = false
+}
+```
+
+Auto-detection handles most repositories correctly without configuration.
+
+## Development Roadmap
+
+**Current Status**: PR #42 implements repository structure awareness. Ready for merge after testing.
+
+### Immediate Priority (Next Session)
+
+1. **✅ Merge PR #42** - Get structure awareness into main branch
+   - 4 commits ready: structure detection, context injection, bug fixes, test updates
+   - Build: 0 errors, 0 warnings
+   - Verified working with non-standard repo structure
+
+2. **🔬 Test with Diverse Repositories**
+   - Multi-project solutions (multiple main projects)
+   - Monorepos (shared libraries + multiple apps)
+   - Different naming conventions (CamelCase vs kebab-case)
+   - No CLAUDE.md scenarios
+   - Custom .agents/ scenarios (all-or-nothing validation)
+
+### Short-Term (1-2 Weeks)
+
+3. **🧪 Improve Agent Test Quality**
+   - Issue: Agents sometimes generate overly strict floating-point comparisons
+   - Example: `Assert.Equal(expected, actual, precision: 10)` → should be `precision: 5`
+   - Fix: Add floating-point best practices to Coder system prompt
+   - Impact: Reduces flaky tests in agent-generated code
+
+4. **📝 Enhance Coder System Prompt**
+   - Add guidance on floating-point comparisons (use appropriate precision)
+   - Add guidance on async/await patterns (avoid `async void`)
+   - Add guidance on null reference handling (use `ArgumentNullException.ThrowIfNull()`)
+   - Add guidance on test naming conventions (MethodName_Scenario_ExpectedResult)
+
+5. **📚 Document New Features**
+   - Update README.md with devpilot.json examples
+   - Add CONTRIBUTING.md with development workflow
+   - Document custom agent development (how to create .agents/ directory)
+   - Add examples/ directory with sample configurations
+
+### Medium-Term (1-2 Months)
+
+6. **🔍 Real Code Review (Reviewer Agent)**
+   - Currently: Reviewer returns placeholder responses
+   - Goal: Implement actual static code analysis
+   - Approach: Use Roslyn analyzers or integrate with existing tools
+   - Output: Detailed review comments with line numbers and suggestions
+
+7. **⏸️ Approval Workflow & State Persistence**
+   - Currently: "Awaiting approval" stops pipeline, but no resume mechanism
+   - Goal: Save pipeline state to JSON, allow resume after human review
+   - Design: `.devpilot/state/<pipeline-id>.json` with full context
+   - CLI commands: `devpilot resume <pipeline-id>` and `devpilot approve <pipeline-id>`
+
+8. **🛠️ MCP Tool Expansion**
+   - Currently: Only Planner and Evaluator use MCP tools
+   - Goal: Add MCP tools for Coder, Reviewer, Tester
+   - Benefits: Structured outputs, schema validation, better reliability
+   - Example tools: `create_code_change`, `report_code_issue`, `record_test_failure`
+
+9. **📊 RAG Integration for Context Retrieval**
+   - Currently: Agents receive full CLAUDE.md and structure context
+   - Goal: Index workspace files, provide semantic search to agents
+   - Benefit: Agents can find relevant code examples, similar patterns
+   - Technology: Vector embeddings (OpenAI ada-002 or local models)
+
+10. **🖥️ WPF UI for Pipeline Monitoring**
+    - Currently: CLI-only interface with spinner
+    - Goal: Real-time pipeline visualization
+    - Features: Stage progress, agent outputs, file diffs, approval buttons
+    - Design: Similar to Azure DevOps pipeline UI
+
+### Long-Term Vision (6+ Months)
+
+11. **🌐 Multi-Language Support**
+    - Extend beyond C# to Python, JavaScript/TypeScript, Java
+    - Requires language-specific test runners, project detectors
+    - DevPilot becomes universal MASAI orchestrator
+
+12. **🔌 Plugin System for Custom Pipeline Stages**
+    - Allow target repos to define additional stages beyond 5 default
+    - Example: Security scanning, performance profiling, deployment
+    - `.agents/custom-stages.json` configuration
+
+13. **☁️ Cloud-Based Execution (DevPilot as a Service)**
+    - Run pipelines in cloud instead of locally
+    - Benefits: Faster execution, persistent state, team collaboration
+    - Challenges: Workspace isolation, security, cost
+
+### Success Metrics
+
+How we'll know we're on the right track:
+
+- **Developer Adoption**: DevPilot used successfully in 10+ different repositories
+- **Quality Scores**: Evaluator reports >8.0/10 average across diverse projects
+- **Custom Agents**: 3+ repositories define custom agents (proves .agents/ extensibility)
+- **Test Pass Rates**: >95% of agent-generated tests pass on first run
+- **Time Savings**: Developers report 50%+ time reduction on routine feature tasks
+
 ## Related Documentation
 
 - **PIPELINE.md**: Full pipeline architecture and stage documentation
