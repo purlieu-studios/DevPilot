@@ -58,7 +58,7 @@ public sealed class PlannerUsesMcpToolsTest
         var pipeline = new Pipeline(mockAgents);
 
         // Act
-        var result = await pipeline.ExecuteAsync("Create Calculator class");
+        var result = await pipeline.ExecuteAsync("Create Calculator class", TestContext.Current.CancellationToken);
 
         // Assert - Planning stage should complete successfully
         result.Context.Plan.Should().NotBeNullOrWhiteSpace("planner should generate plan");
@@ -91,7 +91,7 @@ public sealed class PlannerUsesMcpToolsTest
         var pipeline = new Pipeline(mockAgents);
 
         // Act
-        var result = await pipeline.ExecuteAsync("Invalid request");
+        var result = await pipeline.ExecuteAsync("Invalid request", TestContext.Current.CancellationToken);
 
         // Assert - Pipeline should fail at planning stage with validation error
         result.Success.Should().BeFalse("invalid plan structure should fail validation");
@@ -107,7 +107,7 @@ public sealed class PlannerUsesMcpToolsTest
         var pipeline = new Pipeline(mockAgents);
 
         // Act
-        var result = await pipeline.ExecuteAsync("Empty response test");
+        var result = await pipeline.ExecuteAsync("Empty response test", TestContext.Current.CancellationToken);
 
         // Assert - Pipeline should fail with empty output error
         result.Success.Should().BeFalse("empty output should fail validation");
@@ -125,7 +125,7 @@ public sealed class PlannerUsesMcpToolsTest
         var pipeline = new Pipeline(mockAgents);
 
         // Act
-        var result = await pipeline.ExecuteAsync("Non-JSON test");
+        var result = await pipeline.ExecuteAsync("Non-JSON test", TestContext.Current.CancellationToken);
 
         // Assert - Pipeline should fail with JSON parsing error
         result.Success.Should().BeFalse("non-JSON output should fail validation");
@@ -150,7 +150,7 @@ public sealed class PlannerUsesMcpToolsTest
         var pipeline = new Pipeline(mockAgents);
 
         // Act
-        var result = await pipeline.ExecuteAsync("Partial plan test");
+        var result = await pipeline.ExecuteAsync("Partial plan test", TestContext.Current.CancellationToken);
 
         // Assert - Pipeline should fail due to missing file_list
         result.Success.Should().BeFalse("plan missing file_list should fail validation");
