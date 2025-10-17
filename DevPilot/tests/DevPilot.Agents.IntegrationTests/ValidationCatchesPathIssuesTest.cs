@@ -48,7 +48,8 @@ public sealed class ValidationCatchesPathIssuesTest
             """;
 
         var mockAgents = CreateMockAgents(validPlanJson, orphanTestPatch);
-        var pipeline = new Pipeline(mockAgents);
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var pipeline = new Pipeline(mockAgents, workspace);
 
         // Act
         var result = await pipeline.ExecuteAsync("Add calculator tests", TestContext.Current.CancellationToken);
@@ -96,7 +97,8 @@ public sealed class ValidationCatchesPathIssuesTest
             """;
 
         var mockAgents = CreateMockAgents(validPlanJson, newDirectoryPatch);
-        var pipeline = new Pipeline(mockAgents);
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var pipeline = new Pipeline(mockAgents, workspace);
 
         // Act
         var result = await pipeline.ExecuteAsync("Create EmailValidator", TestContext.Current.CancellationToken);

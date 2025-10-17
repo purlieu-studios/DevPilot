@@ -41,7 +41,8 @@ public sealed class CoderUsesExistingDirectoriesTest
             agents[stage] = agent;
         }
 
-        var pipeline = new Pipeline(agents);
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var pipeline = new Pipeline(agents, workspace);
         var userRequest = "Create an EmailValidator class with methods to validate email format and normalize email addresses to lowercase";
 
         // Act
@@ -130,7 +131,8 @@ public sealed class CoderUsesExistingDirectoriesTest
             """;
 
         var mockAgents = CreateMockAgents(validPlanJson, correctPathPatch);
-        var pipeline = new Pipeline(mockAgents);
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var pipeline = new Pipeline(mockAgents, workspace);
 
         // Act
         var result = await pipeline.ExecuteAsync("Create EmailValidator", TestContext.Current.CancellationToken);
@@ -188,7 +190,8 @@ public sealed class CoderUsesExistingDirectoriesTest
             """;
 
         var mockAgents = CreateMockAgents(planJson, wrongPathPatch);
-        var pipeline = new Pipeline(mockAgents);
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var pipeline = new Pipeline(mockAgents, workspace);
 
         // Act
         var result = await pipeline.ExecuteAsync("Create EmailValidator", TestContext.Current.CancellationToken);
@@ -235,7 +238,8 @@ public sealed class CoderUsesExistingDirectoriesTest
             """;
 
         var mockAgents = CreateMockAgents(planJson, appropriateTestPatch);
-        var pipeline = new Pipeline(mockAgents);
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var pipeline = new Pipeline(mockAgents, workspace);
 
         // Act
         var result = await pipeline.ExecuteAsync("Add agent test", TestContext.Current.CancellationToken);
