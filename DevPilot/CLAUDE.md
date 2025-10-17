@@ -478,6 +478,246 @@ When modifying DevPilot:
 3. **Agents**: Read target repo's CLAUDE.md, NOT DevPilot's CLAUDE.md.
 4. **Pipeline**: Executes in workspace context, NOT DevPilot repo context.
 
+## Repository Structure Awareness
+
+**Status**: ✅ Implemented in PR #42
+
+DevPilot now automatically detects and understands target repository structure, enabling agents to generate correct file paths for any project layout.
+
+### The Problem This Solves
+
+Previously, agents assumed standard directory names like `src/` and `tests/`, causing failures in repositories using different conventions:
+
+```
+❌ Before: Agent generates "src/Calculator.cs"
+   But repo uses "MyApp/Calculator.cs"
+   → Patch application fails: "File does not exist"
+
+✅ After: Agent receives structure context and generates "MyApp/Calculator.cs"
+   → Patch applies successfully
+```
+
+### How It Works
+
+1. **WorkspaceManager.AnalyzeProjectStructure()** detects:
+   - Main project directory (first non-test .csproj found)
+   - Test project directories (projects with test framework references or ".Test" in name)
+   - All project directories in the repository
+   - Presence of docs/, .agents/, CLAUDE.md
+
+2. **ProjectStructureInfo.ToAgentContext()** formats structure as human-readable text:
+   ```
+   Repository Structure:
+   - Main Project: Testing/
+   - Test Projects: Testing.Tests/
+   - Documentation: docs/
+   - Project Instructions: CLAUDE.md (read this for context)
+
+   IMPORTANT: Use the ACTUAL project directories listed above.
+   Do NOT assume standard names like 'src/' or 'tests/' unless they are listed above.
+   ```
+
+3. **Pipeline.BuildStageInput()** prepends structure context to Planning and Coding stages
+   - These stages generate file paths, so they need structure awareness
+   - Other stages work with existing outputs that already have correct paths
+
+### Test Project Detection
+
+WorkspaceManager identifies test projects using two methods:
+
+**1. Name Heuristics** (fast):
+- Contains `.Tests`, `.Test`, `Tests.`, or `Test.` in project name
+
+**2. Framework References** (accurate):
+```csharp
+// Checks .csproj content for:
+- xunit, nunit, mstest
+- Microsoft.NET.Test.Sdk
+- coverlet.collector
+```
+
+### Verified Working
+
+Tested successfully with non-standard repository structure:
+- Repository uses `Testing/` instead of `src/`
+- Repository uses `Testing.Tests/` instead of `tests/`
+- Planner correctly generated `Testing/Calculator.cs`
+- Patch applied successfully
+- Overall quality score: 9.2/10
+
+### Implementation Details
+
+**Files Modified**:
+- `src/DevPilot.Core/ProjectStructureInfo.cs` (NEW) - Structure metadata
+- `src/DevPilot.Core/PipelineContext.cs` - Added ProjectStructure property
+- `src/DevPilot.Orchestrator/WorkspaceManager.cs` - Added AnalyzeProjectStructure()
+- `src/DevPilot.Orchestrator/Pipeline.cs` - Structure context injection
+
+**Critical Bug Fixed**:
+WorkspaceManager was recursively copying `.devpilot/workspaces/` directories, creating infinite nesting:
+```
+❌ Before: .devpilot\workspaces\id1\.devpilot\workspaces\id2\.devpilot\...
+✅ After: Added exclusion filter to prevent recursive .devpilot copying
+```
+
+## devpilot.json Configuration
+
+Target repositories can customize file copying behavior with an optional `devpilot.json` file in the repository root.
+
+### Schema
+
+```json
+{
+  "folders": ["custom-lib", "shared"],
+  "copyAllFiles": false
+}
+```
+
+**Properties**:
+- `folders` (string[]): Additional directories to copy to workspace (beyond auto-detected .csproj directories)
+- `copyAllFiles` (boolean): Override selective copying (default: false)
+
+### Auto-Detection Behavior
+
+WorkspaceManager automatically copies:
+
+1. **Default directories** (if they exist):
+   - `.agents/` - Custom agent definitions
+   - `docs/` - Documentation
+   - `src/` - Common main project directory (backward compatibility)
+   - `tests/` - Common test directory (backward compatibility)
+
+2. **Auto-detected project directories**:
+   - Any directory containing `.csproj` files (recursive search)
+   - Excludes: `bin/`, `obj/`, `.git/`, `.vs/`, `node_modules/`, `.devpilot/`, `packages/`
+
+3. **Configured additional folders** (from devpilot.json):
+   - Custom libraries, shared code, or domain-specific directories
+
+### Example: Monorepo Configuration
+
+```json
+{
+  "folders": [
+    "shared-models",
+    "common-utilities",
+    "third-party-integrations"
+  ]
+}
+```
+
+This ensures agents have access to shared code when generating patches.
+
+### Default Behavior (No devpilot.json)
+
+If no `devpilot.json` exists, WorkspaceManager uses:
+```csharp
+DevPilotConfig.Default
+{
+    Folders = null,
+    CopyAllFiles = false
+}
+```
+
+Auto-detection handles most repositories correctly without configuration.
+
+## Development Roadmap
+
+**Current Status**: PR #42 implements repository structure awareness. Ready for merge after testing.
+
+### Immediate Priority (Next Session)
+
+1. **✅ Merge PR #42** - Get structure awareness into main branch
+   - 4 commits ready: structure detection, context injection, bug fixes, test updates
+   - Build: 0 errors, 0 warnings
+   - Verified working with non-standard repo structure
+
+2. **🔬 Test with Diverse Repositories**
+   - Multi-project solutions (multiple main projects)
+   - Monorepos (shared libraries + multiple apps)
+   - Different naming conventions (CamelCase vs kebab-case)
+   - No CLAUDE.md scenarios
+   - Custom .agents/ scenarios (all-or-nothing validation)
+
+### Short-Term (1-2 Weeks)
+
+3. **🧪 Improve Agent Test Quality**
+   - Issue: Agents sometimes generate overly strict floating-point comparisons
+   - Example: `Assert.Equal(expected, actual, precision: 10)` → should be `precision: 5`
+   - Fix: Add floating-point best practices to Coder system prompt
+   - Impact: Reduces flaky tests in agent-generated code
+
+4. **📝 Enhance Coder System Prompt**
+   - Add guidance on floating-point comparisons (use appropriate precision)
+   - Add guidance on async/await patterns (avoid `async void`)
+   - Add guidance on null reference handling (use `ArgumentNullException.ThrowIfNull()`)
+   - Add guidance on test naming conventions (MethodName_Scenario_ExpectedResult)
+
+5. **📚 Document New Features**
+   - Update README.md with devpilot.json examples
+   - Add CONTRIBUTING.md with development workflow
+   - Document custom agent development (how to create .agents/ directory)
+   - Add examples/ directory with sample configurations
+
+### Medium-Term (1-2 Months)
+
+6. **🔍 Real Code Review (Reviewer Agent)**
+   - Currently: Reviewer returns placeholder responses
+   - Goal: Implement actual static code analysis
+   - Approach: Use Roslyn analyzers or integrate with existing tools
+   - Output: Detailed review comments with line numbers and suggestions
+
+7. **⏸️ Approval Workflow & State Persistence**
+   - Currently: "Awaiting approval" stops pipeline, but no resume mechanism
+   - Goal: Save pipeline state to JSON, allow resume after human review
+   - Design: `.devpilot/state/<pipeline-id>.json` with full context
+   - CLI commands: `devpilot resume <pipeline-id>` and `devpilot approve <pipeline-id>`
+
+8. **🛠️ MCP Tool Expansion**
+   - Currently: Only Planner and Evaluator use MCP tools
+   - Goal: Add MCP tools for Coder, Reviewer, Tester
+   - Benefits: Structured outputs, schema validation, better reliability
+   - Example tools: `create_code_change`, `report_code_issue`, `record_test_failure`
+
+9. **📊 RAG Integration for Context Retrieval**
+   - Currently: Agents receive full CLAUDE.md and structure context
+   - Goal: Index workspace files, provide semantic search to agents
+   - Benefit: Agents can find relevant code examples, similar patterns
+   - Technology: Vector embeddings (OpenAI ada-002 or local models)
+
+10. **🖥️ WPF UI for Pipeline Monitoring**
+    - Currently: CLI-only interface with spinner
+    - Goal: Real-time pipeline visualization
+    - Features: Stage progress, agent outputs, file diffs, approval buttons
+    - Design: Similar to Azure DevOps pipeline UI
+
+### Long-Term Vision (6+ Months)
+
+11. **🌐 Multi-Language Support**
+    - Extend beyond C# to Python, JavaScript/TypeScript, Java
+    - Requires language-specific test runners, project detectors
+    - DevPilot becomes universal MASAI orchestrator
+
+12. **🔌 Plugin System for Custom Pipeline Stages**
+    - Allow target repos to define additional stages beyond 5 default
+    - Example: Security scanning, performance profiling, deployment
+    - `.agents/custom-stages.json` configuration
+
+13. **☁️ Cloud-Based Execution (DevPilot as a Service)**
+    - Run pipelines in cloud instead of locally
+    - Benefits: Faster execution, persistent state, team collaboration
+    - Challenges: Workspace isolation, security, cost
+
+### Success Metrics
+
+How we'll know we're on the right track:
+
+- **Developer Adoption**: DevPilot used successfully in 10+ different repositories
+- **Quality Scores**: Evaluator reports >8.0/10 average across diverse projects
+- **Custom Agents**: 3+ repositories define custom agents (proves .agents/ extensibility)
+- **Test Pass Rates**: >95% of agent-generated tests pass on first run
+- **Time Savings**: Developers report 50%+ time reduction on routine feature tasks
+
 ## Related Documentation
 
 - **PIPELINE.md**: Full pipeline architecture and stage documentation
