@@ -17,7 +17,7 @@ public sealed class PipelineEndToEndMockTests
     {
         // Arrange
         var safePlanJson = """
-            {"plan": {"summary": "Test", "steps": [{"step_number": 1, "description": "Add", "file_target": "Test.cs", "agent": "coder", "estimated_loc": 10}]}, "file_list": [], "risk": {"level": "low", "factors": [], "mitigation": ""}, "needs_approval": false}
+            {"plan": {"summary": "Test", "steps": [{"step_number": 1, "description": "Add", "file_target": "Test.cs", "agent": "coder", "estimated_loc": 10}]}, "file_list": [], "risk": {"level": "low", "factors": [], "mitigation": ""}, "verify": {"acceptance_criteria": [], "test_commands": ["dotnet test"], "manual_checks": []}, "rollback": {"strategy": "Delete files", "commands": [], "notes": ""}, "needs_approval": false}
             """;
         var validPatch = """
             diff --git a/Test.cs b/Test.cs
@@ -54,7 +54,7 @@ public sealed class PipelineEndToEndMockTests
     {
         // Arrange - TestingAgent will fail if it can't find workspace
         var safePlanJson = """
-            {"plan": {"summary": "Test", "steps": [{"step_number": 1, "description": "Add", "file_target": "Test.cs", "agent": "coder", "estimated_loc": 10}]}, "file_list": [], "risk": {"level": "low", "factors": [], "mitigation": ""}, "needs_approval": false}
+            {"plan": {"summary": "Test", "steps": [{"step_number": 1, "description": "Add", "file_target": "Test.cs", "agent": "coder", "estimated_loc": 10}]}, "file_list": [], "risk": {"level": "low", "factors": [], "mitigation": ""}, "verify": {"acceptance_criteria": [], "test_commands": ["dotnet test"], "manual_checks": []}, "rollback": {"strategy": "Delete files", "commands": [], "notes": ""}, "needs_approval": false}
             """;
         var validPatch = """
             diff --git a/Test.cs b/Test.cs
@@ -93,7 +93,7 @@ public sealed class PipelineEndToEndMockTests
     {
         // Arrange
         var safePlanJson = """
-            {"plan": {"summary": "Test", "steps": [{"step_number": 1, "description": "Add", "file_target": "Test.cs", "agent": "coder", "estimated_loc": 10}]}, "file_list": [], "risk": {"level": "low", "factors": [], "mitigation": ""}, "needs_approval": false}
+            {"plan": {"summary": "Test", "steps": [{"step_number": 1, "description": "Add", "file_target": "Test.cs", "agent": "coder", "estimated_loc": 10}]}, "file_list": [], "risk": {"level": "low", "factors": [], "mitigation": ""}, "verify": {"acceptance_criteria": [], "test_commands": ["dotnet test"], "manual_checks": []}, "rollback": {"strategy": "Delete files", "commands": [], "notes": ""}, "needs_approval": false}
             """;
         var validPatch = """
             diff --git a/Test.cs b/Test.cs
@@ -143,7 +143,7 @@ public sealed class PipelineEndToEndMockTests
     {
         // Arrange - Plan with high risk level
         var highRiskPlan = """
-            {"plan": {"summary": "Delete files", "steps": [{"step_number": 1, "description": "Delete auth", "file_target": "Auth.cs", "agent": "coder", "estimated_loc": 50}]}, "file_list": [{"path": "Auth.cs", "operation": "delete", "reason": "Remove"}], "risk": {"level": "high", "factors": ["File deletion", "Auth changes"], "mitigation": "Backup"}, "needs_approval": false}
+            {"plan": {"summary": "Delete files", "steps": [{"step_number": 1, "description": "Delete auth", "file_target": "Auth.cs", "agent": "coder", "estimated_loc": 50}]}, "file_list": [{"path": "Auth.cs", "operation": "delete", "reason": "Remove"}], "risk": {"level": "high", "factors": ["File deletion", "Auth changes"], "mitigation": "Backup"}, "verify": {"acceptance_criteria": [], "test_commands": ["dotnet test"], "manual_checks": []}, "rollback": {"strategy": "Delete files", "commands": [], "notes": ""}, "needs_approval": false}
             """;
 
         var agents = new Dictionary<PipelineStage, IAgent>
@@ -172,7 +172,7 @@ public sealed class PipelineEndToEndMockTests
     {
         // Arrange
         var safePlanJson = """
-            {"plan": {"summary": "Test", "steps": [{"step_number": 1, "description": "Add", "file_target": "Test.cs", "agent": "coder", "estimated_loc": 10}]}, "file_list": [], "risk": {"level": "low", "factors": [], "mitigation": ""}, "needs_approval": false}
+            {"plan": {"summary": "Test", "steps": [{"step_number": 1, "description": "Add", "file_target": "Test.cs", "agent": "coder", "estimated_loc": 10}]}, "file_list": [], "risk": {"level": "low", "factors": [], "mitigation": ""}, "verify": {"acceptance_criteria": [], "test_commands": ["dotnet test"], "manual_checks": []}, "rollback": {"strategy": "Delete files", "commands": [], "notes": ""}, "needs_approval": false}
             """;
 
         var agents = new Dictionary<PipelineStage, IAgent>
@@ -200,7 +200,7 @@ public sealed class PipelineEndToEndMockTests
     {
         // Arrange - Invalid patch syntax
         var safePlanJson = """
-            {"plan": {"summary": "Test", "steps": [{"step_number": 1, "description": "Add", "file_target": "Test.cs", "agent": "coder", "estimated_loc": 10}]}, "file_list": [], "risk": {"level": "low", "factors": [], "mitigation": ""}, "needs_approval": false}
+            {"plan": {"summary": "Test", "steps": [{"step_number": 1, "description": "Add", "file_target": "Test.cs", "agent": "coder", "estimated_loc": 10}]}, "file_list": [], "risk": {"level": "low", "factors": [], "mitigation": ""}, "verify": {"acceptance_criteria": [], "test_commands": ["dotnet test"], "manual_checks": []}, "rollback": {"strategy": "Delete files", "commands": [], "notes": ""}, "needs_approval": false}
             """;
         var invalidPatch = "This is not a valid diff format at all";
 

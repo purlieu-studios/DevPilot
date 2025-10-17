@@ -148,6 +148,8 @@ public sealed class PipelineEndToEndRealExecutionTests
               "plan": {"summary": "Create Calculator", "steps": [{"step_number": 1, "description": "Add Calculator", "file_target": "Calculator.cs", "agent": "coder", "estimated_loc": 50}]},
               "file_list": [{"path": "Calculator.cs", "operation": "create", "reason": "Implementation"}],
               "risk": {"level": "low", "factors": [], "mitigation": ""},
+              "verify": {"acceptance_criteria": [], "test_commands": ["dotnet test"], "manual_checks": []},
+              "rollback": {"strategy": "Delete files", "commands": [], "notes": ""},
               "needs_approval": false
             }
             """;
@@ -218,6 +220,8 @@ public sealed class PipelineEndToEndRealExecutionTests
               "plan": {"summary": "Create Calculator", "steps": [{"step_number": 1, "description": "Add Calculator", "file_target": "Calculator.cs", "agent": "coder", "estimated_loc": 50}]},
               "file_list": [],
               "risk": {"level": "low", "factors": [], "mitigation": ""},
+              "verify": {"acceptance_criteria": [], "test_commands": ["dotnet test"], "manual_checks": []},
+              "rollback": {"strategy": "Delete files", "commands": [], "notes": ""},
               "needs_approval": false
             }
             """;
@@ -292,6 +296,8 @@ public sealed class PipelineEndToEndRealExecutionTests
               "plan": {"summary": "Create Calculator", "steps": [{"step_number": 1, "description": "Add Calculator", "file_target": "Calculator.cs", "agent": "coder", "estimated_loc": 50}]},
               "file_list": [],
               "risk": {"level": "low", "factors": [], "mitigation": ""},
+              "verify": {"acceptance_criteria": [], "test_commands": ["dotnet test"], "manual_checks": []},
+              "rollback": {"strategy": "Delete files", "commands": [], "notes": ""},
               "needs_approval": false
             }
             """;

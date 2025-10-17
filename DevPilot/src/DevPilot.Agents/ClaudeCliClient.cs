@@ -484,6 +484,11 @@ public sealed class ClaudeCliClient
             System.Console.WriteLine($"  Server Status: {mcpServerStatus}");
             System.Console.WriteLine($"  Tool Calls: {toolCallCount}");
             System.Console.WriteLine($"  Final Result: {(finalResult != null ? "Found" : "Not Found")}");
+            if (finalResult != null)
+            {
+                var preview = finalResult.Length > 500 ? finalResult.Substring(0, 500) + "..." : finalResult;
+                System.Console.WriteLine($"  Extracted Content (first 500 chars): {preview}");
+            }
             System.Console.WriteLine();
         }
 
