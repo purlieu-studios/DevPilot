@@ -213,10 +213,52 @@ Assert.Contains(item, collection);
 Assert.Throws<InvalidOperationException>(() => method());
 ```
 
+### Floating-Point Precision Best Practices
+
+**CRITICAL**: Floating-point comparisons require careful handling to avoid flaky tests.
+
+**❌ WRONG - Overly Strict Precision**:
+```csharp
+[Fact]
+public void SquareRoot_CalculatesCorrectly()
+{
+    var calc = new Calculator();
+    var result = calc.SquareRoot(2500.5);
+    Assert.Equal(50.005, result, precision: 10);  // ← TOO STRICT! Math.Sqrt has inherent precision limits
+}
+```
+
+**✅ CORRECT - Reasonable Precision**:
+```csharp
+[Fact]
+public void SquareRoot_CalculatesCorrectly()
+{
+    var calc = new Calculator();
+    var result = calc.SquareRoot(2500.5);
+    Assert.Equal(50.005, result, precision: 5);  // ← Reasonable precision for floating-point math
+}
+```
+
+**Precision Guidelines**:
+- **Basic arithmetic** (Add, Subtract, Multiply, Divide): precision: 5-7
+- **Transcendental functions** (Sqrt, Sin, Cos, Log): precision: 4-5
+- **Financial calculations** (use `decimal`, not `double`): precision: 2
+- **Scientific/engineering**: precision: 6-8 (depends on context)
+
+**When NOT to use precision parameter**:
+```csharp
+// For integer results, no precision needed
+Assert.Equal(5, calc.Add(2, 3));
+
+// For decimal financial calculations (exact)
+Assert.Equal(19.99m, calc.CalculatePrice(basePrice, taxRate));
+```
+
 **Why This Matters:**
 - If you use `FluentAssertions` without it being installed, builds fail with CS0246
 - Test projects often have minimal dependencies (just xUnit)
 - Adding packages requires approval and modifies .csproj files
+- Overly strict floating-point precision causes flaky tests that fail intermittently
 
 ## Test Coverage Excellence
 
