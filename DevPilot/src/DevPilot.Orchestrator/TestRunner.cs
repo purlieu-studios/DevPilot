@@ -38,14 +38,10 @@ public static class TestRunner
             return TestRunResultExtensions.CreateFailure($"Build failed:\n{errorDetails}");
         }
 
-        // Step 2: Run tests with TRX logger and .runsettings
+        // Step 2: Run tests with TRX logger
         // Use simple "TestResults" since we're already in the workspace directory
-        // The .runsettings file provides:
-        // - 10-second timeout to prevent infinite hangs (vs 5-minute default)
-        // - Microsoft.CodeCoverage for better reliability
-        // - Proper timeout configuration for test host shutdown
         const string testResultsDir = "TestResults";
-        var testResult = await RunDotnetCommandAsync(workspaceRoot, $"test --logger \"trx\" --results-directory \"{testResultsDir}\" --settings .runsettings", TestTimeout, cancellationToken);
+        var testResult = await RunDotnetCommandAsync(workspaceRoot, $"test --logger \"trx\" --results-directory \"{testResultsDir}\"", TestTimeout, cancellationToken);
 
         // Check if test command failed
         if (!testResult.Success)
