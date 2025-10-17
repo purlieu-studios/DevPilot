@@ -214,7 +214,15 @@ public sealed class WorkspaceManager : IDisposable
                 _ => FileApplicationResult.CreateFailure(filePatch.FilePath, $"Unknown operation: {filePatch.Operation}")
             };
         }
-        catch (Exception ex)
+        catch (IOException ex)
+        {
+            return FileApplicationResult.CreateFailure(filePatch.FilePath, $"I/O error: {ex.Message}");
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return FileApplicationResult.CreateFailure(filePatch.FilePath, $"Access denied: {ex.Message}");
+        }
+        catch (PatchApplicationException ex)
         {
             return FileApplicationResult.CreateFailure(filePatch.FilePath, ex.Message);
         }
@@ -435,7 +443,11 @@ public sealed class WorkspaceManager : IDisposable
                         break;
                 }
             }
-            catch
+            catch (IOException)
+            {
+                // Continue rolling back even if individual operations fail
+            }
+            catch (UnauthorizedAccessException)
             {
                 // Continue rolling back even if individual operations fail
             }
@@ -455,9 +467,13 @@ public sealed class WorkspaceManager : IDisposable
             {
                 Directory.Delete(_workspaceRoot, recursive: true);
             }
-            catch
+            catch (IOException)
             {
-                // Ignore cleanup failures
+                // Ignore cleanup failures - directory may be in use
+            }
+            catch (UnauthorizedAccessException)
+            {
+                // Ignore cleanup failures - insufficient permissions
             }
         }
 

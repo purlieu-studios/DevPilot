@@ -51,7 +51,7 @@ public sealed class ValidationCatchesPathIssuesTest
         var pipeline = new Pipeline(mockAgents);
 
         // Act
-        var result = await pipeline.ExecuteAsync("Add calculator tests");
+        var result = await pipeline.ExecuteAsync("Add calculator tests", TestContext.Current.CancellationToken);
 
         // Assert - Should fail at testing stage during pre-build validation
         result.Success.Should().BeFalse("orphan test directory should fail validation");
@@ -99,7 +99,7 @@ public sealed class ValidationCatchesPathIssuesTest
         var pipeline = new Pipeline(mockAgents);
 
         // Act
-        var result = await pipeline.ExecuteAsync("Create EmailValidator");
+        var result = await pipeline.ExecuteAsync("Create EmailValidator", TestContext.Current.CancellationToken);
 
         // Assert - Should fail validation for creating new directory
         result.Success.Should().BeFalse("new directory creation should fail validation");

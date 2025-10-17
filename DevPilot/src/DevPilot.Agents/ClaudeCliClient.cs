@@ -141,9 +141,13 @@ public sealed class ClaudeCliClient
                 {
                     process.Kill(entireProcessTree: true);
                 }
-                catch
+                catch (InvalidOperationException)
                 {
-                    // Ignore kill errors
+                    // Process already exited, ignore
+                }
+                catch (System.ComponentModel.Win32Exception)
+                {
+                    // Cannot terminate process, ignore
                 }
 
                 return ClaudeCliResponse.CreateFailure(
@@ -194,10 +198,16 @@ public sealed class ClaudeCliClient
                 "Claude CLI execution was cancelled",
                 exitCode: -1);
         }
-        catch (Exception ex)
+        catch (IOException ex)
         {
             return ClaudeCliResponse.CreateFailure(
-                $"Claude CLI execution failed: {ex.Message}",
+                $"Claude CLI I/O error: {ex.Message}",
+                exitCode: -1);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return ClaudeCliResponse.CreateFailure(
+                $"Claude CLI invalid operation: {ex.Message}",
                 exitCode: -1);
         }
     }
@@ -457,7 +467,7 @@ public sealed class ClaudeCliClient
                                                 break;
                                             }
                                         }
-                                        catch
+                                        catch (JsonException)
                                         {
                                             // If not JSON, keep as fallback
                                             finalResult = textStr;

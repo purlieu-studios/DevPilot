@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cat:*)",
+      "Bash(dotnet test:*)",
+      "Bash(dotnet build:*)",
+      "Bash(dotnet run:*)",
+      "Read(//c/Users/purli/AppData/Roaming/npm/**)",
+      "Bash(where claude)",
+      "Bash(node:*)",
+      "Bash(npm root:*)",
+      "Read(//c/DevPilot//**)",
+      "Read(//c/DevPilot/**)",
+      "Bash(find:*)",
+      "Bash(git log:*)",
+      "Bash(git restore:*)",
+      "Bash(git checkout:*)",
+      "Bash(git pull:*)",
+      "Read(//c/TestDevPilot/Testing/**)",
+      "Bash(ls:*)",
+      "Bash(test:*)",
+      "Bash(tasklist:*)",
+      "Bash(for dir in .devpilot/workspaces/*/)",
+      "Bash(done)",
+      "Bash(devpilot:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

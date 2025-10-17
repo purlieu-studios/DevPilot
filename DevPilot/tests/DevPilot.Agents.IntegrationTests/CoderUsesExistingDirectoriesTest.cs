@@ -36,7 +36,7 @@ public sealed class CoderUsesExistingDirectoriesTest
         var agents = new Dictionary<PipelineStage, IAgent>();
         foreach (var (agentName, stage) in agentMappings)
         {
-            var definition = await loader.LoadAgentAsync(agentName);
+            var definition = await loader.LoadAgentAsync(agentName, TestContext.Current.CancellationToken);
             var agent = new ClaudeCliAgent(definition);
             agents[stage] = agent;
         }
@@ -45,7 +45,7 @@ public sealed class CoderUsesExistingDirectoriesTest
         var userRequest = "Create an EmailValidator class with methods to validate email format and normalize email addresses to lowercase";
 
         // Act
-        var result = await pipeline.ExecuteAsync(userRequest);
+        var result = await pipeline.ExecuteAsync(userRequest, TestContext.Current.CancellationToken);
 
         // Assert - Verify Coder used existing directories
         if (result.Success)
@@ -133,7 +133,7 @@ public sealed class CoderUsesExistingDirectoriesTest
         var pipeline = new Pipeline(mockAgents);
 
         // Act
-        var result = await pipeline.ExecuteAsync("Create EmailValidator");
+        var result = await pipeline.ExecuteAsync("Create EmailValidator", TestContext.Current.CancellationToken);
 
         // Assert - Pipeline should complete successfully (assuming workspace has Testing/ and Testing.Tests/)
         // Note: May still fail if workspace doesn't have the directories, but won't fail validation
@@ -191,7 +191,7 @@ public sealed class CoderUsesExistingDirectoriesTest
         var pipeline = new Pipeline(mockAgents);
 
         // Act
-        var result = await pipeline.ExecuteAsync("Create EmailValidator");
+        var result = await pipeline.ExecuteAsync("Create EmailValidator", TestContext.Current.CancellationToken);
 
         // Assert - Should fail validation for orphan directories
         result.Success.Should().BeFalse("new directory creation should fail validation");
@@ -238,7 +238,7 @@ public sealed class CoderUsesExistingDirectoriesTest
         var pipeline = new Pipeline(mockAgents);
 
         // Act
-        var result = await pipeline.ExecuteAsync("Add agent test");
+        var result = await pipeline.ExecuteAsync("Add agent test", TestContext.Current.CancellationToken);
 
         // Assert - Should use appropriate test project (not create new one)
         result.Context.Patch.Should().Contain(".Tests/", "should use existing test project");

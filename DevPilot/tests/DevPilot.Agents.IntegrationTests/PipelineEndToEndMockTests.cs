@@ -40,7 +40,7 @@ public sealed class PipelineEndToEndMockTests
         var pipeline = new Pipeline(agents);
 
         // Act
-        var result = await pipeline.ExecuteAsync("Test request");
+        var result = await pipeline.ExecuteAsync("Test request", TestContext.Current.CancellationToken);
 
         // Assert
         result.Success.Should().BeFalse("failing tests should fail pipeline");
@@ -80,7 +80,7 @@ public sealed class PipelineEndToEndMockTests
         var pipeline = new Pipeline(agents);
 
         // Act
-        var result = await pipeline.ExecuteAsync("Test request");
+        var result = await pipeline.ExecuteAsync("Test request", TestContext.Current.CancellationToken);
 
         // Assert
         result.Success.Should().BeFalse("build failures should fail pipeline");
@@ -130,7 +130,7 @@ public sealed class PipelineEndToEndMockTests
         var pipeline = new Pipeline(agents);
 
         // Act
-        var result = await pipeline.ExecuteAsync("Test request");
+        var result = await pipeline.ExecuteAsync("Test request", TestContext.Current.CancellationToken);
 
         // Assert
         result.Success.Should().BeTrue("should succeed after revision");
@@ -158,7 +158,7 @@ public sealed class PipelineEndToEndMockTests
         var pipeline = new Pipeline(agents);
 
         // Act
-        var result = await pipeline.ExecuteAsync("Delete auth files");
+        var result = await pipeline.ExecuteAsync("Delete auth files", TestContext.Current.CancellationToken);
 
         // Assert
         result.Success.Should().BeFalse("high-risk should trigger approval");
@@ -187,7 +187,7 @@ public sealed class PipelineEndToEndMockTests
         var pipeline = new Pipeline(agents);
 
         // Act
-        var result = await pipeline.ExecuteAsync("Test request");
+        var result = await pipeline.ExecuteAsync("Test request", TestContext.Current.CancellationToken);
 
         // Assert
         result.Success.Should().BeFalse("coder failure should fail pipeline");
@@ -208,7 +208,7 @@ public sealed class PipelineEndToEndMockTests
         var pipeline = new Pipeline(agents);
 
         // Act
-        var result = await pipeline.ExecuteAsync("Test request");
+        var result = await pipeline.ExecuteAsync("Test request", TestContext.Current.CancellationToken);
 
         // Assert
         result.Success.Should().BeFalse("invalid patch should fail");

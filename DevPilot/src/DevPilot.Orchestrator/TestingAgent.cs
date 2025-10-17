@@ -77,12 +77,20 @@ public sealed class TestingAgent : IAgent
                 json,
                 stopwatch.Elapsed);
         }
-        catch (Exception ex)
+        catch (System.Text.Json.JsonException ex)
         {
             stopwatch.Stop();
             return AgentResult.CreateFailure(
                 Definition.Name,
-                $"Test execution failed: {ex.Message}",
+                $"Failed to serialize test results: {ex.Message}",
+                stopwatch.Elapsed);
+        }
+        catch (InvalidOperationException ex)
+        {
+            stopwatch.Stop();
+            return AgentResult.CreateFailure(
+                Definition.Name,
+                $"Test execution invalid operation: {ex.Message}",
                 stopwatch.Elapsed);
         }
     }
