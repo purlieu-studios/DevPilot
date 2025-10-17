@@ -182,6 +182,89 @@ This enables structured planning with 8 tools:
 
 Other agents use plain text output (no MCP tools).
 
+## MASAI Pipeline Architecture: Target Repository vs DevPilot Repository
+
+**CRITICAL DISTINCTION**: DevPilot operates in TWO separate contexts that must NOT be confused:
+
+### 1. Target Repository (External Projects)
+
+When you run `devpilot "Create a Calculator class"` in a directory like `C:\MyProject`, DevPilot:
+
+- **Creates isolated workspace** in `.devpilot/workspaces/<pipeline-id>/`
+- **Copies files** from `C:\MyProject` to the workspace (using WorkspaceManager)
+- **Executes MASAI pipeline** agents (Planning → Coding → Reviewing → Testing → Evaluating)
+- **Reads target repo's CLAUDE.md** for project-specific instructions
+- **Uses target repo's testing framework** (xUnit, NUnit, MSTest, etc.)
+- **Uses target repo's .runsettings** (if present) for test configuration
+- **Respects target repo's agents** (if custom agents defined)
+- **Applies patches** to workspace files (not original repo files)
+
+**Key Point**: The target repository controls:
+- ✅ Project instructions (CLAUDE.md)
+- ✅ Testing library and configuration (.runsettings, test framework)
+- ✅ Documentation structure
+- ✅ Custom agents and tools
+- ✅ Code style and conventions
+
+### 2. DevPilot Repository (This Codebase)
+
+DevPilot's own repository (`C:\DevPilot\DevPilot`) contains:
+
+- **MASAI pipeline implementation** (src/DevPilot.Orchestrator)
+- **Core agents** (Planning, Coding, Reviewing, Testing, Evaluating)
+- **DevPilot's own tests** (tests/DevPilot.Agents.Tests, tests/DevPilot.Orchestrator.Tests)
+- **DevPilot's .runsettings** (for DevPilot's own test execution, NOT target repos)
+- **DevPilot's CLAUDE.md** (this file - development instructions for DevPilot itself)
+
+**Key Point**: DevPilot's .runsettings is ONLY for testing DevPilot's own codebase. It has NO effect on tests run in target repositories.
+
+### Example: Running DevPilot in External Repo
+
+```bash
+cd C:\TestProject
+devpilot "Add authentication to User class"
+```
+
+**What Happens**:
+1. DevPilot reads `C:\TestProject\CLAUDE.md` (NOT `C:\DevPilot\DevPilot\CLAUDE.md`)
+2. WorkspaceManager copies files from `C:\TestProject` to `.devpilot/workspaces/<id>/`
+3. Planner agent reads `C:\TestProject\CLAUDE.md` and generates plan
+4. Coder agent generates unified diff patch
+5. WorkspaceManager applies patch to workspace files
+6. Tester agent runs `dotnet test` in workspace (uses `C:\TestProject\.runsettings` if present)
+7. Reviewer and Evaluator agents analyze results
+8. Pipeline completes, workspace preserved for inspection
+
+### Testing Configuration Scopes
+
+| Configuration File | Scope | Purpose |
+|-------------------|-------|---------|
+| `C:\DevPilot\DevPilot\.runsettings` | DevPilot's own tests | Prevents DevPilot unit tests from hanging (10s timeout, Microsoft.CodeCoverage) |
+| `C:\TestProject\.runsettings` | Target repo tests | Used by TestRunner when executing tests in workspace (optional) |
+
+**Important**: TestRunner.cs does NOT force .runsettings usage. It respects whatever test configuration exists in the target repository.
+
+### Why This Matters
+
+❌ **WRONG Thinking**: "Let me add .runsettings to WorkspaceManager so all tests use it"
+- This would force DevPilot's test configuration on external repositories
+- Breaks repos using NUnit, MSTest, or custom xUnit configurations
+- Violates principle of respecting target repo's conventions
+
+✅ **RIGHT Thinking**: "Target repos control their own test configuration"
+- TestRunner uses whatever .runsettings exists in workspace (or none)
+- DevPilot's .runsettings only affects DevPilot's own CI/CD tests
+- Workspaces inherit target repo's test configuration naturally
+
+### Development Guidelines
+
+When modifying DevPilot:
+
+1. **WorkspaceManager**: Only copies files from target repo. Do NOT inject DevPilot's configuration files.
+2. **TestRunner**: Must work with ANY test framework/configuration. No assumptions about .runsettings existence.
+3. **Agents**: Read target repo's CLAUDE.md, NOT DevPilot's CLAUDE.md.
+4. **Pipeline**: Executes in workspace context, NOT DevPilot repo context.
+
 ## Related Documentation
 
 - **PIPELINE.md**: Full pipeline architecture and stage documentation
