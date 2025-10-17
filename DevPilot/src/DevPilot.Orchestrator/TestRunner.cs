@@ -9,12 +9,16 @@ namespace DevPilot.Orchestrator;
 /// </summary>
 public static class TestRunner
 {
+    private static readonly TimeSpan BuildTimeout = TimeSpan.FromMinutes(2);
+    private static readonly TimeSpan TestTimeout = TimeSpan.FromMinutes(5);
+
     /// <summary>
     /// Executes tests in the specified workspace directory.
     /// </summary>
     /// <param name="workspaceRoot">The root directory of the workspace.</param>
+    /// <param name="cancellationToken">Cancellation token to abort test execution.</param>
     /// <returns>The test run result with all test outcomes.</returns>
-    public static async Task<TestRunResult> ExecuteTestsAsync(string workspaceRoot)
+    public static async Task<TestRunResult> ExecuteTestsAsync(string workspaceRoot, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
 
@@ -24,7 +28,7 @@ public static class TestRunner
         }
 
         // Step 1: Build the solution
-        var buildResult = await RunDotnetCommandAsync(workspaceRoot, "build");
+        var buildResult = await RunDotnetCommandAsync(workspaceRoot, "build", BuildTimeout, cancellationToken);
         if (!buildResult.Success)
         {
             // Combine both stdout and stderr for complete diagnostics
@@ -37,7 +41,7 @@ public static class TestRunner
         // Step 2: Run tests with TRX logger
         // Use simple "TestResults" since we're already in the workspace directory
         const string testResultsDir = "TestResults";
-        var testResult = await RunDotnetCommandAsync(workspaceRoot, $"test --logger \"trx\" --results-directory \"{testResultsDir}\"");
+        var testResult = await RunDotnetCommandAsync(workspaceRoot, $"test --logger \"trx\" --results-directory \"{testResultsDir}\"", TestTimeout, cancellationToken);
 
         // Check if test command failed
         if (!testResult.Success)
@@ -70,7 +74,7 @@ public static class TestRunner
     /// <summary>
     /// Runs a dotnet command in the specified directory.
     /// </summary>
-    private static async Task<CommandResult> RunDotnetCommandAsync(string workingDirectory, string arguments)
+    private static async Task<CommandResult> RunDotnetCommandAsync(string workingDirectory, string arguments, TimeSpan timeout, CancellationToken cancellationToken)
     {
         var startInfo = new ProcessStartInfo
         {
@@ -89,7 +93,32 @@ public static class TestRunner
         var outputTask = process.StandardOutput.ReadToEndAsync();
         var errorTask = process.StandardError.ReadToEndAsync();
 
-        await process.WaitForExitAsync();
+        // Wait for process to exit with timeout
+        var completed = await WaitForExitAsync(process, timeout, cancellationToken);
+
+        if (!completed)
+        {
+            try
+            {
+                process.Kill(entireProcessTree: true);
+            }
+            catch (InvalidOperationException)
+            {
+                // Process already exited, ignore
+            }
+            catch (System.ComponentModel.Win32Exception)
+            {
+                // Cannot terminate process, ignore
+            }
+
+            return new CommandResult
+            {
+                Success = false,
+                Output = $"Command timed out after {timeout.TotalSeconds} seconds",
+                ErrorOutput = string.Empty,
+                ExitCode = -1
+            };
+        }
 
         var output = await outputTask;
         var error = await errorTask;
@@ -220,6 +249,32 @@ public static class TestRunner
             DurationMs = durationMs,
             Message = message
         };
+    }
+
+    /// <summary>
+    /// Waits for a process to exit with timeout support.
+    /// </summary>
+    /// <param name="process">The process to wait for.</param>
+    /// <param name="timeout">The timeout duration.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>True if the process exited within the timeout; otherwise, false.</returns>
+    private static async Task<bool> WaitForExitAsync(
+        Process process,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        cts.CancelAfter(timeout);
+
+        try
+        {
+            await process.WaitForExitAsync(cts.Token);
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            return false;
+        }
     }
 
     /// <summary>
