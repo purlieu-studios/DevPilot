@@ -57,7 +57,7 @@ public sealed class TestingAgent : IAgent
             }
 
             // Execute tests using TestRunner
-            var testResult = await TestRunner.ExecuteTestsAsync(workspacePath);
+            var testResult = await TestRunner.ExecuteTestsAsync(workspacePath, cancellationToken);
 
             // Convert to JSON format matching Testing stage schema
             var json = ConvertToJson(testResult);
