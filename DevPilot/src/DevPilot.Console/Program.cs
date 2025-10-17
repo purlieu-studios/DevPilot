@@ -31,8 +31,30 @@ internal sealed class Program
             AnsiConsole.MarkupLine("[dim]MASAI Pipeline - Automated Code Generation & Review[/]");
             AnsiConsole.WriteLine();
 
-            // Load agents and build pipeline
-            var pipeline = await BuildPipelineAsync();
+            // Generate pipeline ID early (before workspace creation)
+            var pipelineId = Guid.NewGuid().ToString();
+
+            // Create workspace and copy target repository files
+            WorkspaceManager workspace;
+            try
+            {
+                workspace = WorkspaceManager.CreateWorkspace(pipelineId);
+
+                // Copy domain files (CLAUDE.md, .agents/, docs/, src/, tests/ + devpilot.json configured folders)
+                var sourceRoot = Directory.GetCurrentDirectory();
+                workspace.CopyDomainFiles(sourceRoot);
+
+                // Copy project files (.csproj, .sln, config files)
+                workspace.CopyProjectFiles(sourceRoot);
+            }
+            catch (IOException ex)
+            {
+                AnsiConsole.MarkupLine($"[red]Error:[/] Failed to create workspace: {ex.Message}");
+                return 1;
+            }
+
+            // Load agents and build pipeline with workspace context
+            var pipeline = await BuildPipelineAsync(workspace);
 
             // Execute pipeline
             AnsiConsole.MarkupLine($"[bold]Request:[/] {userRequest}");
@@ -84,40 +106,58 @@ internal sealed class Program
     }
 
     /// <summary>
-    /// Finds the .agents directory, checking tool installation directory first, then current directory.
+    /// Finds the .agents directory, checking workspace first, then DevPilot defaults.
     /// </summary>
-    private static string FindAgentsDirectory()
+    /// <param name="workspaceRoot">The workspace root path containing potential custom agents.</param>
+    /// <param name="usingCustomAgents">Output parameter indicating if custom agents from workspace are being used.</param>
+    /// <returns>The path to the .agents directory to use.</returns>
+    private static string FindAgentsDirectory(string workspaceRoot, out bool usingCustomAgents)
     {
-        // Option 1: Tool installation directory (for global tool usage)
+        // Priority 1: Workspace .agents/ (target repository custom agents)
+        var workspaceAgentsPath = Path.Combine(workspaceRoot, ".agents");
+        if (Directory.Exists(workspaceAgentsPath))
+        {
+            usingCustomAgents = true;
+            AnsiConsole.MarkupLine("[yellow]Using custom agents from target repository[/]");
+            return workspaceAgentsPath;
+        }
+
+        // Priority 2: Tool installation directory (DevPilot defaults)
         var toolDirectory = AppContext.BaseDirectory;
         var toolAgentsPath = Path.Combine(toolDirectory, ".agents");
         if (Directory.Exists(toolAgentsPath))
         {
+            usingCustomAgents = false;
+            AnsiConsole.MarkupLine("[dim]Using default DevPilot agents[/]");
             return toolAgentsPath;
         }
 
-        // Option 2: Current working directory (for running from source during development)
+        // Priority 3: Current working directory (for running from source during development)
         var currentDirPath = Path.Combine(Directory.GetCurrentDirectory(), ".agents");
         if (Directory.Exists(currentDirPath))
         {
+            usingCustomAgents = false;
+            AnsiConsole.MarkupLine("[dim]Using DevPilot agents from current directory (development mode)[/]");
             return currentDirPath;
         }
 
-        // If neither exists, throw helpful error
+        // If none exist, throw helpful error
         throw new DirectoryNotFoundException(
             $".agents directory not found. Searched:\n" +
+            $"  - Workspace: {workspaceAgentsPath}\n" +
             $"  - Tool directory: {toolAgentsPath}\n" +
             $"  - Current directory: {currentDirPath}");
     }
 
     /// <summary>
-    /// Builds the complete MASAI pipeline with all 5 agents.
+    /// Builds the complete MASAI pipeline with all 5 agents from workspace or DevPilot defaults.
     /// </summary>
-    private static async Task<Pipeline> BuildPipelineAsync()
+    /// <param name="workspace">The workspace manager containing the target repository files.</param>
+    /// <returns>The configured pipeline ready for execution.</returns>
+    private static async Task<Pipeline> BuildPipelineAsync(WorkspaceManager workspace)
     {
-        // Load agents from tool installation directory (for global tool usage)
-        // Falls back to current directory if running from source
-        var agentsDirectory = FindAgentsDirectory();
+        // Find agents directory (workspace custom agents or DevPilot defaults)
+        var agentsDirectory = FindAgentsDirectory(workspace.WorkspaceRoot, out var usingCustomAgents);
 
         var loader = new AgentLoader(agentsDirectory);
 
@@ -136,6 +176,15 @@ internal sealed class Program
         // Load all agent definitions and create agent instances
         foreach (var (agentName, stage) in agentMappings)
         {
+            // If using custom agents, validate all 5 agents exist (all-or-nothing)
+            if (usingCustomAgents && !Directory.Exists(Path.Combine(agentsDirectory, agentName)))
+            {
+                throw new DirectoryNotFoundException(
+                    $"Custom agents must define all 5 agents. Missing: .agents/{agentName}/\n\n" +
+                    $"Target repository has .agents/ directory but is missing required agent.\n" +
+                    $"Either define all 5 agents (planner, coder, reviewer, tester, evaluator) or remove .agents/ to use DevPilot defaults.");
+            }
+
             IAgent agent;
 
             // Use TestingAgent for Testing stage (real test execution)
@@ -153,7 +202,7 @@ internal sealed class Program
             agents[stage] = agent;
         }
 
-        return new Pipeline(agents);
+        return new Pipeline(agents, workspace);
     }
 
     /// <summary>
