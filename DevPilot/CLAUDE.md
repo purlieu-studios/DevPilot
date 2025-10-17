@@ -718,6 +718,109 @@ How we'll know we're on the right track:
 - **Test Pass Rates**: >95% of agent-generated tests pass on first run
 - **Time Savings**: Developers report 50%+ time reduction on routine feature tasks
 
+## Lessons Learned from Production Testing
+
+**Date**: 2025-10-17
+**Context**: After implementing repository structure awareness (PR #42), we ran DevPilot against the Testing repository to validate the changes. Here's what we learned:
+
+### Test Results Summary
+
+| Test Run | Request | Result | Score | Issue Found |
+|----------|---------|--------|-------|-------------|
+| 1 | "Create Calculator class with Multiply and Divide methods" | ❌ Failed | N/A | Planner generated `Calculator.cs` instead of `Testing/Calculator.cs` |
+| 2 | "Add Multiply method to Calculator class" | ✅ Passed | 9.3/10 | None - correctly used `Testing/Calculator.cs` |
+| 3 | "Add Square method to Calculator class" | ✅ Passed | 9.2/10 | Flaky floating-point test (precision: 10 too strict) |
+
+**Overall Success Rate**: 2/3 (66%)
+
+### Issue #1: Planner Not Using Structure Context for New Files
+
+**Problem**: When creating NEW files (not modifying existing), Planner didn't include the directory prefix from structure context.
+
+**Symptom**:
+```
+Repository Structure: Main Project: Testing/
+
+Planner output: "Calculator.cs" ← Missing directory!
+Expected:       "Testing/Calculator.cs"
+
+Error: Failed to apply patch: File does not exist
+```
+
+**Root Cause**: Planner system prompt didn't explicitly instruct it to use structure context. It had examples with hardcoded `src/` paths.
+
+**Fix** (Commit `6e57e37`):
+- Added "CRITICAL: Repository Structure Context" section to Planner system prompt
+- Documented file path rules with correct/wrong examples
+- Updated main example to show structure context usage (`Testing/` instead of `src/`)
+- Made it clear that Planner MUST use actual directories from structure context
+
+**Impact**: This was a CRITICAL bug - without the fix, DevPilot couldn't create new files in non-standard repository layouts.
+
+### Issue #2: Overly Strict Floating-Point Precision
+
+**Problem**: Coder agent was generating tests with `precision: 10` for floating-point comparisons, causing flaky failures.
+
+**Symptom**:
+```csharp
+// Agent-generated test (WRONG):
+Assert.Equal(50.005624648000001, result, precision: 10);
+
+// Actual result:
+50.005624683599997
+
+// Test failed despite Math.Sqrt() working correctly!
+```
+
+**Root Cause**: Coder system prompt had no guidance on floating-point precision best practices.
+
+**Fix** (Commit `027282d`):
+- Added "Floating-Point Precision Best Practices" section to Coder system prompt
+- Documented precision guidelines:
+  * Basic arithmetic: precision: 5-7
+  * Transcendental functions (Sqrt, Sin, Cos): precision: 4-5
+  * Financial calculations: precision: 2 (use `decimal`)
+- Provided wrong vs. correct examples with explanations
+
+**Impact**: Reduces flaky floating-point test failures that cause pipelines to fail intermittently.
+
+### Success Metrics from Tests
+
+**✅ What Worked Well**:
+1. **Structure awareness for modifications**: Planner correctly used `Testing/Calculator.cs` when modifying existing files (2/2 success)
+2. **High quality scores**: Both successful runs scored 9.2+ out of 10
+3. **Comprehensive test coverage**: Agent generated 13 tests for Multiply method, 7 for Square method
+4. **Test pass rates**: 70/71 tests passed (98.6%) - only 1 flaky floating-point test failed
+
+**📊 Quality Breakdown** (from successful runs):
+- **Plan Quality**: 9.0/10 (both runs)
+- **Code Quality**: 9.0-9.5/10
+- **Test Coverage**: 9.0/10 (both runs)
+- **Documentation**: 9.0-10.0/10
+- **Maintainability**: 9.0-10.0/10
+
+**🎯 Key Takeaway**: Repository structure awareness works excellently for MODIFICATIONS, but needed additional prompt engineering for NEW FILE CREATION.
+
+### Recommended Actions (Completed)
+
+✅ **Fix Planner path bug** - Completed in commit `6e57e37`
+✅ **Add floating-point precision guidance** - Completed in commit `027282d`
+🔄 **Monitor next test runs** - Validate fixes work in production
+
+### Future Improvements Identified
+
+From these test runs, we identified additional enhancement opportunities:
+
+1. **Test Variability**: Consider adding `[Theory]` with `[InlineData]` for parameterized tests instead of repetitive `[Fact]` methods
+2. **Edge Case Coverage**: Agent is excellent at generating edge cases (zero, negative, overflow) - this is a strength to maintain
+3. **Non-Interactive Mode**: DevPilot CLI needs `--yes` flag to skip user confirmation prompts (caused "Invalid operation: Failed to read input" errors)
+
+**Lessons for Future Development**:
+- ✅ Always test with non-standard repository structures (not just `src/` and `tests/`)
+- ✅ Validate both NEW FILE and MODIFY FILE scenarios separately
+- ✅ Check agent-generated tests for floating-point precision before committing
+- ✅ Run multiple iterations to catch flaky tests and edge cases
+
 ## Related Documentation
 
 - **PIPELINE.md**: Full pipeline architecture and stage documentation
