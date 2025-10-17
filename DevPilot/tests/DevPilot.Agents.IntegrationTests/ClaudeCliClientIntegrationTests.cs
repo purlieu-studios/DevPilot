@@ -20,7 +20,8 @@ public sealed class ClaudeCliClientIntegrationTests
         var result = await client.ExecuteAsync(
             "Say 'Hello, DevPilot!' and nothing else.",
             "You are a helpful assistant. Respond concisely.",
-            "sonnet");
+            "sonnet",
+            cancellationToken: TestContext.Current.CancellationToken);
 
         // Assert
         result.Success.Should().BeTrue();
@@ -40,7 +41,8 @@ public sealed class ClaudeCliClientIntegrationTests
         var result = await client.ExecuteAsync(
             $"Count the number of words in this text: {longPrompt}",
             "You are a helpful assistant.",
-            "sonnet");
+            "sonnet",
+            cancellationToken: TestContext.Current.CancellationToken);
 
         // Assert
         result.Success.Should().BeTrue();
@@ -57,7 +59,8 @@ public sealed class ClaudeCliClientIntegrationTests
         var result = await client.ExecuteAsync(
             "What is your role?",
             "You are a strict code reviewer who only speaks in bullet points.",
-            "sonnet");
+            "sonnet",
+            cancellationToken: TestContext.Current.CancellationToken);
 
         // Assert
         result.Success.Should().BeTrue();
@@ -74,7 +77,8 @@ public sealed class ClaudeCliClientIntegrationTests
         var result = await client.ExecuteAsync(
             "Reply with 'OK'",
             "You are a helpful assistant.",
-            "sonnet");
+            "sonnet",
+            cancellationToken: TestContext.Current.CancellationToken);
 
         // Assert
         result.Success.Should().BeTrue();
@@ -91,7 +95,8 @@ public sealed class ClaudeCliClientIntegrationTests
         var result = await client.ExecuteAsync(
             "Echo this: \"Hello $USER\" and 'test' with <brackets>",
             "You are a helpful assistant.",
-            "sonnet");
+            "sonnet",
+            cancellationToken: TestContext.Current.CancellationToken);
 
         // Assert
         result.Success.Should().BeTrue();
@@ -115,7 +120,8 @@ public sealed class ClaudeCliClientIntegrationTests
         var result = await client.ExecuteAsync(
             multilinePrompt,
             "You are a helpful assistant.",
-            "sonnet");
+            "sonnet",
+            cancellationToken: TestContext.Current.CancellationToken);
 
         // Assert
         result.Success.Should().BeTrue();

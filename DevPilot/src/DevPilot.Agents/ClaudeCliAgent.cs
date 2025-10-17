@@ -103,16 +103,35 @@ public sealed class ClaudeCliAgent : IAgent
                     duration: stopwatch.Elapsed);
             }
         }
-        catch (Exception ex)
+        catch (OperationCanceledException ex)
         {
             stopwatch.Stop();
 
-            // Record exception in context
             context.AddMessage(new AgentMessage
             {
                 AgentName = Definition.Name,
                 Role = MessageRole.System,
-                Content = $"[EXCEPTION] {ex.Message}",
+                Content = "[CANCELLED] Agent execution was cancelled",
+                Metadata = new Dictionary<string, object>
+                {
+                    ["ExceptionType"] = ex.GetType().Name
+                }
+            });
+
+            return AgentResult.CreateFailure(
+                agentName: Definition.Name,
+                errorMessage: "Agent execution was cancelled",
+                duration: stopwatch.Elapsed);
+        }
+        catch (InvalidOperationException ex)
+        {
+            stopwatch.Stop();
+
+            context.AddMessage(new AgentMessage
+            {
+                AgentName = Definition.Name,
+                Role = MessageRole.System,
+                Content = $"[ERROR] Invalid operation: {ex.Message}",
                 Metadata = new Dictionary<string, object>
                 {
                     ["ExceptionType"] = ex.GetType().Name,
@@ -122,7 +141,7 @@ public sealed class ClaudeCliAgent : IAgent
 
             return AgentResult.CreateFailure(
                 agentName: Definition.Name,
-                errorMessage: $"Agent execution failed: {ex.Message}",
+                errorMessage: $"Invalid operation: {ex.Message}",
                 duration: stopwatch.Elapsed);
         }
     }

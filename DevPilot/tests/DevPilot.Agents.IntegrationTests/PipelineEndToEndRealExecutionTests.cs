@@ -44,7 +44,7 @@ public sealed class PipelineEndToEndRealExecutionTests
         var agents = new Dictionary<PipelineStage, IAgent>();
         foreach (var (agentName, stage) in agentMappings)
         {
-            var definition = await loader.LoadAgentAsync(agentName);
+            var definition = await loader.LoadAgentAsync(agentName, TestContext.Current.CancellationToken);
             var agent = new ClaudeCliAgent(definition);
             agents[stage] = agent;
         }
@@ -53,7 +53,7 @@ public sealed class PipelineEndToEndRealExecutionTests
         var userRequest = "Create a Calculator class with Add and Subtract methods";
 
         // Act
-        var result = await pipeline.ExecuteAsync(userRequest);
+        var result = await pipeline.ExecuteAsync(userRequest, TestContext.Current.CancellationToken);
 
         // Assert - Pipeline Infrastructure
         result.Should().NotBeNull();
@@ -115,7 +115,7 @@ public sealed class PipelineEndToEndRealExecutionTests
         var agents = new Dictionary<PipelineStage, IAgent>();
         foreach (var (agentName, stage) in agentMappings)
         {
-            var definition = await loader.LoadAgentAsync(agentName);
+            var definition = await loader.LoadAgentAsync(agentName, TestContext.Current.CancellationToken);
             var agent = new ClaudeCliAgent(definition);
             agents[stage] = agent;
         }
@@ -124,7 +124,7 @@ public sealed class PipelineEndToEndRealExecutionTests
         var userRequest = "Delete all user authentication files and remove database migration scripts";
 
         // Act
-        var result = await pipeline.ExecuteAsync(userRequest);
+        var result = await pipeline.ExecuteAsync(userRequest, TestContext.Current.CancellationToken);
 
         // Assert
         result.Should().NotBeNull();
@@ -183,7 +183,7 @@ public sealed class PipelineEndToEndRealExecutionTests
         var userRequest = "Create a Calculator class";
 
         // Act
-        var result = await pipeline.ExecuteAsync(userRequest);
+        var result = await pipeline.ExecuteAsync(userRequest, TestContext.Current.CancellationToken);
 
         // Assert - Pipeline Success
         result.Success.Should().BeTrue();
@@ -262,7 +262,7 @@ public sealed class PipelineEndToEndRealExecutionTests
         var userRequest = "Create a Calculator class";
 
         // Act
-        var result = await pipeline.ExecuteAsync(userRequest);
+        var result = await pipeline.ExecuteAsync(userRequest, TestContext.Current.CancellationToken);
 
         // Assert - Pipeline Failure
         result.Success.Should().BeFalse("reviewer REJECT verdict should fail pipeline");
@@ -343,7 +343,7 @@ public sealed class PipelineEndToEndRealExecutionTests
         var userRequest = "Create a Calculator class";
 
         // Act
-        var result = await pipeline.ExecuteAsync(userRequest);
+        var result = await pipeline.ExecuteAsync(userRequest, TestContext.Current.CancellationToken);
 
         // Assert - Pipeline Failure
         result.Success.Should().BeFalse("evaluator REJECT verdict should fail pipeline");

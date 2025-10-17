@@ -66,10 +66,19 @@ internal sealed class Program
             AnsiConsole.MarkupLine("[yellow]Hint:[/] Ensure all agent definitions exist in .agents/ directory");
             return 1;
         }
-        catch (Exception ex)
+        catch (DirectoryNotFoundException ex)
         {
-            AnsiConsole.MarkupLine($"[red]Fatal error:[/] {ex.Message}");
-            AnsiConsole.WriteException(ex);
+            AnsiConsole.MarkupLine($"[red]Error:[/] {ex.Message}");
+            return 1;
+        }
+        catch (IOException ex)
+        {
+            AnsiConsole.MarkupLine($"[red]I/O error:[/] {ex.Message}");
+            return 1;
+        }
+        catch (InvalidOperationException ex)
+        {
+            AnsiConsole.MarkupLine($"[red]Invalid operation:[/] {ex.Message}");
             return 1;
         }
     }
@@ -230,9 +239,14 @@ internal sealed class Program
 
                 AnsiConsole.Write(scoresTable);
             }
-            catch
+            catch (System.Text.Json.JsonException)
             {
                 // If parsing fails, just show raw scores (use WriteLine to avoid markup parsing issues)
+                AnsiConsole.WriteLine($"Scores: {result.Context.Scores}");
+            }
+            catch (KeyNotFoundException)
+            {
+                // Missing expected JSON properties, show raw scores
                 AnsiConsole.WriteLine($"Scores: {result.Context.Scores}");
             }
         }
@@ -389,9 +403,14 @@ internal sealed class Program
                 {
                     Directory.Delete(result.Context.WorkspaceRoot, recursive: true);
                 }
-                catch
+                catch (IOException)
                 {
-                    // Ignore cleanup failures
+                    // Directory in use or locked
+                    AnsiConsole.MarkupLine($"[dim]Note: Failed to clean up workspace at {result.Context.WorkspaceRoot}[/]");
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    // Insufficient permissions
                     AnsiConsole.MarkupLine($"[dim]Note: Failed to clean up workspace at {result.Context.WorkspaceRoot}[/]");
                 }
             }

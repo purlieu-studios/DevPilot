@@ -83,7 +83,7 @@ public sealed class Pipeline
                 context.AdvanceToStage(stage, agentResult.Output);
 
                 // Apply patch to workspace after Coding stage
-                if (stage == PipelineStage.Coding && workspace != null)
+                if (stage == PipelineStage.Coding)
                 {
                     try
                     {
@@ -162,42 +162,39 @@ public sealed class Pipeline
                             context.AdvanceToStage(PipelineStage.Coding, coderResult.Output);
 
                             // Rollback and re-apply revised patch
-                            if (workspace != null)
+                            try
                             {
-                                try
+                                workspace.Rollback();
+                                var patchResult = workspace.ApplyPatch(coderResult.Output);
+                                if (!patchResult.Success)
                                 {
-                                    workspace.Rollback();
-                                    var patchResult = workspace.ApplyPatch(coderResult.Output);
-                                    if (!patchResult.Success)
-                                    {
-                                        var errorMsg = $"Failed to apply revised patch: {patchResult.ErrorMessage}";
-                                        context.AdvanceToStage(PipelineStage.Failed, errorMsg);
-                                        stopwatch.Stop();
-                                        return PipelineResult.CreateFailure(context, stopwatch.Elapsed, errorMsg);
-                                    }
-                                    context.SetAppliedFiles(workspace.AppliedFiles);
-
-                                    // Copy project files (.csproj and .sln) to workspace for compilation
-                                    workspace.CopyProjectFiles(Directory.GetCurrentDirectory());
-
-                                    // Validate revised code before building
-                                    var validator = new CodeValidator();
-                                    var validationResult = validator.ValidateWorkspace(workspace.WorkspaceRoot);
-                                    if (!validationResult.Success)
-                                    {
-                                        var errorMsg = $"Pre-build validation failed on revised code: {validationResult.Summary}\n\n{validationResult.Details}";
-                                        context.AdvanceToStage(PipelineStage.Failed, errorMsg);
-                                        stopwatch.Stop();
-                                        return PipelineResult.CreateFailure(context, stopwatch.Elapsed, errorMsg);
-                                    }
-                                }
-                                catch (PatchApplicationException ex)
-                                {
-                                    var errorMsg = $"Revised patch application failed: {ex.Message}";
+                                    var errorMsg = $"Failed to apply revised patch: {patchResult.ErrorMessage}";
                                     context.AdvanceToStage(PipelineStage.Failed, errorMsg);
                                     stopwatch.Stop();
                                     return PipelineResult.CreateFailure(context, stopwatch.Elapsed, errorMsg);
                                 }
+                                context.SetAppliedFiles(workspace.AppliedFiles);
+
+                                // Copy project files (.csproj and .sln) to workspace for compilation
+                                workspace.CopyProjectFiles(Directory.GetCurrentDirectory());
+
+                                // Validate revised code before building
+                                var validator = new CodeValidator();
+                                var validationResult = validator.ValidateWorkspace(workspace.WorkspaceRoot);
+                                if (!validationResult.Success)
+                                {
+                                    var errorMsg = $"Pre-build validation failed on revised code: {validationResult.Summary}\n\n{validationResult.Details}";
+                                    context.AdvanceToStage(PipelineStage.Failed, errorMsg);
+                                    stopwatch.Stop();
+                                    return PipelineResult.CreateFailure(context, stopwatch.Elapsed, errorMsg);
+                                }
+                            }
+                            catch (PatchApplicationException ex)
+                            {
+                                var errorMsg = $"Revised patch application failed: {ex.Message}";
+                                context.AdvanceToStage(PipelineStage.Failed, errorMsg);
+                                stopwatch.Stop();
+                                return PipelineResult.CreateFailure(context, stopwatch.Elapsed, errorMsg);
                             }
 
                             // Re-run Reviewer
@@ -272,11 +269,23 @@ public sealed class Pipeline
             context.AdvanceToStage(PipelineStage.Failed, "Pipeline execution was cancelled");
             return PipelineResult.CreateFailure(context, stopwatch.Elapsed, "Pipeline execution was cancelled");
         }
-        catch (Exception ex)
+        catch (IOException ex)
         {
             stopwatch.Stop();
-            context.AdvanceToStage(PipelineStage.Failed, ex.Message);
-            return PipelineResult.CreateFailure(context, stopwatch.Elapsed, $"Pipeline execution failed: {ex.Message}");
+            context.AdvanceToStage(PipelineStage.Failed, $"I/O error: {ex.Message}");
+            return PipelineResult.CreateFailure(context, stopwatch.Elapsed, $"Pipeline I/O error: {ex.Message}");
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            stopwatch.Stop();
+            context.AdvanceToStage(PipelineStage.Failed, $"Access denied: {ex.Message}");
+            return PipelineResult.CreateFailure(context, stopwatch.Elapsed, $"Pipeline access denied: {ex.Message}");
+        }
+        catch (InvalidOperationException ex)
+        {
+            stopwatch.Stop();
+            context.AdvanceToStage(PipelineStage.Failed, $"Invalid operation: {ex.Message}");
+            return PipelineResult.CreateFailure(context, stopwatch.Elapsed, $"Pipeline invalid operation: {ex.Message}");
         }
         finally
         {
