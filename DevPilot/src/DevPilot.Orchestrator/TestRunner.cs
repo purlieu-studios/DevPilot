@@ -168,9 +168,25 @@ public static class TestRunner
                 }
             };
         }
-        catch (Exception ex)
+        catch (IOException ex)
         {
-            return TestRunResultExtensions.CreateFailure($"Failed to parse TRX file: {ex.Message}");
+            return TestRunResultExtensions.CreateFailure($"Failed to read TRX file: {ex.Message}");
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return TestRunResultExtensions.CreateFailure($"Access denied to TRX file: {ex.Message}");
+        }
+        catch (System.Xml.XmlException ex)
+        {
+            return TestRunResultExtensions.CreateFailure($"Malformed TRX XML: {ex.Message}");
+        }
+        catch (FormatException ex)
+        {
+            return TestRunResultExtensions.CreateFailure($"Invalid TRX format (failed to parse numbers): {ex.Message}");
+        }
+        catch (InvalidOperationException ex)
+        {
+            return TestRunResultExtensions.CreateFailure($"TRX parsing error (missing required elements): {ex.Message}");
         }
     }
 

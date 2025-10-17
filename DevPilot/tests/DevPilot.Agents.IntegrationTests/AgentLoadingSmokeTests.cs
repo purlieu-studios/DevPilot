@@ -25,7 +25,7 @@ public sealed class AgentLoadingSmokeTests
         var loader = new AgentLoader(AgentsDirectory);
 
         // Act
-        var definition = await loader.LoadAgentAsync(agentName);
+        var definition = await loader.LoadAgentAsync(agentName, TestContext.Current.CancellationToken);
 
         // Assert
         definition.Should().NotBeNull();
@@ -41,7 +41,7 @@ public sealed class AgentLoadingSmokeTests
         var loader = new AgentLoader(AgentsDirectory);
 
         // Act
-        var definition = await loader.LoadAgentAsync("planner");
+        var definition = await loader.LoadAgentAsync("planner", TestContext.Current.CancellationToken);
 
         // Assert
         definition.McpConfigPath.Should().NotBeNullOrWhiteSpace();
@@ -58,7 +58,7 @@ public sealed class AgentLoadingSmokeTests
         var loader = new AgentLoader(AgentsDirectory);
 
         // Act
-        var definition = await loader.LoadAgentAsync(agentName);
+        var definition = await loader.LoadAgentAsync(agentName, TestContext.Current.CancellationToken);
 
         // Assert
         definition.McpConfigPath.Should().BeNullOrWhiteSpace();
@@ -74,7 +74,7 @@ public sealed class AgentLoadingSmokeTests
         // Act & Assert
         foreach (var agentName in agentNames)
         {
-            var definition = await loader.LoadAgentAsync(agentName);
+            var definition = await loader.LoadAgentAsync(agentName, TestContext.Current.CancellationToken);
             var agent = new ClaudeCliAgent(definition);
 
             agent.Should().NotBeNull();
