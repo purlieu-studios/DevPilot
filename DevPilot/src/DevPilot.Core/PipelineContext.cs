@@ -54,6 +54,11 @@ public sealed class PipelineContext
     public string? WorkspaceRoot { get; private set; }
 
     /// <summary>
+    /// Gets the detected project structure of the workspace.
+    /// </summary>
+    public ProjectStructureInfo? ProjectStructure { get; private set; }
+
+    /// <summary>
     /// Gets the list of files that were created or modified by applying the patch.
     /// </summary>
     public IReadOnlyList<string>? AppliedFiles { get; private set; }
@@ -151,6 +156,16 @@ public sealed class PipelineContext
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
         WorkspaceRoot = workspaceRoot;
+    }
+
+    /// <summary>
+    /// Sets the detected project structure for the workspace.
+    /// </summary>
+    /// <param name="projectStructure">The detected project structure information.</param>
+    public void SetProjectStructure(ProjectStructureInfo projectStructure)
+    {
+        ArgumentNullException.ThrowIfNull(projectStructure);
+        ProjectStructure = projectStructure;
     }
 
     /// <summary>
