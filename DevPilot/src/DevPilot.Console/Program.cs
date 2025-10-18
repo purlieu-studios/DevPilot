@@ -260,7 +260,17 @@ internal sealed class Program
     /// </summary>
     private static void DisplaySuccess(PipelineResult result)
     {
-        AnsiConsole.MarkupLine("[green bold]✓ Pipeline completed successfully[/]");
+        // Check if pipeline has warnings (test failures)
+        if (result.Context.HasTestFailures)
+        {
+            AnsiConsole.MarkupLine("[yellow bold]⚠ Pipeline completed with warnings[/]");
+            var warningMsg = Markup.Escape(result.ErrorMessage ?? "Unknown warning");
+            AnsiConsole.MarkupLine($"[yellow]{warningMsg}[/]");
+        }
+        else
+        {
+            AnsiConsole.MarkupLine("[green bold]✓ Pipeline completed successfully[/]");
+        }
         AnsiConsole.WriteLine();
 
         // Try to parse and display evaluation scores if available
