@@ -86,7 +86,7 @@ internal sealed class Program
             // Prompt to apply changes if pipeline succeeded
             if (result.Success && result.Context.AppliedFiles?.Count > 0)
             {
-                var applied = await PromptAndApplyChanges(result);
+                var applied = await PromptAndApplyChanges(result, workspace);
                 if (!applied)
                 {
                     AnsiConsole.MarkupLine("[yellow]Changes not applied. Workspace preserved for review.[/]");
@@ -390,7 +390,7 @@ internal sealed class Program
     /// <summary>
     /// Prompts the user to apply changes and copies files from workspace to project.
     /// </summary>
-    private static async Task<bool> PromptAndApplyChanges(PipelineResult result)
+    private static async Task<bool> PromptAndApplyChanges(PipelineResult result, WorkspaceManager workspace)
     {
         if (result.Context.WorkspaceRoot == null || result.Context.AppliedFiles == null)
         {
@@ -419,6 +419,40 @@ internal sealed class Program
 
             AnsiConsole.Write(changeTable);
             AnsiConsole.WriteLine();
+
+            // Prompt to view diffs
+            var viewDiffs = AnsiConsole.Confirm("View diffs before applying?", defaultValue: true);
+
+            if (viewDiffs)
+            {
+                var sourceRoot = Directory.GetCurrentDirectory();
+
+                foreach (var file in result.Context.AppliedFiles)
+                {
+                    AnsiConsole.WriteLine();
+                    AnsiConsole.Write(new Rule($"[bold cyan]{file}[/]"));
+
+                    var diff = workspace.GenerateFileDiff(file, sourceRoot);
+                    if (diff != null)
+                    {
+                        // Display diff in a panel with syntax highlighting
+                        var diffPanel = new Panel(Markup.Escape(diff))
+                        {
+                            Border = BoxBorder.Rounded,
+                            BorderStyle = new Style(Color.Grey),
+                            Padding = new Padding(1, 0, 1, 0)
+                        };
+
+                        AnsiConsole.Write(diffPanel);
+                    }
+                    else
+                    {
+                        AnsiConsole.MarkupLine("[dim](file not found in workspace)[/]");
+                    }
+                }
+
+                AnsiConsole.WriteLine();
+            }
 
             // Prompt for confirmation
             bool shouldApply;
