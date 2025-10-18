@@ -85,6 +85,10 @@ public sealed class Pipeline
                         stopwatch.Stop();
                         return PipelineResult.CreateFailure(context, stopwatch.Elapsed, detailedError);
                     }
+
+                    // Copy CLAUDE.md after Planning succeeds to make it available for subsequent stages
+                    // (it was excluded during initial workspace creation to reduce Planner context)
+                    _workspace.CopyClaudeMd(Directory.GetCurrentDirectory());
                 }
 
                 context.AdvanceToStage(stage, agentResult.Output);
