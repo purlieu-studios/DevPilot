@@ -789,6 +789,294 @@ namespace DevPilot.Services
 }
 ```
 
+## C# Best Practices for Excellence (Part 3)
+
+### Critical: Async/Await Patterns
+
+**✅ ALWAYS use `async Task` for async methods**:
+```csharp
+// CORRECT
+public async Task<User> GetUserAsync(int id)
+{
+    return await _repository.FindByIdAsync(id);
+}
+
+// WRONG - async void swallows exceptions (only for event handlers)
+public async void GetUser(int id)
+{
+    var user = await _repository.FindByIdAsync(id);
+}
+```
+
+**✅ NEVER mix sync and async**:
+```csharp
+// CORRECT
+public async Task<string> ProcessDataAsync()
+{
+    var data = await FetchDataAsync();
+    return await TransformDataAsync(data);
+}
+
+// WRONG - deadlock risk with .Result or .Wait()
+public string ProcessData()
+{
+    var data = FetchDataAsync().Result;  // ❌ Can deadlock in UI/ASP.NET contexts
+    return TransformDataAsync(data).Wait();  // ❌ Blocks thread pool
+}
+```
+
+**✅ Use `ConfigureAwait(false)` in library code**:
+```csharp
+// Library code (non-UI)
+public async Task<Data> FetchDataAsync()
+{
+    using var client = new HttpClient();
+    var response = await client.GetAsync(url).ConfigureAwait(false);
+    return await response.Content.ReadAsAsync<Data>().ConfigureAwait(false);
+}
+
+// UI code (WPF, WinForms) - omit ConfigureAwait to resume on UI thread
+```
+
+**✅ Avoid `async void` except for event handlers**:
+```csharp
+// CORRECT - event handler
+private async void Button_Click(object sender, EventArgs e)
+{
+    try
+    {
+        await ProcessAsync();
+    }
+    catch (Exception ex)
+    {
+        // Handle exceptions - async void doesn't propagate them
+        _logger.LogError(ex, "Button click failed");
+    }
+}
+
+// WRONG - regular method
+public async void SaveData()  // ❌ Exceptions are lost
+{
+    await _repository.SaveAsync();
+}
+```
+
+### Critical: LINQ Anti-Patterns
+
+**❌ CRITICAL: Multiple Enumeration**
+
+This is the **#1 LINQ performance trap**. Every `.Count()`, `.Any()`, `.ToList()` call re-executes the query.
+
+```csharp
+// WRONG - enumerates database query TWICE
+var activeUsers = _db.Users.Where(u => u.IsActive);
+if (activeUsers.Count() > 0)  // ❌ DB query executed here
+{
+    Console.WriteLine(activeUsers.First().Name);  // ❌ DB query executed AGAIN
+}
+
+// CORRECT - materialize once
+var activeUsers = _db.Users.Where(u => u.IsActive).ToList();
+if (activeUsers.Count > 0)  // ✅ In-memory count
+{
+    Console.WriteLine(activeUsers.First().Name);  // ✅ In-memory lookup
+}
+```
+
+**✅ Use `.Any()` instead of `.Count() > 0`**:
+```csharp
+// CORRECT - stops at first match
+if (users.Any(u => u.IsAdmin))
+{
+    // ...
+}
+
+// WRONG - counts ALL items just to check if > 0
+if (users.Count(u => u.IsAdmin) > 0)
+{
+    // ...
+}
+```
+
+**✅ Prefer `.FirstOrDefault()` with null check over `.Where().FirstOrDefault()`**:
+```csharp
+// CORRECT - single pass
+var admin = users.FirstOrDefault(u => u.IsAdmin);
+
+// LESS EFFICIENT - but not wrong
+var admin = users.Where(u => u.IsAdmin).FirstOrDefault();
+```
+
+**✅ Use `.ToList()` or `.ToArray()` when you need multiple iterations**:
+```csharp
+// CORRECT - materialize expensive query once
+var results = ExpensiveQuery().ToList();
+Console.WriteLine($"Found {results.Count} items");
+foreach (var item in results)
+{
+    // Process items
+}
+
+// WRONG - query executed twice (once for Count, once for foreach)
+var results = ExpensiveQuery();
+Console.WriteLine($"Found {results.Count()} items");
+foreach (var item in results)
+{
+    // Query executed AGAIN
+}
+```
+
+### Modern Null Handling (C# 10+)
+
+**✅ Use `ArgumentNullException.ThrowIfNull()` (C# 10+)**:
+```csharp
+// CORRECT - modern pattern
+public void ProcessUser(User user)
+{
+    ArgumentNullException.ThrowIfNull(user);
+    // ...
+}
+
+// OLD - verbose
+public void ProcessUser(User user)
+{
+    if (user == null)
+        throw new ArgumentNullException(nameof(user));
+    // ...
+}
+```
+
+**✅ Use nullable reference types (`string?`)**:
+```csharp
+// Enable in .csproj: <Nullable>enable</Nullable>
+
+public class User
+{
+    public string Name { get; set; }  // Non-nullable, must be set
+    public string? MiddleName { get; set; }  // Nullable, can be null
+}
+
+// Compiler warns if you access MiddleName without null check
+public string GetFullName(User user)
+{
+    ArgumentNullException.ThrowIfNull(user);
+
+    // CORRECT
+    return user.MiddleName != null
+        ? $"{user.Name} {user.MiddleName}"
+        : user.Name;
+
+    // WRONG - compiler warning CS8602
+    return $"{user.Name} {user.MiddleName.Trim()}";
+}
+```
+
+**✅ Null-coalescing operators**:
+```csharp
+// CORRECT - null-coalescing
+var name = user.MiddleName ?? "N/A";
+
+// CORRECT - null-conditional
+var length = user.MiddleName?.Length ?? 0;
+
+// CORRECT - null-coalescing assignment (C# 8+)
+_cache ??= new Dictionary<string, object>();
+
+// OLD - verbose
+var name = user.MiddleName != null ? user.MiddleName : "N/A";
+```
+
+### Resource Management
+
+**✅ Always dispose `IDisposable` resources**:
+```csharp
+// CORRECT - using statement
+using (var stream = File.OpenRead("data.txt"))
+{
+    // Stream is automatically disposed when scope exits
+}
+
+// CORRECT - C# 8+ using declaration (file scope)
+using var stream = File.OpenRead("data.txt");
+// Stream disposed at end of method/block
+
+// WRONG - resource leak
+var stream = File.OpenRead("data.txt");
+// Stream never disposed, file handle leaked
+```
+
+**✅ Dispose multiple resources safely**:
+```csharp
+// CORRECT - nested using
+using var connection = new SqlConnection(connectionString);
+using var command = connection.CreateCommand();
+command.CommandText = "SELECT * FROM Users";
+// Both disposed in reverse order
+
+// OLD - verbose nesting
+using (var connection = new SqlConnection(connectionString))
+{
+    using (var command = connection.CreateCommand())
+    {
+        command.CommandText = "SELECT * FROM Users";
+    }
+}
+```
+
+**✅ Implement `IDisposable` correctly**:
+```csharp
+public class DataProcessor : IDisposable
+{
+    private readonly FileStream _fileStream;
+    private bool _disposed;
+
+    public DataProcessor(string filePath)
+    {
+        _fileStream = File.OpenRead(filePath);
+    }
+
+    public void Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (_disposed)
+            return;
+
+        if (disposing)
+        {
+            // Dispose managed resources
+            _fileStream?.Dispose();
+        }
+
+        // Free unmanaged resources (if any)
+
+        _disposed = true;
+    }
+}
+```
+
+**✅ Use `HttpClient` as singleton (not in `using`)**:
+```csharp
+// CORRECT - reuse HttpClient instance
+private static readonly HttpClient _httpClient = new();
+
+public async Task<string> FetchDataAsync(string url)
+{
+    return await _httpClient.GetStringAsync(url);
+}
+
+// WRONG - creates new connection for every request (socket exhaustion)
+public async Task<string> FetchDataAsync(string url)
+{
+    using var client = new HttpClient();
+    return await client.GetStringAsync(url);
+}
+```
+
 ## Output Format - Unified Diff
 
 You **MUST** output a valid unified diff patch in git format. Do NOT output JSON.
