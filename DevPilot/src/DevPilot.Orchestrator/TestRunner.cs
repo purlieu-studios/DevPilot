@@ -90,8 +90,8 @@ public static class TestRunner
         using var process = new Process { StartInfo = startInfo };
         process.Start();
 
-        var outputTask = process.StandardOutput.ReadToEndAsync();
-        var errorTask = process.StandardError.ReadToEndAsync();
+        var outputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
+        var errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
 
         // Wait for process to exit with timeout
         var completed = await WaitForExitAsync(process, timeout, cancellationToken);
