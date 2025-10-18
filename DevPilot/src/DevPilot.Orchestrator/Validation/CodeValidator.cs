@@ -57,6 +57,58 @@ public sealed class CodeValidator
     }
 
     /// <summary>
+    /// Validates only the specified modified files in the workspace.
+    /// This prevents false positives from existing source files that may contain test-like patterns.
+    /// </summary>
+    /// <param name="workspaceRoot">The root directory of the workspace.</param>
+    /// <param name="modifiedFiles">List of modified file paths (relative to workspace root).</param>
+    /// <returns>A validation result indicating success or failure with detailed messages.</returns>
+    public ValidationResult ValidateModifiedFiles(string workspaceRoot, IReadOnlyList<string> modifiedFiles)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
+        ArgumentNullException.ThrowIfNull(modifiedFiles);
+
+        if (!Directory.Exists(workspaceRoot))
+        {
+            return ValidationResult.CreateFailure(
+                "Workspace directory does not exist",
+                $"Directory not found: {workspaceRoot}");
+        }
+
+        var errors = new List<string>();
+
+        foreach (var file in modifiedFiles)
+        {
+            // Only validate C# files
+            if (!file.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var fullPath = Path.Combine(workspaceRoot, file);
+
+            // Check if this is a test file (contains [Fact], [Theory], or [Test] attributes)
+            if (IsTestFile(fullPath))
+            {
+                var validationError = ValidateTestFile(fullPath, workspaceRoot);
+                if (validationError != null)
+                {
+                    errors.Add(validationError);
+                }
+            }
+        }
+
+        if (errors.Count > 0)
+        {
+            return ValidationResult.CreateFailure(
+                "Pre-build validation failed",
+                string.Join("\n\n", errors));
+        }
+
+        return ValidationResult.CreateSuccess("All validation checks passed");
+    }
+
+    /// <summary>
     /// Determines if a C# file is a test file by checking for test attributes.
     /// </summary>
     /// <param name="filePath">Path to the C# file.</param>

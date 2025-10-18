@@ -108,9 +108,9 @@ public sealed class Pipeline
                         // Copy project files (.csproj and .sln) to workspace for compilation
                         _workspace.CopyProjectFiles(Directory.GetCurrentDirectory());
 
-                        // Validate workspace before building to catch errors early
+                        // Validate only modified files to prevent false positives from existing code
                         var validator = new CodeValidator();
-                        var validationResult = validator.ValidateWorkspace(_workspace.WorkspaceRoot);
+                        var validationResult = validator.ValidateModifiedFiles(_workspace.WorkspaceRoot, context.AppliedFiles);
                         if (!validationResult.Success)
                         {
                             var errorMsg = $"Pre-build validation failed: {validationResult.Summary}\n\n{validationResult.Details}";
