@@ -894,6 +894,34 @@ When adding evaluator MCP support, we had two options:
 
 This principle complements "Always the Proper Fix" - proper fixes often involve extending existing solutions rather than creating parallel systems.
 
+## Development Workflow
+
+**For detailed contributor guidelines, see [CONTRIBUTING.md](./CONTRIBUTING.md).**
+
+### Quick Reference: When to Use Meta-Loop vs Direct Development
+
+**Meta-Loop** (DevPilot improving DevPilot):
+- ✅ Validation/regression testing after changes
+- ✅ Dogfooding new features
+- ✅ Generating documentation examples
+- ❌ Initial development or architecture design
+- ❌ Deep debugging or multi-step refactoring
+
+**Direct Development** (Claude Code):
+- ✅ Complex refactoring and architecture changes
+- ✅ Bug fixes requiring debugging
+- ✅ Agent prompt engineering
+- ✅ Infrastructure improvements
+
+**Recommended Workflow**:
+1. Develop changes directly using Claude Code
+2. Commit to PR branch
+3. Run meta-loop validation on Testing repo (simple baseline)
+4. Run meta-loop validation on DevPilot repo (dogfooding)
+5. Merge if all tests pass
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for detailed pre-merge checklist, testing guidelines, and development scenarios.
+
 ---
 
 If problems persist, see the [Claude CLI documentation](https://docs.anthropic.com/claude/docs) or file an issue in the DevPilot repository.
