@@ -114,7 +114,7 @@ public sealed class Pipeline
 
                         // Validate only modified files to prevent false positives from existing code
                         var validator = new CodeValidator();
-                        var validationResult = validator.ValidateModifiedFiles(_workspace.WorkspaceRoot, context.AppliedFiles);
+                        var validationResult = validator.ValidateModifiedFiles(_workspace.WorkspaceRoot, _workspace.AppliedFiles);
                         if (!validationResult.Success)
                         {
                             var errorMsg = $"Pre-build validation failed: {validationResult.Summary}\n\n{validationResult.Details}";

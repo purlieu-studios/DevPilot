@@ -392,9 +392,14 @@ public sealed class WorkspaceManager : IDisposable
 
             return testFrameworks.Any(framework => projectContent.Contains(framework, StringComparison.OrdinalIgnoreCase));
         }
-        catch
+        catch (IOException)
         {
-            // If we can't read the file, use name-based heuristic only
+            // If we can't read the file (file access errors), use name-based heuristic only
+            return false;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // If we don't have permission to read the file, use name-based heuristic only
             return false;
         }
     }
