@@ -1,5 +1,7 @@
 using DevPilot.Core;
 using DevPilot.Orchestrator.Validation;
+using DevPilot.RAG;
+using Spectre.Console;
 using System.Diagnostics;
 using System.Text.Json;
 
@@ -13,13 +15,18 @@ public sealed class Pipeline
     private const int MaxRevisionIterations = 2;
     private readonly IReadOnlyDictionary<PipelineStage, IAgent> _agents;
     private readonly WorkspaceManager _workspace;
+    private readonly IRagService? _ragService;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="Pipeline"/> class.
     /// </summary>
     /// <param name="agents">Dictionary mapping pipeline stages to agent implementations.</param>
     /// <param name="workspace">The workspace manager for this pipeline execution.</param>
-    public Pipeline(IReadOnlyDictionary<PipelineStage, IAgent> agents, WorkspaceManager workspace)
+    /// <param name="ragService">Optional RAG service for context retrieval (null to disable RAG).</param>
+    public Pipeline(
+        IReadOnlyDictionary<PipelineStage, IAgent> agents,
+        WorkspaceManager workspace,
+        IRagService? ragService = null)
     {
         ArgumentNullException.ThrowIfNull(agents);
         ArgumentNullException.ThrowIfNull(workspace);
@@ -27,6 +34,7 @@ public sealed class Pipeline
         ValidateAgents(agents);
         _agents = agents;
         _workspace = workspace;
+        _ragService = ragService;
     }
 
     /// <summary>
@@ -50,6 +58,47 @@ public sealed class Pipeline
             // Analyze project structure for agent context
             var projectStructure = _workspace.AnalyzeProjectStructure();
             context.SetProjectStructure(projectStructure);
+
+            // Index workspace and retrieve RAG context (if RAG enabled)
+            if (_ragService != null)
+            {
+                try
+                {
+                    // Index all workspace files
+                    await _ragService.IndexWorkspaceAsync(
+                        _workspace.WorkspaceRoot,
+                        context.PipelineId,
+                        cancellationToken);
+
+                    // Query for relevant context based on user request
+                    var ragResults = await _ragService.QueryAsync(
+                        userRequest,
+                        context.PipelineId,
+                        topK: 5,
+                        cancellationToken);
+
+                    // Format and set RAG context for agents
+                    if (ragResults.Count > 0)
+                    {
+                        var formattedContext = _ragService.FormatContext(ragResults, maxTokens: 8000);
+                        context.SetRAGContext(formattedContext);
+                    }
+                }
+                catch (InvalidOperationException ex)
+                {
+                    // RAG failed (Ollama not running, model not found, etc.)
+                    // Continue pipeline without RAG context
+                    AnsiConsole.MarkupLine("[yellow]⚠ RAG unavailable:[/] {0}", ex.Message);
+                    AnsiConsole.MarkupLine("[dim]Pipeline continuing without RAG context[/]");
+                }
+                catch (HttpRequestException)
+                {
+                    // Network error connecting to Ollama
+                    // Continue pipeline without RAG context
+                    AnsiConsole.MarkupLine("[yellow]⚠ RAG unavailable:[/] Failed to connect to Ollama");
+                    AnsiConsole.MarkupLine("[dim]Pipeline continuing without RAG context[/]");
+                }
+            }
 
             // Execute all stages sequentially
             var stages = new[]
@@ -377,10 +426,25 @@ public sealed class Pipeline
             _ => string.Empty
         };
 
+        var contextParts = new List<string>();
+
         // Prepend project structure context for stages that need it
         if (context.ProjectStructure != null && ShouldIncludeStructureContext(stage))
         {
-            return context.ProjectStructure.ToAgentContext() + "\n\n" + baseInput;
+            contextParts.Add(context.ProjectStructure.ToAgentContext());
+        }
+
+        // Prepend RAG-retrieved context for all stages (if available)
+        if (!string.IsNullOrWhiteSpace(context.RAGContext) && ShouldIncludeRAGContext(stage))
+        {
+            contextParts.Add(context.RAGContext);
+        }
+
+        // Combine all context parts with the base input
+        if (contextParts.Count > 0)
+        {
+            contextParts.Add(baseInput);
+            return string.Join("\n\n", contextParts);
         }
 
         return baseInput;
@@ -396,6 +460,26 @@ public sealed class Pipeline
         // Planning and Coding stages need structure context to generate correct file paths
         // Other stages work with existing outputs that already reference the correct paths
         return stage is PipelineStage.Planning or PipelineStage.Coding;
+    }
+
+    /// <summary>
+    /// Determines if a pipeline stage should receive RAG-retrieved context.
+    /// </summary>
+    /// <param name="stage">The pipeline stage.</param>
+    /// <returns>True if RAG context should be included; otherwise, false.</returns>
+    private static bool ShouldIncludeRAGContext(PipelineStage stage)
+    {
+        // All stages benefit from relevant context:
+        // - Planning: Domain knowledge, architectural patterns
+        // - Coding: Similar code examples, conventions
+        // - Reviewing: Project-specific review guidelines
+        // - Testing: Test patterns, existing test structure
+        // - Evaluating: Quality standards from documentation
+        return stage is PipelineStage.Planning
+            or PipelineStage.Coding
+            or PipelineStage.Reviewing
+            or PipelineStage.Testing
+            or PipelineStage.Evaluating;
     }
 
     /// <summary>

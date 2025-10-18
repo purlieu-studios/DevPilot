@@ -3,6 +3,11 @@
   <ItemGroup>
     <ProjectReference Include="..\DevPilot.Core\DevPilot.Core.csproj" />
     <ProjectReference Include="..\DevPilot.Agents\DevPilot.Agents.csproj" />
+    <ProjectReference Include="..\DevPilot.RAG\DevPilot.RAG.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Spectre.Console" Version="0.49.1" />
   </ItemGroup>
 
   <PropertyGroup>
