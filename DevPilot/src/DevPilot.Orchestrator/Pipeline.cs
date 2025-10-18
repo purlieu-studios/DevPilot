@@ -1,6 +1,7 @@
 using DevPilot.Core;
 using DevPilot.Orchestrator.Validation;
 using DevPilot.RAG;
+using Spectre.Console;
 using System.Diagnostics;
 using System.Text.Json;
 
@@ -83,16 +84,19 @@ public sealed class Pipeline
                         context.SetRAGContext(formattedContext);
                     }
                 }
-                catch (InvalidOperationException)
+                catch (InvalidOperationException ex)
                 {
                     // RAG failed (Ollama not running, model not found, etc.)
                     // Continue pipeline without RAG context
-                    // Error already logged in RagService
+                    AnsiConsole.MarkupLine("[yellow]⚠ RAG unavailable:[/] {0}", ex.Message);
+                    AnsiConsole.MarkupLine("[dim]Pipeline continuing without RAG context[/]");
                 }
                 catch (HttpRequestException)
                 {
                     // Network error connecting to Ollama
                     // Continue pipeline without RAG context
+                    AnsiConsole.MarkupLine("[yellow]⚠ RAG unavailable:[/] Failed to connect to Ollama");
+                    AnsiConsole.MarkupLine("[dim]Pipeline continuing without RAG context[/]");
                 }
             }
 
