@@ -92,10 +92,10 @@ public sealed class WorkspaceManager : IDisposable
             solutionRoot = sourceRoot;
         }
 
-        // Find all .csproj and .sln files from solution root (exclude .devpilot and other build artifacts)
-        var excludedPaths = new[] { ".devpilot", "bin", "obj", ".git", ".vs", "node_modules", "packages" };
-        var projectFiles = Directory.GetFiles(solutionRoot, "*.csproj", SearchOption.AllDirectories)
-            .Where(f => !excludedPaths.Any(excluded => f.Contains(Path.DirectorySeparatorChar + excluded + Path.DirectorySeparatorChar)))
+        // Find all .csproj files, excluding build artifacts and workspaces DURING traversal (not after)
+        // This is much faster than Directory.GetFiles with SearchOption.AllDirectories
+        var excludedDirectories = new[] { ".devpilot", "bin", "obj", ".git", ".vs", "node_modules", "packages", "TestResults", "nupkg" };
+        var projectFiles = FindFilesRecursive(solutionRoot, "*.csproj", excludedDirectories)
             .Concat(Directory.GetFiles(solutionRoot, "*.sln", SearchOption.TopDirectoryOnly))
             .ToList();
 
@@ -239,7 +239,7 @@ public sealed class WorkspaceManager : IDisposable
         var directoriesToCopy = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         // Add default directories (for backward compatibility)
-        var defaultDirectories = new[] { ".agents", "docs", "src", "tests" };
+        var defaultDirectories = new[] { ".agents", "docs", "src", "tests", "experiments" };
         foreach (var dirName in defaultDirectories)
         {
             var sourceDir = Path.Combine(sourceRoot, dirName);
@@ -401,12 +401,56 @@ public sealed class WorkspaceManager : IDisposable
             File.Copy(file, destFile, overwrite: true);
         }
 
-        // Recursively copy subdirectories
+        // Recursively copy subdirectories (exclude build artifacts and workspaces DURING traversal)
+        var excludedDirs = new[] { "bin", "obj", ".git", ".vs", "node_modules", ".devpilot", "packages", "TestResults", "nupkg" };
         foreach (var directory in Directory.GetDirectories(sourceDir))
         {
             var dirName = Path.GetFileName(directory);
+
+            // Skip excluded directories
+            if (excludedDirs.Contains(dirName, StringComparer.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
             var destSubDir = Path.Combine(destDir, dirName);
             CopyDirectoryRecursive(directory, destSubDir);
+        }
+    }
+
+    /// <summary>
+    /// Recursively finds files matching a pattern, excluding specified directories during traversal.
+    /// This is more efficient than Directory.GetFiles with SearchOption.AllDirectories because
+    /// it skips excluded directories during traversal instead of filtering after.
+    /// </summary>
+    /// <param name="directory">The directory to search in.</param>
+    /// <param name="pattern">The file pattern to match (e.g., "*.csproj").</param>
+    /// <param name="excludedDirectories">Directory names to skip during traversal.</param>
+    /// <returns>An enumerable of matching file paths.</returns>
+    private static IEnumerable<string> FindFilesRecursive(string directory, string pattern, string[] excludedDirectories)
+    {
+        // Find files in current directory
+        foreach (var file in Directory.GetFiles(directory, pattern))
+        {
+            yield return file;
+        }
+
+        // Recurse into subdirectories, skipping excluded ones
+        foreach (var subDir in Directory.GetDirectories(directory))
+        {
+            var dirName = Path.GetFileName(subDir);
+
+            // Skip excluded directories
+            if (excludedDirectories.Contains(dirName, StringComparer.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            // Recursively search subdirectory
+            foreach (var file in FindFilesRecursive(subDir, pattern, excludedDirectories))
+            {
+                yield return file;
+            }
         }
     }
 
