@@ -734,6 +734,138 @@ public sealed class WorkspaceManager : IDisposable
     }
 
     /// <summary>
+    /// Generates a git-style diff for a file in the workspace.
+    /// </summary>
+    /// <param name="filePath">The relative path to the file (e.g., "Testing/Calculator.cs").</param>
+    /// <param name="sourceRoot">The source repository root to compare against (optional).</param>
+    /// <returns>A formatted diff string showing the changes, or null if file doesn't exist.</returns>
+    public string? GenerateFileDiff(string filePath, string? sourceRoot = null)
+    {
+        var workspaceFilePath = Path.Combine(_workspaceRoot, filePath);
+
+        if (!File.Exists(workspaceFilePath))
+        {
+            return null;
+        }
+
+        var workspaceContent = File.ReadAllLines(workspaceFilePath);
+
+        // Check if this is a new file or modification
+        var sourceFilePath = sourceRoot != null ? Path.Combine(sourceRoot, filePath) : filePath;
+        var isNewFile = !File.Exists(sourceFilePath);
+
+        if (isNewFile)
+        {
+            // New file: Show full content with + prefix
+            var diffLines = new List<string>
+            {
+                $"diff --git a/{filePath} b/{filePath}",
+                "new file mode 100644",
+                "--- /dev/null",
+                $"+++ b/{filePath}",
+                $"@@ -0,0 +1,{workspaceContent.Length} @@"
+            };
+
+            foreach (var line in workspaceContent)
+            {
+                diffLines.Add($"+{line}");
+            }
+
+            return string.Join(Environment.NewLine, diffLines);
+        }
+        else
+        {
+            // Modified file: Show line-by-line diff
+            var originalContent = File.ReadAllLines(sourceFilePath);
+            return GenerateUnifiedDiff(filePath, originalContent, workspaceContent);
+        }
+    }
+
+    /// <summary>
+    /// Generates a unified diff between two versions of a file.
+    /// </summary>
+    private static string GenerateUnifiedDiff(string filePath, string[] originalLines, string[] modifiedLines)
+    {
+        var diffLines = new List<string>
+        {
+            $"diff --git a/{filePath} b/{filePath}",
+            $"--- a/{filePath}",
+            $"+++ b/{filePath}"
+        };
+
+        // Simple line-by-line comparison (context: 3 lines before/after changes)
+        var changes = new List<(int index, string type, string line)>();
+        var maxLength = Math.Max(originalLines.Length, modifiedLines.Length);
+
+        // Detect changes
+        for (int i = 0; i < maxLength; i++)
+        {
+            var originalLine = i < originalLines.Length ? originalLines[i] : null;
+            var modifiedLine = i < modifiedLines.Length ? modifiedLines[i] : null;
+
+            if (originalLine != modifiedLine)
+            {
+                if (originalLine != null && modifiedLine != null)
+                {
+                    // Line changed
+                    changes.Add((i, "remove", originalLine));
+                    changes.Add((i, "add", modifiedLine));
+                }
+                else if (originalLine != null)
+                {
+                    // Line removed
+                    changes.Add((i, "remove", originalLine));
+                }
+                else if (modifiedLine != null)
+                {
+                    // Line added
+                    changes.Add((i, "add", modifiedLine));
+                }
+            }
+        }
+
+        if (changes.Count == 0)
+        {
+            diffLines.Add("@@ -1,1 +1,1 @@");
+            diffLines.Add(" (no changes)");
+            return string.Join(Environment.NewLine, diffLines);
+        }
+
+        // Group changes into hunks (simplified: one hunk for all changes)
+        var firstChange = changes.First().index;
+        var lastChange = changes.Last().index;
+        var contextStart = Math.Max(0, firstChange - 3);
+        var contextEnd = Math.Min(maxLength - 1, lastChange + 3);
+
+        diffLines.Add($"@@ -{contextStart + 1},{contextEnd - contextStart + 1} +{contextStart + 1},{contextEnd - contextStart + 1} @@");
+
+        // Add context lines and changes
+        for (int i = contextStart; i <= contextEnd; i++)
+        {
+            var change = changes.FirstOrDefault(c => c.index == i);
+            if (change != default)
+            {
+                if (change.type == "remove")
+                {
+                    diffLines.Add($"-{change.line}");
+                }
+                else if (change.type == "add")
+                {
+                    diffLines.Add($"+{change.line}");
+                }
+            }
+            else
+            {
+                // Context line
+                var contextLine = i < originalLines.Length ? originalLines[i] : modifiedLines[i];
+                diffLines.Add($" {contextLine}");
+            }
+        }
+
+        return string.Join(Environment.NewLine, diffLines);
+    }
+
+    /// <summary>
     /// Disposes the workspace manager and cleans up resources.
     /// </summary>
     public void Dispose()
