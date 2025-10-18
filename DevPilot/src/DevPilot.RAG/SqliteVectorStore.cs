@@ -373,7 +373,25 @@ public sealed class SqliteVectorStore : IVectorStore
                 return false;
             }
 
-            if (!metadataValue.Equals(value))
+            // Handle JsonElement comparison (when deserialized from JSON)
+            if (metadataValue is JsonElement jsonElement)
+            {
+                var stringValue = value.ToString();
+                var metadataStringValue = jsonElement.ValueKind switch
+                {
+                    JsonValueKind.String => jsonElement.GetString(),
+                    JsonValueKind.Number => jsonElement.GetRawText(),
+                    JsonValueKind.True => "True",
+                    JsonValueKind.False => "False",
+                    _ => jsonElement.GetRawText()
+                };
+
+                if (!string.Equals(metadataStringValue, stringValue, StringComparison.Ordinal))
+                {
+                    return false;
+                }
+            }
+            else if (!metadataValue.Equals(value))
             {
                 return false;
             }
