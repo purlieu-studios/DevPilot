@@ -59,6 +59,11 @@ public sealed class PipelineContext
     public ProjectStructureInfo? ProjectStructure { get; private set; }
 
     /// <summary>
+    /// Gets the RAG-retrieved context for agent prompts (relevant code/docs from workspace).
+    /// </summary>
+    public string? RAGContext { get; private set; }
+
+    /// <summary>
     /// Gets the list of files that were created or modified by applying the patch.
     /// </summary>
     public IReadOnlyList<string>? AppliedFiles { get; private set; }
@@ -176,6 +181,16 @@ public sealed class PipelineContext
     {
         ArgumentNullException.ThrowIfNull(projectStructure);
         ProjectStructure = projectStructure;
+    }
+
+    /// <summary>
+    /// Sets the RAG-retrieved context from the workspace.
+    /// </summary>
+    /// <param name="ragContext">The formatted context from RAG retrieval.</param>
+    public void SetRAGContext(string ragContext)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(ragContext);
+        RAGContext = ragContext;
     }
 
     /// <summary>

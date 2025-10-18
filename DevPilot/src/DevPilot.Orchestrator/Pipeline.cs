@@ -377,10 +377,25 @@ public sealed class Pipeline
             _ => string.Empty
         };
 
+        var contextParts = new List<string>();
+
         // Prepend project structure context for stages that need it
         if (context.ProjectStructure != null && ShouldIncludeStructureContext(stage))
         {
-            return context.ProjectStructure.ToAgentContext() + "\n\n" + baseInput;
+            contextParts.Add(context.ProjectStructure.ToAgentContext());
+        }
+
+        // Prepend RAG-retrieved context for all stages (if available)
+        if (!string.IsNullOrWhiteSpace(context.RAGContext) && ShouldIncludeRAGContext(stage))
+        {
+            contextParts.Add(context.RAGContext);
+        }
+
+        // Combine all context parts with the base input
+        if (contextParts.Count > 0)
+        {
+            contextParts.Add(baseInput);
+            return string.Join("\n\n", contextParts);
         }
 
         return baseInput;
@@ -396,6 +411,26 @@ public sealed class Pipeline
         // Planning and Coding stages need structure context to generate correct file paths
         // Other stages work with existing outputs that already reference the correct paths
         return stage is PipelineStage.Planning or PipelineStage.Coding;
+    }
+
+    /// <summary>
+    /// Determines if a pipeline stage should receive RAG-retrieved context.
+    /// </summary>
+    /// <param name="stage">The pipeline stage.</param>
+    /// <returns>True if RAG context should be included; otherwise, false.</returns>
+    private static bool ShouldIncludeRAGContext(PipelineStage stage)
+    {
+        // All stages benefit from relevant context:
+        // - Planning: Domain knowledge, architectural patterns
+        // - Coding: Similar code examples, conventions
+        // - Reviewing: Project-specific review guidelines
+        // - Testing: Test patterns, existing test structure
+        // - Evaluating: Quality standards from documentation
+        return stage is PipelineStage.Planning
+            or PipelineStage.Coding
+            or PipelineStage.Reviewing
+            or PipelineStage.Testing
+            or PipelineStage.Evaluating;
     }
 
     /// <summary>
