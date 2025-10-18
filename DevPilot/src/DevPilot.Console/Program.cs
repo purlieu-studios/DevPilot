@@ -14,8 +14,30 @@ internal sealed class Program
     {
         try
         {
-            // Check if running in interactive mode (required for user prompts)
-            if (!AnsiConsole.Profile.Capabilities.Interactive)
+            // Parse command-line arguments first to check for --yes flag
+            bool autoApprove = false;
+            string? userRequest = null;
+
+            foreach (var arg in args)
+            {
+                if (arg == "--yes" || arg == "-y")
+                {
+                    autoApprove = true;
+                }
+                else if (!string.IsNullOrWhiteSpace(arg))
+                {
+                    userRequest = arg;
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(userRequest))
+            {
+                DisplayUsage();
+                return 1;
+            }
+
+            // Check if running in interactive mode (required for user prompts unless --yes provided)
+            if (!autoApprove && !AnsiConsole.Profile.Capabilities.Interactive)
             {
                 System.Console.WriteLine("ERROR: DevPilot requires an interactive terminal.");
                 System.Console.WriteLine();
@@ -24,17 +46,11 @@ internal sealed class Program
                 System.Console.WriteLine();
                 System.Console.WriteLine("Please run DevPilot directly in a terminal (not piped or redirected):");
                 System.Console.WriteLine("  devpilot \"your request here\"");
+                System.Console.WriteLine();
+                System.Console.WriteLine("Or use --yes flag to skip prompts and auto-apply changes:");
+                System.Console.WriteLine("  devpilot --yes \"your request here\"");
                 return 1;
             }
-
-            // Parse command-line arguments
-            if (args.Length == 0 || string.IsNullOrWhiteSpace(args[0]))
-            {
-                DisplayUsage();
-                return 1;
-            }
-
-            var userRequest = args[0];
 
             // Display header
             AnsiConsole.Write(
@@ -86,7 +102,7 @@ internal sealed class Program
             // Prompt to apply changes if pipeline succeeded
             if (result.Success && result.Context.AppliedFiles?.Count > 0)
             {
-                var applied = await PromptAndApplyChanges(result, workspace);
+                var applied = await PromptAndApplyChanges(result, workspace, autoApprove);
                 if (!applied)
                 {
                     AnsiConsole.MarkupLine("[yellow]Changes not applied. Workspace preserved for review.[/]");
@@ -400,7 +416,10 @@ internal sealed class Program
     /// <summary>
     /// Prompts the user to apply changes and copies files from workspace to project.
     /// </summary>
-    private static async Task<bool> PromptAndApplyChanges(PipelineResult result, WorkspaceManager workspace)
+    /// <param name="result">The pipeline result containing changes to apply.</param>
+    /// <param name="workspace">The workspace manager containing the files.</param>
+    /// <param name="autoApprove">If true, skips prompts and auto-applies changes.</param>
+    private static async Task<bool> PromptAndApplyChanges(PipelineResult result, WorkspaceManager workspace, bool autoApprove)
     {
         if (result.Context.WorkspaceRoot == null || result.Context.AppliedFiles == null)
         {
@@ -430,8 +449,8 @@ internal sealed class Program
             AnsiConsole.Write(changeTable);
             AnsiConsole.WriteLine();
 
-            // Prompt to view diffs
-            var viewDiffs = AnsiConsole.Confirm("View diffs before applying?", defaultValue: true);
+            // Prompt to view diffs (skip if auto-approve)
+            var viewDiffs = autoApprove ? false : AnsiConsole.Confirm("View diffs before applying?", defaultValue: true);
 
             if (viewDiffs)
             {
@@ -464,18 +483,25 @@ internal sealed class Program
                 AnsiConsole.WriteLine();
             }
 
-            // Prompt for confirmation
+            // Prompt for confirmation (auto-approve if --yes flag provided)
             bool shouldApply;
-            try
+            if (autoApprove)
             {
-                shouldApply = AnsiConsole.Confirm("Apply these changes to your project?", defaultValue: true);
+                shouldApply = true;
             }
-            catch (InvalidOperationException ex) when (ex.Message.Contains("non-interactive"))
+            else
             {
-                AnsiConsole.WriteLine();
-                AnsiConsole.MarkupLine("[red]ERROR:[/] Cannot prompt for confirmation in non-interactive mode.");
-                AnsiConsole.MarkupLine("[yellow]Hint:[/] Run DevPilot directly in a terminal (not piped or redirected).");
-                return false;
+                try
+                {
+                    shouldApply = AnsiConsole.Confirm("Apply these changes to your project?", defaultValue: true);
+                }
+                catch (InvalidOperationException ex) when (ex.Message.Contains("non-interactive"))
+                {
+                    AnsiConsole.WriteLine();
+                    AnsiConsole.MarkupLine("[red]ERROR:[/] Cannot prompt for confirmation in non-interactive mode.");
+                    AnsiConsole.MarkupLine("[yellow]Hint:[/] Run DevPilot directly in a terminal (not piped or redirected).");
+                    return false;
+                }
             }
 
             if (!shouldApply)
