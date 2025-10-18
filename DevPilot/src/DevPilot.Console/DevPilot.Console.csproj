@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\DevPilot.Orchestrator\DevPilot.Orchestrator.csproj" />
+    <ProjectReference Include="..\DevPilot.RAG\DevPilot.RAG.csproj" />
   </ItemGroup>
 
   <ItemGroup>

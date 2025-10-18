@@ -1,5 +1,6 @@
 using DevPilot.Core;
 using DevPilot.Orchestrator.Validation;
+using DevPilot.RAG;
 using System.Diagnostics;
 using System.Text.Json;
 
@@ -13,13 +14,18 @@ public sealed class Pipeline
     private const int MaxRevisionIterations = 2;
     private readonly IReadOnlyDictionary<PipelineStage, IAgent> _agents;
     private readonly WorkspaceManager _workspace;
+    private readonly IRagService? _ragService;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="Pipeline"/> class.
     /// </summary>
     /// <param name="agents">Dictionary mapping pipeline stages to agent implementations.</param>
     /// <param name="workspace">The workspace manager for this pipeline execution.</param>
-    public Pipeline(IReadOnlyDictionary<PipelineStage, IAgent> agents, WorkspaceManager workspace)
+    /// <param name="ragService">Optional RAG service for context retrieval (null to disable RAG).</param>
+    public Pipeline(
+        IReadOnlyDictionary<PipelineStage, IAgent> agents,
+        WorkspaceManager workspace,
+        IRagService? ragService = null)
     {
         ArgumentNullException.ThrowIfNull(agents);
         ArgumentNullException.ThrowIfNull(workspace);
@@ -27,6 +33,7 @@ public sealed class Pipeline
         ValidateAgents(agents);
         _agents = agents;
         _workspace = workspace;
+        _ragService = ragService;
     }
 
     /// <summary>
@@ -50,6 +57,44 @@ public sealed class Pipeline
             // Analyze project structure for agent context
             var projectStructure = _workspace.AnalyzeProjectStructure();
             context.SetProjectStructure(projectStructure);
+
+            // Index workspace and retrieve RAG context (if RAG enabled)
+            if (_ragService != null)
+            {
+                try
+                {
+                    // Index all workspace files
+                    await _ragService.IndexWorkspaceAsync(
+                        _workspace.WorkspaceRoot,
+                        context.PipelineId,
+                        cancellationToken);
+
+                    // Query for relevant context based on user request
+                    var ragResults = await _ragService.QueryAsync(
+                        userRequest,
+                        context.PipelineId,
+                        topK: 5,
+                        cancellationToken);
+
+                    // Format and set RAG context for agents
+                    if (ragResults.Count > 0)
+                    {
+                        var formattedContext = _ragService.FormatContext(ragResults, maxTokens: 8000);
+                        context.SetRAGContext(formattedContext);
+                    }
+                }
+                catch (InvalidOperationException)
+                {
+                    // RAG failed (Ollama not running, model not found, etc.)
+                    // Continue pipeline without RAG context
+                    // Error already logged in RagService
+                }
+                catch (HttpRequestException)
+                {
+                    // Network error connecting to Ollama
+                    // Continue pipeline without RAG context
+                }
+            }
 
             // Execute all stages sequentially
             var stages = new[]

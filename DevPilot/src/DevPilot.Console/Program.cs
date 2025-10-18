@@ -1,6 +1,7 @@
 using DevPilot.Agents;
 using DevPilot.Core;
 using DevPilot.Orchestrator;
+using DevPilot.RAG;
 using Spectre.Console;
 
 namespace DevPilot.Console;
@@ -14,8 +15,9 @@ internal sealed class Program
     {
         try
         {
-            // Parse command-line arguments first to check for --yes flag
+            // Parse command-line arguments first to check for flags
             bool autoApprove = false;
+            bool enableRag = false;
             string? userRequest = null;
 
             foreach (var arg in args)
@@ -23,6 +25,10 @@ internal sealed class Program
                 if (arg == "--yes" || arg == "-y")
                 {
                     autoApprove = true;
+                }
+                else if (arg == "--enable-rag")
+                {
+                    enableRag = true;
                 }
                 else if (!string.IsNullOrWhiteSpace(arg))
                 {
@@ -83,7 +89,7 @@ internal sealed class Program
             }
 
             // Load agents and build pipeline with workspace context
-            var pipeline = await BuildPipelineAsync(workspace);
+            var pipeline = await BuildPipelineAsync(workspace, enableRag);
 
             // Execute pipeline
             AnsiConsole.MarkupLine($"[bold]Request:[/] {userRequest}");
@@ -182,8 +188,9 @@ internal sealed class Program
     /// Builds the complete MASAI pipeline with all 5 agents from workspace or DevPilot defaults.
     /// </summary>
     /// <param name="workspace">The workspace manager containing the target repository files.</param>
+    /// <param name="enableRag">Whether to enable RAG (Retrieval Augmented Generation) context retrieval.</param>
     /// <returns>The configured pipeline ready for execution.</returns>
-    private static async Task<Pipeline> BuildPipelineAsync(WorkspaceManager workspace)
+    private static async Task<Pipeline> BuildPipelineAsync(WorkspaceManager workspace, bool enableRag)
     {
         // Find agents directory (workspace custom agents or DevPilot defaults)
         var agentsDirectory = FindAgentsDirectory(workspace.WorkspaceRoot, out var usingCustomAgents);
@@ -231,7 +238,39 @@ internal sealed class Program
             agents[stage] = agent;
         }
 
-        return new Pipeline(agents, workspace);
+        // Create RAG service if enabled
+        IRagService? ragService = null;
+        if (enableRag)
+        {
+            try
+            {
+                var ragOptions = RAGOptions.Default;
+                var embeddingService = new OllamaEmbeddingService(
+                    ragOptions.OllamaEndpoint,
+                    ragOptions.EmbeddingModel,
+                    ragOptions.EmbeddingDimension);
+
+                var databasePath = Path.Combine(
+                    workspace.WorkspaceRoot,
+                    ".devpilot",
+                    "rag",
+                    $"{Path.GetFileName(workspace.WorkspaceRoot)}.db");
+
+                var vectorStore = new SqliteVectorStore(databasePath);
+                ragService = new RagService(embeddingService, vectorStore, ragOptions);
+
+                AnsiConsole.MarkupLine("[green]✓ RAG enabled[/] [dim](Ollama endpoint: {0})[/]", ragOptions.OllamaEndpoint);
+            }
+            catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException)
+            {
+                AnsiConsole.MarkupLine("[yellow]⚠ RAG disabled:[/] {0}", ex.Message);
+                AnsiConsole.MarkupLine("[dim]Install Ollama: https://ollama.com[/]");
+                AnsiConsole.MarkupLine("[dim]Pull model: ollama pull mxbai-embed-large[/]");
+                ragService = null;
+            }
+        }
+
+        return new Pipeline(agents, workspace, ragService);
     }
 
     /// <summary>

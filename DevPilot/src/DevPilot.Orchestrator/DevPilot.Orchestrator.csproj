@@ -3,6 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\DevPilot.Core\DevPilot.Core.csproj" />
     <ProjectReference Include="..\DevPilot.Agents\DevPilot.Agents.csproj" />
+    <ProjectReference Include="..\DevPilot.RAG\DevPilot.RAG.csproj" />
   </ItemGroup>
 
   <PropertyGroup>
