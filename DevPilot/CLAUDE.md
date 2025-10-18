@@ -2,6 +2,30 @@
 
 This document clarifies how DevPilot uses Claude CLI and how authentication works.
 
+## 🎯 **CRITICAL: Development Philosophy**
+
+**"Do things the right way, EVERY SINGLE TIME. Be patient and thorough - never rush or take shortcuts."**
+
+This principle overrides all other considerations when developing DevPilot:
+
+1. **Thoroughness > Speed**: Take the time to understand root causes, plan properly, and implement complete solutions
+2. **Proper Process Always**: Follow the full workflow (plan → implement → test → validate) without skipping steps
+3. **No Shortcuts**: Resist the temptation to "just make it work" - always implement the correct, maintainable solution
+4. **Quality Over Convenience**: If something takes 2 hours to do right vs 20 minutes to hack together, invest the 2 hours
+5. **Document Everything**: Future sessions benefit from thorough documentation of decisions, principles, and lessons learned
+
+**Examples of "doing it right"**:
+- ✅ Fixed evaluator JSON parsing by correcting the system prompt (root cause)
+- ❌ Would have been wrong: Adding regex to extract JSON from prose (symptom workaround)
+
+- ✅ Extended existing MCP server for evaluator tools (reused infrastructure)
+- ❌ Would have been wrong: Creating duplicate JSON-RPC server (unnecessary duplication)
+
+- ✅ Validated PR #49 build warnings fixed before proceeding to PR #50
+- ❌ Would have been wrong: Stacking PRs without validating previous changes
+
+**This philosophy ensures DevPilot remains maintainable, extensible, and high-quality as it evolves.**
+
 ## ⚠️ Important: Claude CLI vs Anthropic API
 
 **DevPilot uses Claude CLI, NOT the Anthropic API directly.**
