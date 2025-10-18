@@ -196,8 +196,8 @@ public sealed class WorkspaceManager : IDisposable
     /// <summary>
     /// Copies domain-specific files from the target repository to the workspace.
     /// This includes:
-    /// - Individual files: CLAUDE.md, .editorconfig
-    /// - Default directories: .agents/, docs/, src/, tests/
+    /// - Individual files: .editorconfig (NOTE: CLAUDE.md is copied separately via CopyClaudeMd() after Planning)
+    /// - Default directories: .agents/, docs/, src/, tests/, experiments/
     /// - Auto-detected project directories: Any directory containing .csproj files (except bin, obj, .git, etc.)
     /// - Configured folders: Additional folders specified in devpilot.json
     /// </summary>
@@ -223,8 +223,8 @@ public sealed class WorkspaceManager : IDisposable
             return;
         }
 
-        // Copy individual files
-        var filesToCopy = new[] { "CLAUDE.md", ".editorconfig" };
+        // Copy individual files (NOTE: CLAUDE.md is copied separately after Planning to reduce context)
+        var filesToCopy = new[] { ".editorconfig" };
         foreach (var fileName in filesToCopy)
         {
             var sourceFile = Path.Combine(sourceRoot, fileName);
@@ -288,6 +288,25 @@ public sealed class WorkspaceManager : IDisposable
             var sourceDir = Path.Combine(sourceRoot, dirName);
             var destDir = Path.Combine(_workspaceRoot, dirName);
             CopyDirectoryRecursive(sourceDir, destDir);
+        }
+    }
+
+    /// <summary>
+    /// Copies CLAUDE.md from the target repository to the workspace.
+    /// This is called separately after Planning stage to reduce context overload for the Planner agent.
+    /// Large CLAUDE.md files can overwhelm the Planner's context window when using MCP tools.
+    /// </summary>
+    /// <param name="sourceRoot">The source directory containing the target repository.</param>
+    /// <exception cref="ArgumentException">Thrown when sourceRoot is null or whitespace.</exception>
+    public void CopyClaudeMd(string sourceRoot)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourceRoot);
+
+        var sourceFile = Path.Combine(sourceRoot, "CLAUDE.md");
+        if (File.Exists(sourceFile))
+        {
+            var destFile = Path.Combine(_workspaceRoot, "CLAUDE.md");
+            File.Copy(sourceFile, destFile, overwrite: true);
         }
     }
 
@@ -424,9 +443,16 @@ public sealed class WorkspaceManager : IDisposable
     /// it skips excluded directories during traversal instead of filtering after.
     /// </summary>
     /// <param name="directory">The directory to search in.</param>
-    /// <param name="pattern">The file pattern to match (e.g., "*.csproj").</param>
-    /// <param name="excludedDirectories">Directory names to skip during traversal.</param>
-    /// <returns>An enumerable of matching file paths.</returns>
+    /// <param name="pattern">The file pattern to match (e.g., "*.csproj", "*.cs"). Supports standard file system wildcards.</param>
+    /// <param name="excludedDirectories">Directory names to skip during traversal (case-insensitive comparison). Common examples: bin, obj, .git, node_modules.</param>
+    /// <returns>An enumerable of absolute file paths that match the specified pattern, excluding files in the specified directories.</returns>
+    /// <exception cref="DirectoryNotFoundException">Thrown when the specified directory does not exist.</exception>
+    /// <exception cref="UnauthorizedAccessException">Thrown when the caller does not have the required permission to access the directory.</exception>
+    /// <exception cref="System.Security.SecurityException">Thrown when the caller does not have the required security permissions.</exception>
+    /// <remarks>
+    /// This method uses lazy evaluation (yield return) and will only enumerate directories as needed.
+    /// Directory name comparisons are case-insensitive for cross-platform compatibility.
+    /// </remarks>
     private static IEnumerable<string> FindFilesRecursive(string directory, string pattern, string[] excludedDirectories)
     {
         // Find files in current directory
