@@ -64,14 +64,9 @@ public sealed class TestingAgent : IAgent
 
             stopwatch.Stop();
 
-            if (!testResult.Pass)
-            {
-                return AgentResult.CreateFailure(
-                    Definition.Name,
-                    testResult.ErrorMessage ?? "Tests failed",
-                    stopwatch.Elapsed);
-            }
-
+            // Always return success with JSON output (even if tests failed)
+            // The JSON contains pass: false and failure details
+            // Pipeline.cs will handle test failure logic and decide whether to continue
             return AgentResult.CreateSuccess(
                 Definition.Name,
                 json,

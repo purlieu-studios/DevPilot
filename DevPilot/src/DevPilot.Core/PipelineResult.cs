@@ -92,4 +92,29 @@ public sealed class PipelineResult
             RequiresApproval = true
         };
     }
+
+    /// <summary>
+    /// Creates a pipeline result that passed with warnings (e.g., test failures).
+    /// </summary>
+    /// <param name="context">The pipeline context.</param>
+    /// <param name="duration">The execution duration.</param>
+    /// <param name="warningMessage">The warning message describing what went wrong.</param>
+    /// <returns>A pipeline result that completed with warnings.</returns>
+    public static PipelineResult CreatePassedWithWarnings(
+        PipelineContext context,
+        TimeSpan duration,
+        string warningMessage)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(warningMessage);
+
+        return new PipelineResult
+        {
+            Success = true, // Still successful - Evaluator ran and provided feedback
+            FinalStage = PipelineStage.Completed,
+            Context = context,
+            Duration = duration,
+            RequiresApproval = false,
+            ErrorMessage = warningMessage // Repurposed as warning message
+        };
+    }
 }
