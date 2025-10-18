@@ -237,6 +237,18 @@ public sealed class Pipeline
                     }
                 }
 
+                // Track test failures after Testing stage (but don't stop pipeline)
+                if (stage == PipelineStage.Testing)
+                {
+                    var testFailureCount = ParseTestFailureCount(agentResult.Output);
+                    if (testFailureCount > 0)
+                    {
+                        context.SetTestFailures(testFailureCount);
+                        // DON'T transition to Failed - continue to Evaluating
+                        // Test failures will be reflected in PassedWithWarnings outcome
+                    }
+                }
+
                 // Check evaluator verdict after Evaluating stage
                 if (stage == PipelineStage.Evaluating)
                 {
@@ -267,6 +279,13 @@ public sealed class Pipeline
             context.AdvanceToStage(PipelineStage.Completed, "Pipeline completed successfully");
             context.CompletedAt = DateTimeOffset.UtcNow;
             stopwatch.Stop();
+
+            // Return PassedWithWarnings if tests failed, otherwise Success
+            if (context.HasTestFailures)
+            {
+                var warningMsg = $"{context.TestFailureCount} test(s) failed";
+                return PipelineResult.CreatePassedWithWarnings(context, stopwatch.Elapsed, warningMsg);
+            }
 
             return PipelineResult.CreateSuccess(context, stopwatch.Elapsed);
         }
@@ -642,5 +661,34 @@ public sealed class Pipeline
         }
 
         return output.Substring(0, maxLength) + "\n... (truncated)";
+    }
+
+    /// <summary>
+    /// Parses test failure count from Testing stage JSON output.
+    /// </summary>
+    /// <param name="testOutput">The JSON output from the Testing agent.</param>
+    /// <returns>The number of failed tests, or 0 if no failures or parsing error.</returns>
+    private static int ParseTestFailureCount(string testOutput)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(testOutput);
+            if (!doc.RootElement.GetProperty("pass").GetBoolean())
+            {
+                // Count failed tests from test_results array
+                var testResults = doc.RootElement.GetProperty("test_results");
+                return testResults.EnumerateArray()
+                    .Count(t => t.GetProperty("status").GetString() == "failed");
+            }
+            return 0;
+        }
+        catch (JsonException)
+        {
+            return 0; // If parsing fails, assume no failures
+        }
+        catch (KeyNotFoundException)
+        {
+            return 0; // If required properties missing, assume no failures
+        }
     }
 }

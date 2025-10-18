@@ -69,6 +69,16 @@ public sealed class PipelineContext
     public int RevisionIteration { get; private set; }
 
     /// <summary>
+    /// Gets the number of failed tests, if any.
+    /// </summary>
+    public int TestFailureCount { get; private set; }
+
+    /// <summary>
+    /// Gets whether the pipeline has test failures but continued to Evaluator.
+    /// </summary>
+    public bool HasTestFailures => TestFailureCount > 0;
+
+    /// <summary>
     /// Gets whether the pipeline requires human approval (hard stop).
     /// </summary>
     public bool ApprovalRequired { get; private set; }
@@ -184,6 +194,20 @@ public sealed class PipelineContext
     public void IncrementRevisionIteration()
     {
         RevisionIteration++;
+    }
+
+    /// <summary>
+    /// Sets the number of failed tests from the Testing stage.
+    /// </summary>
+    /// <param name="failureCount">The number of tests that failed.</param>
+    public void SetTestFailures(int failureCount)
+    {
+        if (failureCount < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(failureCount), "Failure count cannot be negative");
+        }
+
+        TestFailureCount = failureCount;
     }
 
     /// <summary>
