@@ -245,36 +245,94 @@ public sealed class SqliteVectorStore : IVectorStore
     }
 
     /// <inheritdoc />
-    public async Task<long> GetDocumentCountAsync(CancellationToken cancellationToken = default)
+    public async Task<long> GetDocumentCountAsync(string? workspaceId = null, CancellationToken cancellationToken = default)
     {
-        const string countQuery = "SELECT COUNT(*) FROM documents;";
+        string countQuery;
+        if (string.IsNullOrWhiteSpace(workspaceId))
+        {
+            // Count all documents
+            countQuery = "SELECT COUNT(*) FROM documents;";
+        }
+        else
+        {
+            // Count documents for specific workspace
+            countQuery = "SELECT COUNT(*) FROM documents WHERE json_extract(metadata, '$.workspace_id') = @workspaceId;";
+        }
 
         await using var command = _connection.CreateCommand();
         command.CommandText = countQuery;
+
+        if (!string.IsNullOrWhiteSpace(workspaceId))
+        {
+            command.Parameters.AddWithValue("@workspaceId", workspaceId);
+        }
 
         var result = await command.ExecuteScalarAsync(cancellationToken);
         return result != null ? Convert.ToInt64(result) : 0;
     }
 
     /// <inheritdoc />
-    public async Task ClearAsync(CancellationToken cancellationToken = default)
+    public async Task ClearAsync(string? workspaceId = null, CancellationToken cancellationToken = default)
     {
         await using var transaction = (SqliteTransaction)await _connection.BeginTransactionAsync(cancellationToken);
 
         try
         {
-            await using (var command = _connection.CreateCommand())
+            if (string.IsNullOrWhiteSpace(workspaceId))
             {
-                command.Transaction = transaction;
-                command.CommandText = "DELETE FROM embeddings;";
-                await command.ExecuteNonQueryAsync(cancellationToken);
-            }
+                // Clear all documents (all workspaces)
+                await using (var command = _connection.CreateCommand())
+                {
+                    command.Transaction = transaction;
+                    command.CommandText = "DELETE FROM embeddings;";
+                    await command.ExecuteNonQueryAsync(cancellationToken);
+                }
 
-            await using (var command = _connection.CreateCommand())
+                await using (var command = _connection.CreateCommand())
+                {
+                    command.Transaction = transaction;
+                    command.CommandText = "DELETE FROM documents;";
+                    await command.ExecuteNonQueryAsync(cancellationToken);
+                }
+            }
+            else
             {
-                command.Transaction = transaction;
-                command.CommandText = "DELETE FROM documents;";
-                await command.ExecuteNonQueryAsync(cancellationToken);
+                // Delete only documents for specific workspace
+                // First, get document IDs for the workspace
+                var documentIds = new List<long>();
+                await using (var command = _connection.CreateCommand())
+                {
+                    command.Transaction = transaction;
+                    command.CommandText = "SELECT id FROM documents WHERE json_extract(metadata, '$.workspace_id') = @workspaceId;";
+                    command.Parameters.AddWithValue("@workspaceId", workspaceId);
+
+                    await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+                    while (await reader.ReadAsync(cancellationToken))
+                    {
+                        documentIds.Add(reader.GetInt64(0));
+                    }
+                }
+
+                // Delete embeddings for these documents
+                if (documentIds.Count > 0)
+                {
+                    var idsParam = string.Join(",", documentIds);
+                    await using (var command = _connection.CreateCommand())
+                    {
+                        command.Transaction = transaction;
+                        command.CommandText = $"DELETE FROM embeddings WHERE document_id IN ({idsParam});";
+                        await command.ExecuteNonQueryAsync(cancellationToken);
+                    }
+
+                    // Delete documents
+                    await using (var command = _connection.CreateCommand())
+                    {
+                        command.Transaction = transaction;
+                        command.CommandText = "DELETE FROM documents WHERE json_extract(metadata, '$.workspace_id') = @workspaceId;";
+                        command.Parameters.AddWithValue("@workspaceId", workspaceId);
+                        await command.ExecuteNonQueryAsync(cancellationToken);
+                    }
+                }
             }
 
             await transaction.CommitAsync(cancellationToken);

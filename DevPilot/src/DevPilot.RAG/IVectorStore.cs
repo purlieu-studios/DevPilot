@@ -45,14 +45,16 @@ public interface IVectorStore : IDisposable
     /// <summary>
     /// Gets the total number of documents stored in the vector store.
     /// </summary>
+    /// <param name="workspaceId">Optional workspace ID to filter by. If null, returns count for all workspaces.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The count of stored documents.</returns>
-    Task<long> GetDocumentCountAsync(CancellationToken cancellationToken = default);
+    Task<long> GetDocumentCountAsync(string? workspaceId = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Clears all documents from the vector store.
     /// </summary>
+    /// <param name="workspaceId">Optional workspace ID to filter by. If null, clears all workspaces.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    Task ClearAsync(CancellationToken cancellationToken = default);
+    Task ClearAsync(string? workspaceId = null, CancellationToken cancellationToken = default);
 }
