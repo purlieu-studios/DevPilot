@@ -23,14 +23,14 @@ public sealed class PipelineIntegrationTests : IDisposable
     #region Pipeline Success Scenarios
 
     [Fact]
-    public void Pipeline_SimpleAddMethod_CompletesSuccessfully()
+    public async Task Pipeline_SimpleAddMethod_CompletesSuccessfully()
     {
         // Arrange
         var request = "Add a Multiply method to Calculator class";
         var (workspace, pipeline) = SetupPipelineWithMockAgents(createSuccessfulAgents: true);
 
         // Act
-        var result = pipeline.ExecuteAsync(request).Result;
+        var result = await pipeline.ExecuteAsync(request);
 
         // Assert
         result.Success.Should().BeTrue();
@@ -38,14 +38,14 @@ public sealed class PipelineIntegrationTests : IDisposable
     }
 
     [Fact]
-    public void Pipeline_CreateNewClass_GeneratesCorrectFileCount()
+    public async Task Pipeline_CreateNewClass_GeneratesCorrectFileCount()
     {
         // Arrange
         var request = "Create a new UserService class";
         var (workspace, pipeline) = SetupPipelineWithMockAgents(createSuccessfulAgents: true);
 
         // Act
-        var result = pipeline.ExecuteAsync(request).Result;
+        var result = await pipeline.ExecuteAsync(request);
 
         // Assert
         result.Success.Should().BeTrue();
@@ -53,14 +53,14 @@ public sealed class PipelineIntegrationTests : IDisposable
     }
 
     [Fact]
-    public void Pipeline_AddTestsToExistingClass_IncludesTestProject()
+    public async Task Pipeline_AddTestsToExistingClass_IncludesTestProject()
     {
         // Arrange
         var request = "Add unit tests for Calculator class";
         var (workspace, pipeline) = SetupPipelineWithMockAgents(createSuccessfulAgents: true);
 
         // Act
-        var result = pipeline.ExecuteAsync(request).Result;
+        var result = await pipeline.ExecuteAsync(request);
 
         // Assert
         result.Success.Should().BeTrue();
@@ -72,14 +72,14 @@ public sealed class PipelineIntegrationTests : IDisposable
     #region Pipeline Failure Scenarios
 
     [Fact]
-    public void Pipeline_PlannerFails_StopsAtPlanningStage()
+    public async Task Pipeline_PlannerFails_StopsAtPlanningStage()
     {
         // Arrange
         var request = "Invalid request that causes planner to fail";
         var (workspace, pipeline) = SetupPipelineWithFailingPlanner();
 
         // Act
-        var result = pipeline.ExecuteAsync(request).Result;
+        var result = await pipeline.ExecuteAsync(request);
 
         // Assert
         result.Success.Should().BeFalse();
@@ -87,14 +87,14 @@ public sealed class PipelineIntegrationTests : IDisposable
     }
 
     [Fact]
-    public void Pipeline_CoderFails_StopsAtCodingStage()
+    public async Task Pipeline_CoderFails_StopsAtCodingStage()
     {
         // Arrange
         var request = "Generate code that causes coder to fail";
         var (workspace, pipeline) = SetupPipelineWithFailingCoder();
 
         // Act
-        var result = pipeline.ExecuteAsync(request).Result;
+        var result = await pipeline.ExecuteAsync(request);
 
         // Assert
         result.Success.Should().BeFalse();
@@ -102,14 +102,14 @@ public sealed class PipelineIntegrationTests : IDisposable
     }
 
     [Fact]
-    public void Pipeline_ReviewerRejects_StopsAtReviewingStage()
+    public async Task Pipeline_ReviewerRejects_StopsAtReviewingStage()
     {
         // Arrange
         var request = "Code that will be rejected by reviewer";
         var (workspace, pipeline) = SetupPipelineWithRejectingReviewer();
 
         // Act
-        var result = pipeline.ExecuteAsync(request).Result;
+        var result = await pipeline.ExecuteAsync(request);
 
         // Assert
         result.Success.Should().BeFalse();
@@ -117,14 +117,14 @@ public sealed class PipelineIntegrationTests : IDisposable
     }
 
     [Fact]
-    public void Pipeline_TestsFail_ContinuesToEvaluator()
+    public async Task Pipeline_TestsFail_ContinuesToEvaluator()
     {
         // Arrange
         var request = "Code with failing tests";
         var (workspace, pipeline) = SetupPipelineWithFailingTests();
 
         // Act
-        var result = pipeline.ExecuteAsync(request).Result;
+        var result = await pipeline.ExecuteAsync(request);
 
         // Assert - Pipeline continues despite test failures
         result.FinalStage.Should().Be(PipelineStage.Completed);
@@ -132,14 +132,14 @@ public sealed class PipelineIntegrationTests : IDisposable
     }
 
     [Fact]
-    public void Pipeline_EvaluatorRejects_FailsPipeline()
+    public async Task Pipeline_EvaluatorRejects_FailsPipeline()
     {
         // Arrange
         var request = "Low quality code";
         var (workspace, pipeline) = SetupPipelineWithRejectingEvaluator();
 
         // Act
-        var result = pipeline.ExecuteAsync(request).Result;
+        var result = await pipeline.ExecuteAsync(request);
 
         // Assert
         result.Success.Should().BeFalse();
@@ -151,28 +151,28 @@ public sealed class PipelineIntegrationTests : IDisposable
     #region Context Preservation Tests
 
     [Fact]
-    public void Pipeline_PreservesUserRequest_ThroughAllStages()
+    public async Task Pipeline_PreservesUserRequest_ThroughAllStages()
     {
         // Arrange
         var request = "Specific test request for context preservation";
         var (workspace, pipeline) = SetupPipelineWithMockAgents(createSuccessfulAgents: true);
 
         // Act
-        var result = pipeline.ExecuteAsync(request).Result;
+        var result = await pipeline.ExecuteAsync(request);
 
         // Assert
         result.Context.UserRequest.Should().Be(request);
     }
 
     [Fact]
-    public void Pipeline_PreservesWorkspaceRoot_ThroughAllStages()
+    public async Task Pipeline_PreservesWorkspaceRoot_ThroughAllStages()
     {
         // Arrange
         var request = "Test workspace preservation";
         var (workspace, pipeline) = SetupPipelineWithMockAgents(createSuccessfulAgents: true);
 
         // Act
-        var result = pipeline.ExecuteAsync(request).Result;
+        var result = await pipeline.ExecuteAsync(request);
 
         // Assert
         result.Context.WorkspaceRoot.Should().NotBeNullOrEmpty();
@@ -180,14 +180,14 @@ public sealed class PipelineIntegrationTests : IDisposable
     }
 
     [Fact]
-    public void Pipeline_RecordsStageHistory_ForAllCompletedStages()
+    public async Task Pipeline_RecordsStageHistory_ForAllCompletedStages()
     {
         // Arrange
         var request = "Test stage history tracking";
         var (workspace, pipeline) = SetupPipelineWithMockAgents(createSuccessfulAgents: true);
 
         // Act
-        var result = pipeline.ExecuteAsync(request).Result;
+        var result = await pipeline.ExecuteAsync(request);
 
         // Assert
         result.Context.StageHistory.Should().HaveCountGreaterThan(0);
@@ -196,14 +196,14 @@ public sealed class PipelineIntegrationTests : IDisposable
     }
 
     [Fact]
-    public void Pipeline_TracksDuration_Accurately()
+    public async Task Pipeline_TracksDuration_Accurately()
     {
         // Arrange
         var request = "Test duration tracking";
         var (workspace, pipeline) = SetupPipelineWithMockAgents(createSuccessfulAgents: true);
 
         // Act
-        var result = pipeline.ExecuteAsync(request).Result;
+        var result = await pipeline.ExecuteAsync(request);
 
         // Assert
         result.Duration.Should().BeGreaterThan(TimeSpan.Zero);
@@ -214,14 +214,14 @@ public sealed class PipelineIntegrationTests : IDisposable
     #region Quality Score Tests
 
     [Fact]
-    public void Pipeline_WithHighQualityCode_ScoresAbove8()
+    public async Task Pipeline_WithHighQualityCode_ScoresAbove8()
     {
         // Arrange
         var request = "Create high quality implementation";
         var (workspace, pipeline) = SetupPipelineWithMockAgents(createSuccessfulAgents: true, qualityScore: 9.0);
 
         // Act
-        var result = pipeline.ExecuteAsync(request).Result;
+        var result = await pipeline.ExecuteAsync(request);
 
         // Assert
         result.Success.Should().BeTrue();
@@ -229,14 +229,14 @@ public sealed class PipelineIntegrationTests : IDisposable
     }
 
     [Fact]
-    public void Pipeline_WithMediumQualityCode_ScoresBetween6And8()
+    public async Task Pipeline_WithMediumQualityCode_ScoresBetween6And8()
     {
         // Arrange
         var request = "Create medium quality implementation";
         var (workspace, pipeline) = SetupPipelineWithMockAgents(createSuccessfulAgents: true, qualityScore: 7.0);
 
         // Act
-        var result = pipeline.ExecuteAsync(request).Result;
+        var result = await pipeline.ExecuteAsync(request);
 
         // Assert
         result.Success.Should().BeTrue();
@@ -248,14 +248,14 @@ public sealed class PipelineIntegrationTests : IDisposable
     #region Test Execution Tests
 
     [Fact]
-    public void Pipeline_GeneratesTests_AndExecutesThem()
+    public async Task Pipeline_GeneratesTests_AndExecutesThem()
     {
         // Arrange
         var request = "Add validation method with tests";
         var (workspace, pipeline) = SetupPipelineWithMockAgents(createSuccessfulAgents: true);
 
         // Act
-        var result = pipeline.ExecuteAsync(request).Result;
+        var result = await pipeline.ExecuteAsync(request);
 
         // Assert
         result.Success.Should().BeTrue();
@@ -263,14 +263,14 @@ public sealed class PipelineIntegrationTests : IDisposable
     }
 
     [Fact]
-    public void Pipeline_AllTestsPass_ReportsSuccess()
+    public async Task Pipeline_AllTestsPass_ReportsSuccess()
     {
         // Arrange
         var request = "Implementation with all passing tests";
         var (workspace, pipeline) = SetupPipelineWithMockAgents(createSuccessfulAgents: true);
 
         // Act
-        var result = pipeline.ExecuteAsync(request).Result;
+        var result = await pipeline.ExecuteAsync(request);
 
         // Assert
         result.Success.Should().BeTrue();
@@ -282,42 +282,42 @@ public sealed class PipelineIntegrationTests : IDisposable
     #region File Operations Tests
 
     [Fact]
-    public void Pipeline_AppliesPatch_CreatesFiles()
+    public async Task Pipeline_AppliesPatch_CreatesFiles()
     {
         // Arrange
         var request = "Create new file";
         var (workspace, pipeline) = SetupPipelineWithMockAgents(createSuccessfulAgents: true);
 
         // Act
-        var result = pipeline.ExecuteAsync(request).Result;
+        var result = await pipeline.ExecuteAsync(request);
 
         // Assert
         result.Context.AppliedFiles.Should().NotBeEmpty();
     }
 
     [Fact]
-    public void Pipeline_AppliesPatch_ModifiesExistingFiles()
+    public async Task Pipeline_AppliesPatch_ModifiesExistingFiles()
     {
         // Arrange
         var request = "Modify existing Calculator class";
         var (workspace, pipeline) = SetupPipelineWithMockAgents(createSuccessfulAgents: true);
 
         // Act
-        var result = pipeline.ExecuteAsync(request).Result;
+        var result = await pipeline.ExecuteAsync(request);
 
         // Assert
         result.Success.Should().BeTrue();
     }
 
     [Fact]
-    public void Pipeline_AppliesMultipleFiles_InSinglePatch()
+    public async Task Pipeline_AppliesMultipleFiles_InSinglePatch()
     {
         // Arrange
         var request = "Create multiple files";
         var (workspace, pipeline) = SetupPipelineWithMockAgents(createSuccessfulAgents: true, fileCount: 3);
 
         // Act
-        var result = pipeline.ExecuteAsync(request).Result;
+        var result = await pipeline.ExecuteAsync(request);
 
         // Assert
         result.Context.AppliedFiles.Should().HaveCountGreaterThanOrEqualTo(1);
@@ -328,14 +328,14 @@ public sealed class PipelineIntegrationTests : IDisposable
     #region Error Handling Tests
 
     [Fact]
-    public void Pipeline_WithInvalidPatch_FailsGracefully()
+    public async Task Pipeline_WithInvalidPatch_FailsGracefully()
     {
         // Arrange
         var request = "Generate invalid patch";
         var (workspace, pipeline) = SetupPipelineWithInvalidPatch();
 
         // Act
-        var result = pipeline.ExecuteAsync(request).Result;
+        var result = await pipeline.ExecuteAsync(request);
 
         // Assert
         result.Success.Should().BeFalse();
@@ -343,14 +343,14 @@ public sealed class PipelineIntegrationTests : IDisposable
     }
 
     [Fact]
-    public void Pipeline_WithCompilationError_FailsAtCodingStage()
+    public async Task Pipeline_WithCompilationError_FailsAtCodingStage()
     {
         // Arrange
         var request = "Code that won't compile";
         var (workspace, pipeline) = SetupPipelineWithCompilationError();
 
         // Act
-        var result = pipeline.ExecuteAsync(request).Result;
+        var result = await pipeline.ExecuteAsync(request);
 
         // Assert
         result.Success.Should().BeFalse();
@@ -361,14 +361,14 @@ public sealed class PipelineIntegrationTests : IDisposable
     #region Revision Loop Tests
 
     [Fact]
-    public void Pipeline_ReviewerRequestsRevision_IncrementsRevisionCount()
+    public async Task Pipeline_ReviewerRequestsRevision_IncrementsRevisionCount()
     {
         // Arrange
         var request = "Code requiring revision";
         var (workspace, pipeline) = SetupPipelineWithRevisionLoop();
 
         // Act
-        var result = pipeline.ExecuteAsync(request).Result;
+        var result = await pipeline.ExecuteAsync(request);
 
         // Assert
         result.Context.RevisionIteration.Should().BeGreaterThan(0);
@@ -690,7 +690,7 @@ public sealed class PipelineIntegrationTests : IDisposable
     /// </summary>
     private sealed class StatefulMockReviewer : IAgent
     {
-        private int _callCount = 0;
+        private int _callCount;
 
         public StatefulMockReviewer()
         {

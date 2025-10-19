@@ -1,5 +1,6 @@
 using DevPilot.RAG;
 using FluentAssertions;
+using Xunit;
 
 namespace DevPilot.RAG.Tests;
 
@@ -80,7 +81,7 @@ public sealed class OllamaEmbeddingServiceTests
         var texts = new List<string>();
 
         // Act
-        var result = await service.GenerateEmbeddingsAsync(texts);
+        var result = await service.GenerateEmbeddingsAsync(texts, TestContext.Current.CancellationToken);
 
         // Assert
         result.Should().BeEmpty();
