@@ -197,7 +197,9 @@ new file mode 100644
               "plan": {"summary": "Safe operation", "steps": [{"step_number": 1, "description": "Test", "file_target": null, "agent": "coder", "estimated_loc": 50}]},
               "file_list": [],
               "risk": {"level": "low", "factors": [], "mitigation": ""},
-              "needs_approval": false
+              "needs_approval": false,
+              "verify": {"test_strategy": "Unit tests", "validation_steps": []},
+              "rollback": {"safe": true, "steps": []}
             }
             """;
 

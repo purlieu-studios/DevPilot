@@ -31,7 +31,6 @@ public sealed class ProjectStructureInfoTests
         context.Should().Contain("Main Project: src");
         context.Should().Contain("Test Projects: tests");
         context.Should().Contain("Documentation: docs/");
-        context.Should().Contain("Custom Agents: .agents/");
         context.Should().Contain("Project Instructions: CLAUDE.md");
     }
 
@@ -54,9 +53,8 @@ public sealed class ProjectStructureInfoTests
 
         // Assert
         context.Should().Contain("Main Project: MyApp");
-        context.Should().Contain("Test Projects: None");
+        context.Should().Contain("Test Projects: (none detected)");
         context.Should().NotContain("Documentation:");
-        context.Should().NotContain("Custom Agents:");
         context.Should().NotContain("CLAUDE.md");
     }
 

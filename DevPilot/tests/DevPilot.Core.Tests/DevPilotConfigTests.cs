@@ -59,7 +59,9 @@ public sealed class DevPilotConfigTests
 
         // Assert
         config.Should().NotBeNull();
-        config!.Folders.Should().Equal("shared");
+        config!.Folders.Should().NotBeNull();
+        config.Folders.Should().HaveCount(1);
+        config.Folders![0].Should().Be("shared");
         config.CopyAllFiles.Should().BeNull();
     }
 
@@ -124,7 +126,8 @@ public sealed class DevPilotConfigTests
 
         // Assert
         config.Should().NotBeNull();
-        config!.Folders.Should().BeEmpty();
+        config!.Folders.Should().NotBeNull();
+        config.Folders.Should().BeEmpty();
     }
 
     [Fact]
@@ -140,7 +143,8 @@ public sealed class DevPilotConfigTests
 
         // Assert
         config.Should().NotBeNull();
-        config!.Folders.Should().Equal("my-lib", "3rd_party", "lib/core");
+        config!.Folders.Should().NotBeNull();
+        config.Folders.Should().Equal("my-lib", "3rd_party", "lib/core");
     }
 
     [Fact]
@@ -174,7 +178,8 @@ public sealed class DevPilotConfigTests
 
         // Assert
         deserialized.Should().NotBeNull();
-        deserialized!.Folders.Should().Equal(original.Folders);
+        deserialized!.Folders.Should().NotBeNull();
+        deserialized.Folders.Should().Equal(original.Folders);
         deserialized.CopyAllFiles.Should().Be(original.CopyAllFiles);
     }
 

@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace DevPilot.Core;
 
 /// <summary>
@@ -11,6 +13,7 @@ public sealed class DevPilotConfig
     /// These folders are copied in addition to the default set (src/, tests/, docs/).
     /// Example: ["migrations/", "config/", "scripts/"]
     /// </summary>
+    [JsonPropertyName("folders")]
     public string[]? Folders { get; init; }
 
     /// <summary>
@@ -18,6 +21,7 @@ public sealed class DevPilotConfig
     /// When true, overrides selective copying and copies the entire repository.
     /// Default: false (selective copying)
     /// </summary>
+    [JsonPropertyName("copyAllFiles")]
     public bool? CopyAllFiles { get; init; }
 
     /// <summary>

@@ -539,7 +539,9 @@ public sealed class PipelineIntegrationTests : IDisposable
               "plan": {"summary": "Test plan", "steps": [{"step_number": 1, "description": "Test", "file_target": null, "agent": "coder", "estimated_loc": 50}]},
               "file_list": [],
               "risk": {"level": "low", "factors": [], "mitigation": ""},
-              "needs_approval": false
+              "needs_approval": false,
+              "verify": {"test_strategy": "Unit tests", "validation_steps": []},
+              "rollback": {"safe": true, "steps": []}
             }
             """;
 
@@ -583,7 +585,7 @@ public sealed class PipelineIntegrationTests : IDisposable
     {
         var output = name switch
         {
-            "planner" => """{"plan": {"summary": "Test", "steps": []}, "file_list": [], "risk": {"level": "low"}, "needs_approval": false}""",
+            "planner" => """{"plan": {"summary": "Test", "steps": []}, "file_list": [], "risk": {"level": "low"}, "needs_approval": false, "verify": {"test_strategy": "Unit tests", "validation_steps": []}, "rollback": {"safe": true, "steps": []}}""",
             "coder" => "diff --git a/Test.cs b/Test.cs\nnew file mode 100644\n--- /dev/null\n+++ b/Test.cs\n@@ -0,0 +1,1 @@\n+public class Test { }",
             "reviewer" => "{\"verdict\": \"APPROVE\"}",
             "tester" => "{\"pass\": true}",
