@@ -198,8 +198,8 @@ new file mode 100644
               "file_list": [],
               "risk": {"level": "low", "factors": [], "mitigation": ""},
               "needs_approval": false,
-              "verify": {"test_strategy": "Unit tests", "validation_steps": []},
-              "rollback": {"safe": true, "steps": []}
+              "verify": {"acceptance_criteria": [], "test_commands": [], "manual_checks": []},
+              "rollback": {"strategy": "Safe to rollback", "commands": [], "notes": ""}
             }
             """;
 

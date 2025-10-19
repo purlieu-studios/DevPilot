@@ -540,8 +540,8 @@ public sealed class PipelineIntegrationTests : IDisposable
               "file_list": [],
               "risk": {"level": "low", "factors": [], "mitigation": ""},
               "needs_approval": false,
-              "verify": {"test_strategy": "Unit tests", "validation_steps": []},
-              "rollback": {"safe": true, "steps": []}
+              "verify": {"acceptance_criteria": [], "test_commands": [], "manual_checks": []},
+              "rollback": {"strategy": "Safe to rollback", "commands": [], "notes": ""}
             }
             """;
 
@@ -585,7 +585,7 @@ public sealed class PipelineIntegrationTests : IDisposable
     {
         var output = name switch
         {
-            "planner" => """{"plan": {"summary": "Test", "steps": []}, "file_list": [], "risk": {"level": "low"}, "needs_approval": false, "verify": {"test_strategy": "Unit tests", "validation_steps": []}, "rollback": {"safe": true, "steps": []}}""",
+            "planner" => """{"plan": {"summary": "Test", "steps": []}, "file_list": [], "risk": {"level": "low", "factors": [], "mitigation": ""}, "needs_approval": false, "verify": {"acceptance_criteria": [], "test_commands": [], "manual_checks": []}, "rollback": {"strategy": "Safe to rollback", "commands": [], "notes": ""}}""",
             "coder" => "diff --git a/Test.cs b/Test.cs\nnew file mode 100644\n--- /dev/null\n+++ b/Test.cs\n@@ -0,0 +1,1 @@\n+public class Test { }",
             "reviewer" => "{\"verdict\": \"APPROVE\"}",
             "tester" => "{\"pass\": true}",
