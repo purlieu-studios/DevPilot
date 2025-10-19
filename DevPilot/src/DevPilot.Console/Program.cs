@@ -2,6 +2,7 @@ using DevPilot.Agents;
 using DevPilot.Core;
 using DevPilot.Orchestrator;
 using DevPilot.RAG;
+using DevPilot.Telemetry;
 using Spectre.Console;
 
 namespace DevPilot.Console;
@@ -104,6 +105,9 @@ internal sealed class Program
 
             // Display results
             DisplayResults(result);
+
+            // Track metrics and check for regressions
+            TrackMetricsAndCheckRegressions(result, enableRag);
 
             // Prompt to apply changes if pipeline succeeded
             if (result.Success && result.Context.AppliedFiles?.Count > 0)
@@ -599,6 +603,57 @@ internal sealed class Program
                     AnsiConsole.MarkupLine($"[dim]Note: Failed to clean up workspace at {result.Context.WorkspaceRoot}[/]");
                 }
             }
+        }
+    }
+
+    /// <summary>
+    /// Tracks pipeline metrics and checks for quality regressions.
+    /// </summary>
+    private static void TrackMetricsAndCheckRegressions(PipelineResult result, bool ragEnabled)
+    {
+        try
+        {
+            using var tracker = BaselineTracker.Create();
+
+            // Extract metrics from pipeline result
+            var metrics = MetricsCollector.ExtractMetrics(result, ragEnabled);
+
+            // Record and check for regressions
+            var report = MetricsCollector.RecordAndCheck(metrics, tracker);
+
+            // Display regression alert if detected
+            if (report.HasRegression)
+            {
+                AnsiConsole.WriteLine();
+                var panel = new Panel(new Markup($"""
+                    [bold yellow]{report.Message}[/]
+
+                    {string.Join("\n", report.Regressions.Select(r => $"[yellow]•[/] {r}"))}
+
+                    [dim]Baseline score: {report.BaselineScore:F1}/10 (last 30 days)[/]
+                    [dim]Current score:  {report.CurrentScore:F1}/10[/]
+
+                    [dim italic]💡 Review recent changes that may have impacted pipeline quality.[/]
+                    """))
+                {
+                    Header = new PanelHeader("⚠ Regression Detection", Justify.Left),
+                    Border = BoxBorder.Rounded,
+                    BorderStyle = new Style(Color.Yellow)
+                };
+
+                AnsiConsole.Write(panel);
+            }
+            else if (!string.IsNullOrEmpty(report.Message))
+            {
+                // Show positive feedback
+                AnsiConsole.WriteLine();
+                AnsiConsole.MarkupLine($"[dim]{report.Message}[/]");
+            }
+        }
+        catch (Exception ex)
+        {
+            // Telemetry is non-critical - don't fail pipeline if it errors
+            AnsiConsole.MarkupLine($"[dim yellow]Note: Failed to track metrics ({ex.Message})[/]");
         }
     }
 
