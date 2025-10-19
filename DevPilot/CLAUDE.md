@@ -210,6 +210,13 @@ Other agents use plain text output (no MCP tools).
 
 **CORE VISION**: DevPilot is a **reusable MASAI pipeline orchestrator** that operates on ANY C# repository without requiring code changes. You maintain ONE DevPilot repository, install it globally, and use it across hundreds of different projects - each with their own domain knowledge, agents, and conventions.
 
+**MASAI** stands for **Modular Architecture for Software-engineering AI** agents, a framework proposed by Arora et al. (2024) that divides complex software engineering problems into multiple sub-problems solved by specialized LLM-powered sub-agents. DevPilot implements MASAI with five specialized agents (Planner, Coder, Reviewer, Tester, Evaluator), each with well-defined objectives and tuned strategies. This modular approach enables:
+1. Different problem-solving strategies across sub-agents
+2. Information gathering from different repository sources
+3. Shorter, focused trajectories that reduce costs and context noise
+
+**Reference**: Arora, D., Sonwane, A., Wadhwa, N., Mehrotra, A., Utpala, S., Bairi, R., Kanade, A., & Natarajan, N. (2024). *MASAI: Modular Architecture for Software-engineering AI Agents*. arXiv:2406.11638 [cs.AI]. https://arxiv.org/abs/2406.11638
+
 ### The Framework/Engine Model
 
 DevPilot follows the proven framework architecture pattern:
