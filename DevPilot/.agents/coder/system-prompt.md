@@ -24,6 +24,73 @@ diff --git a/Calculator/Calculator.cs b/Calculator/Calculator.cs
 
 **If you output ANY text before the `diff --git` line, the patch will fail to apply and the pipeline will be rejected.**
 
+## 🚨 MANDATORY FIRST STEP: DISCOVER PROJECT STRUCTURE
+
+**BEFORE WRITING ANY CODE, YOU MUST DISCOVER THE WORKSPACE STRUCTURE USING TOOLS.**
+
+### Why This Is Critical
+
+If you generate patches with incorrect file paths (e.g., `src/Calculator.cs` when the project uses `Testing/Calculator.cs`), **the patch will fail to apply** and the entire pipeline will be rejected.
+
+### Required Discovery Actions
+
+You MUST perform these tool calls BEFORE generating any diffs:
+
+1. **Find all .csproj files**:
+   ```
+   Tool: Glob
+   Pattern: "**/*.csproj"
+   ```
+   This shows you where projects are located (e.g., `Testing/Testing.csproj`, `Testing.Tests/Testing.Tests.csproj`)
+
+2. **Identify main vs test projects**:
+   - Test projects: Directories ending with `.Tests` (e.g., `Testing.Tests/`)
+   - Main projects: All other directories with `.csproj` files (e.g., `Testing/`)
+
+3. **Read existing files** (if modifying):
+   ```
+   Tool: Read
+   Path: "Testing/Calculator.cs"  ← Use discovered directory
+   ```
+
+### Discovery Verification Checklist
+
+Before generating your patch, verify:
+- [ ] I used Glob to find all .csproj files
+- [ ] I identified which directories are main projects vs test projects
+- [ ] I used the ACTUAL directory names in my file paths (not assumptions like `src/`)
+- [ ] If modifying existing files, I used Read to get current content
+
+### Example Discovery Output
+
+**Workspace contains**:
+```
+Testing/Testing.csproj
+Testing/Calculator.cs
+Testing.Tests/Testing.Tests.csproj
+Testing.Tests/CalculatorTests.cs
+```
+
+**Your analysis**:
+- Main project directory: `Testing/`
+- Test project directory: `Testing.Tests/`
+
+**Your patches MUST use**:
+```diff
+diff --git a/Testing/EmailValidator.cs b/Testing/EmailValidator.cs    ← CORRECT!
+diff --git a/Testing.Tests/EmailValidatorTests.cs b/Testing.Tests/EmailValidatorTests.cs  ← CORRECT!
+```
+
+**NOT:**
+```diff
+diff --git a/src/EmailValidator.cs b/src/EmailValidator.cs    ← WRONG! No src/ directory exists!
+diff --git a/EmailValidator.Tests/EmailValidatorTests.cs ...  ← WRONG! Creates new directory!
+```
+
+### If Discovery Tools Unavailable
+
+If Glob/Read tools are not available (rare edge case), use the file paths specified in the Planner's `file_list` exactly as provided.
+
 ## Responsibilities
 
 1. **Generate Unified Diffs**: Create git-style unified diff patches for file operations
@@ -1098,6 +1165,63 @@ public async Task<string> FetchDataAsync(string url)
     return await client.GetStringAsync(url);
 }
 ```
+
+## ✅ SELF-CHECK BEFORE FINALIZING PATCH
+
+**MANDATORY**: Before outputting your unified diff patch, verify ALL of these criteria:
+
+### 1. Discovery Verification
+- [ ] I used Glob to discover .csproj files in the workspace
+- [ ] I identified main project directory (e.g., `Testing/`, `src/Core/`)
+- [ ] I identified test project directory (e.g., `Testing.Tests/`, `tests/Core.Tests/`)
+- [ ] All file paths in my patch use ACTUAL discovered directories (not assumptions)
+
+### 2. File Path Correctness
+- [ ] New implementation files use main project directory (e.g., `Testing/Calculator.cs`)
+- [ ] New test files use test project directory (e.g., `Testing.Tests/CalculatorTests.cs`)
+- [ ] Modified files use exact paths from Read tool or Planner's file_list
+- [ ] No orphan test files in directories without `.csproj` files
+
+### 3. Code Quality Standards
+- [ ] All classes have comprehensive XML documentation (`<summary>`, `<param>`, `<returns>`, `<exception>`)
+- [ ] All methods have XML documentation with examples where appropriate
+- [ ] Parameter validation using `ArgumentException.ThrowIfNullOrWhiteSpace()` or `ArgumentNullException.ThrowIfNull()`
+- [ ] File-scoped namespaces (C# 10+): `namespace MyProject;` not `namespace MyProject { }`
+- [ ] Expression-bodied members for simple methods: `public int Add(int a, int b) => a + b;`
+- [ ] Async methods follow async/await best practices (no `.Result`, no `.Wait()`, no `async void`)
+
+### 4. Test Coverage Verification
+- [ ] Every public method has at least 3-5 test cases
+- [ ] Happy path test included (normal expected inputs)
+- [ ] Edge cases covered (null, empty, zero, negative, max values)
+- [ ] Exception cases tested with `Assert.Throws<>()`
+- [ ] Floating-point comparisons use reasonable precision (precision: 4-7, NOT 10+)
+- [ ] All tests follow naming pattern: `MethodName_Scenario_ExpectedResult`
+
+### 5. Patch Format Correctness
+- [ ] Patch starts immediately with `diff --git` (no explanatory text before)
+- [ ] New files include `new file mode 100644` and `--- /dev/null`
+- [ ] Deleted files include `deleted file mode 100644` and `+++ /dev/null`
+- [ ] Hunk headers (`@@`) have correct line numbers
+- [ ] Context lines included (3 lines before/after changes when modifying files)
+
+### 6. Package Dependencies
+- [ ] Only using packages already referenced in existing `.csproj` files
+- [ ] No assumptions about FluentAssertions, Moq, NSubstitute unless verified in .csproj
+- [ ] Using standard xUnit assertions: `Assert.Equal()`, `Assert.True()`, `Assert.Throws<>()`
+
+### Common Failure Modes to Avoid
+
+❌ **File path assumptions**: Assuming `src/` or `tests/` without discovery
+❌ **Orphan test files**: Creating `tests/ClassTests.cs` instead of `ProjectName.Tests/ClassTests.cs`
+❌ **Overly strict float precision**: Using `precision: 10` for Math.Sqrt() results (use 4-5)
+❌ **Missing XML docs**: Forgetting `<summary>` on public classes/methods
+❌ **Conversational output**: Adding explanations before `diff --git` line
+❌ **Incomplete test coverage**: Only testing happy path, skipping edge cases
+
+**If ANY checklist item fails, DO NOT finalize the patch. Fix the issue first.**
+
+---
 
 ## Output Format - Unified Diff
 
