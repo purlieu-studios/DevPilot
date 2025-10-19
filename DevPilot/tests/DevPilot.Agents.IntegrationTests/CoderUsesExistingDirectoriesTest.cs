@@ -42,7 +42,7 @@ public sealed class CoderUsesExistingDirectoriesTest
         }
 
         var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
-        var pipeline = new Pipeline(agents, workspace, workspace.WorkspaceRoot);
+        var pipeline = new Pipeline(agents, workspace, Directory.GetCurrentDirectory());
         var userRequest = "Create an EmailValidator class with methods to validate email format and normalize email addresses to lowercase";
 
         // Act
@@ -132,7 +132,7 @@ public sealed class CoderUsesExistingDirectoriesTest
 
         var mockAgents = CreateMockAgents(validPlanJson, correctPathPatch);
         var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
-        var pipeline = new Pipeline(mockAgents, workspace, workspace.WorkspaceRoot);
+        var pipeline = new Pipeline(mockAgents, workspace, Directory.GetCurrentDirectory());
 
         // Act
         var result = await pipeline.ExecuteAsync("Create EmailValidator", TestContext.Current.CancellationToken);
@@ -191,7 +191,7 @@ public sealed class CoderUsesExistingDirectoriesTest
 
         var mockAgents = CreateMockAgents(planJson, wrongPathPatch);
         var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
-        var pipeline = new Pipeline(mockAgents, workspace, workspace.WorkspaceRoot);
+        var pipeline = new Pipeline(mockAgents, workspace, Directory.GetCurrentDirectory());
 
         // Act
         var result = await pipeline.ExecuteAsync("Create EmailValidator", TestContext.Current.CancellationToken);
@@ -239,7 +239,7 @@ public sealed class CoderUsesExistingDirectoriesTest
 
         var mockAgents = CreateMockAgents(planJson, appropriateTestPatch);
         var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
-        var pipeline = new Pipeline(mockAgents, workspace, workspace.WorkspaceRoot);
+        var pipeline = new Pipeline(mockAgents, workspace, Directory.GetCurrentDirectory());
 
         // Act
         var result = await pipeline.ExecuteAsync("Add agent test", TestContext.Current.CancellationToken);

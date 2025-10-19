@@ -38,7 +38,7 @@ public sealed class PipelineEndToEndMockTests
 
         var agents = CreateMockAgents(safePlanJson, validPatch, approvalReview, failingTests, "{}");
         var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
-        var pipeline = new Pipeline(agents, workspace, workspace.WorkspaceRoot);
+        var pipeline = new Pipeline(agents, workspace, Directory.GetCurrentDirectory());
 
         // Act
         var result = await pipeline.ExecuteAsync("Test request", TestContext.Current.CancellationToken);
@@ -79,7 +79,7 @@ public sealed class PipelineEndToEndMockTests
         };
 
         var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
-        var pipeline = new Pipeline(agents, workspace, workspace.WorkspaceRoot);
+        var pipeline = new Pipeline(agents, workspace, Directory.GetCurrentDirectory());
 
         // Act
         var result = await pipeline.ExecuteAsync("Test request", TestContext.Current.CancellationToken);
@@ -130,7 +130,7 @@ public sealed class PipelineEndToEndMockTests
         };
 
         var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
-        var pipeline = new Pipeline(agents, workspace, workspace.WorkspaceRoot);
+        var pipeline = new Pipeline(agents, workspace, Directory.GetCurrentDirectory());
 
         // Act
         var result = await pipeline.ExecuteAsync("Test request", TestContext.Current.CancellationToken);
@@ -159,7 +159,7 @@ public sealed class PipelineEndToEndMockTests
         };
 
         var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
-        var pipeline = new Pipeline(agents, workspace, workspace.WorkspaceRoot);
+        var pipeline = new Pipeline(agents, workspace, Directory.GetCurrentDirectory());
 
         // Act
         var result = await pipeline.ExecuteAsync("Delete auth files", TestContext.Current.CancellationToken);
@@ -189,7 +189,7 @@ public sealed class PipelineEndToEndMockTests
         };
 
         var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
-        var pipeline = new Pipeline(agents, workspace, workspace.WorkspaceRoot);
+        var pipeline = new Pipeline(agents, workspace, Directory.GetCurrentDirectory());
 
         // Act
         var result = await pipeline.ExecuteAsync("Test request", TestContext.Current.CancellationToken);
@@ -211,7 +211,7 @@ public sealed class PipelineEndToEndMockTests
 
         var agents = CreateMockAgents(safePlanJson, invalidPatch, "{}", "{}", "{}");
         var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
-        var pipeline = new Pipeline(agents, workspace, workspace.WorkspaceRoot);
+        var pipeline = new Pipeline(agents, workspace, Directory.GetCurrentDirectory());
 
         // Act
         var result = await pipeline.ExecuteAsync("Test request", TestContext.Current.CancellationToken);
