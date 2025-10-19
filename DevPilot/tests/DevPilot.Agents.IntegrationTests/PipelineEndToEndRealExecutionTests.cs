@@ -50,7 +50,7 @@ public sealed class PipelineEndToEndRealExecutionTests
         }
 
         var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
-        var pipeline = new Pipeline(agents, workspace);
+        var pipeline = new Pipeline(agents, workspace, Directory.GetCurrentDirectory());
         var userRequest = "Create a Calculator class with Add and Subtract methods";
 
         // Act
@@ -122,7 +122,7 @@ public sealed class PipelineEndToEndRealExecutionTests
         }
 
         var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
-        var pipeline = new Pipeline(agents, workspace);
+        var pipeline = new Pipeline(agents, workspace, Directory.GetCurrentDirectory());
         var userRequest = "Delete all user authentication files and remove database migration scripts";
 
         // Act
@@ -182,7 +182,7 @@ public sealed class PipelineEndToEndRealExecutionTests
         };
 
         var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
-        var pipeline = new Pipeline(agents, workspace);
+        var pipeline = new Pipeline(agents, workspace, Directory.GetCurrentDirectory());
         var userRequest = "Create a Calculator class";
 
         // Act
@@ -262,7 +262,7 @@ public sealed class PipelineEndToEndRealExecutionTests
         };
 
         var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
-        var pipeline = new Pipeline(agents, workspace);
+        var pipeline = new Pipeline(agents, workspace, Directory.GetCurrentDirectory());
         var userRequest = "Create a Calculator class";
 
         // Act
@@ -344,7 +344,7 @@ public sealed class PipelineEndToEndRealExecutionTests
         };
 
         var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
-        var pipeline = new Pipeline(agents, workspace);
+        var pipeline = new Pipeline(agents, workspace, Directory.GetCurrentDirectory());
         var userRequest = "Create a Calculator class";
 
         // Act

@@ -49,7 +49,8 @@ public sealed class WorkspaceManager : IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(pipelineId);
 
         baseDirectory ??= Path.Combine(".devpilot", "workspaces");
-        var workspaceRoot = Path.Combine(baseDirectory, pipelineId);
+        // Convert to absolute path to ensure File.Copy and other operations work correctly
+        var workspaceRoot = Path.GetFullPath(Path.Combine(baseDirectory, pipelineId));
 
         if (Directory.Exists(workspaceRoot))
         {
@@ -308,6 +309,7 @@ public sealed class WorkspaceManager : IDisposable
             var destFile = Path.Combine(_workspaceRoot, "CLAUDE.md");
             File.Copy(sourceFile, destFile, overwrite: true);
         }
+        // Note: CLAUDE.md is optional - not all repositories will have it
     }
 
     /// <summary>

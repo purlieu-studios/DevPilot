@@ -16,24 +16,29 @@ public sealed class Pipeline
     private readonly IReadOnlyDictionary<PipelineStage, IAgent> _agents;
     private readonly WorkspaceManager _workspace;
     private readonly IRagService? _ragService;
+    private readonly string _sourceRoot;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="Pipeline"/> class.
     /// </summary>
     /// <param name="agents">Dictionary mapping pipeline stages to agent implementations.</param>
     /// <param name="workspace">The workspace manager for this pipeline execution.</param>
+    /// <param name="sourceRoot">The source repository root directory (where DevPilot was executed from).</param>
     /// <param name="ragService">Optional RAG service for context retrieval (null to disable RAG).</param>
     public Pipeline(
         IReadOnlyDictionary<PipelineStage, IAgent> agents,
         WorkspaceManager workspace,
+        string sourceRoot,
         IRagService? ragService = null)
     {
         ArgumentNullException.ThrowIfNull(agents);
         ArgumentNullException.ThrowIfNull(workspace);
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourceRoot);
 
         ValidateAgents(agents);
         _agents = agents;
         _workspace = workspace;
+        _sourceRoot = sourceRoot;
         _ragService = ragService;
     }
 
@@ -52,8 +57,9 @@ public sealed class Pipeline
 
         try
         {
-            // Use the workspace provided in constructor
+            // Use the workspace and source root provided in constructor
             context.SetWorkspaceRoot(_workspace.WorkspaceRoot);
+            context.SetSourceRoot(_sourceRoot);
 
             // Analyze project structure for agent context
             var projectStructure = _workspace.AnalyzeProjectStructure();
@@ -137,7 +143,7 @@ public sealed class Pipeline
 
                     // Copy CLAUDE.md after Planning succeeds to make it available for subsequent stages
                     // (it was excluded during initial workspace creation to reduce Planner context)
-                    _workspace.CopyClaudeMd(Directory.GetCurrentDirectory());
+                    _workspace.CopyClaudeMd(context.SourceRoot!);
                 }
 
                 context.AdvanceToStage(stage, agentResult.Output);
@@ -159,7 +165,7 @@ public sealed class Pipeline
                         context.SetAppliedFiles(_workspace.AppliedFiles);
 
                         // Copy project files (.csproj and .sln) to workspace for compilation
-                        _workspace.CopyProjectFiles(Directory.GetCurrentDirectory());
+                        _workspace.CopyProjectFiles(context.SourceRoot!);
 
                         // Validate only modified files to prevent false positives from existing code
                         var validator = new CodeValidator();
@@ -236,7 +242,7 @@ public sealed class Pipeline
                                 context.SetAppliedFiles(_workspace.AppliedFiles);
 
                                 // Copy project files (.csproj and .sln) to workspace for compilation
-                                _workspace.CopyProjectFiles(Directory.GetCurrentDirectory());
+                                _workspace.CopyProjectFiles(context.SourceRoot!);
 
                                 // Validate revised code before building
                                 var validator = new CodeValidator();

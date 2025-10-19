@@ -54,6 +54,11 @@ public sealed class PipelineContext
     public string? WorkspaceRoot { get; private set; }
 
     /// <summary>
+    /// Gets the source repository root directory (where DevPilot was executed from).
+    /// </summary>
+    public string? SourceRoot { get; private set; }
+
+    /// <summary>
     /// Gets the detected project structure of the workspace.
     /// </summary>
     public ProjectStructureInfo? ProjectStructure { get; private set; }
@@ -171,6 +176,16 @@ public sealed class PipelineContext
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
         WorkspaceRoot = workspaceRoot;
+    }
+
+    /// <summary>
+    /// Sets the source repository root directory (where DevPilot was executed from).
+    /// </summary>
+    /// <param name="sourceRoot">The absolute path to the source repository root directory.</param>
+    public void SetSourceRoot(string sourceRoot)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourceRoot);
+        SourceRoot = sourceRoot;
     }
 
     /// <summary>

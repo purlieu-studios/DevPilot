@@ -26,7 +26,7 @@ new file mode 100644
 
         var agents = CreateMockAgentsWithPatch(coderPatch);
         var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
-        var pipeline = new Pipeline(agents, workspace);
+        var pipeline = new Pipeline(agents, workspace, Directory.GetCurrentDirectory());
 
         // Act
         var result = await pipeline.ExecuteAsync("Create a calculator");
@@ -51,7 +51,7 @@ new file mode 100644
 
         var agents = CreateMockAgentsWithPatch(coderPatch);
         var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
-        var pipeline = new Pipeline(agents, workspace);
+        var pipeline = new Pipeline(agents, workspace, Directory.GetCurrentDirectory());
 
         // Act
         var result = await pipeline.ExecuteAsync("Create a test class");
@@ -80,7 +80,7 @@ new file mode 100644
 
         var agents = CreateMockAgentsWithPatch(coderPatch);
         var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
-        var pipeline = new Pipeline(agents, workspace);
+        var pipeline = new Pipeline(agents, workspace, Directory.GetCurrentDirectory());
 
         // Act
         var result = await pipeline.ExecuteAsync("Create two classes");
@@ -100,7 +100,7 @@ new file mode 100644
 
         var agents = CreateMockAgentsWithPatch(invalidPatch);
         var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
-        var pipeline = new Pipeline(agents, workspace);
+        var pipeline = new Pipeline(agents, workspace, Directory.GetCurrentDirectory());
 
         // Act
         var result = await pipeline.ExecuteAsync("Invalid request");
@@ -124,7 +124,7 @@ new file mode 100644
 
         var agents = CreateMockAgentsWithPatch(coderPatch);
         var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
-        var pipeline = new Pipeline(agents, workspace);
+        var pipeline = new Pipeline(agents, workspace, Directory.GetCurrentDirectory());
 
         // Act
         var result = await pipeline.ExecuteAsync("Create a test");
@@ -143,7 +143,7 @@ new file mode 100644
 
         var agents = CreateMockAgentsWithPatch(invalidPatch);
         var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
-        var pipeline = new Pipeline(agents, workspace);
+        var pipeline = new Pipeline(agents, workspace, Directory.GetCurrentDirectory());
 
         // Act
         var result = await pipeline.ExecuteAsync("This will fail");
@@ -170,7 +170,7 @@ new file mode 100644
 
         var agents = CreateMockAgentsWithPatch(coderPatch);
         var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
-        var pipeline = new Pipeline(agents, workspace);
+        var pipeline = new Pipeline(agents, workspace, Directory.GetCurrentDirectory());
 
         // Act
         var result = await pipeline.ExecuteAsync("Create calculator");

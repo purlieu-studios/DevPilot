@@ -325,7 +325,7 @@ devpilot "Add email validation to User model"
    ├── src/Services/PaymentService.cs
    └── tests/EcommerceApp.Tests/
 
-3. RAG indexing (future):
+3. RAG indexing (if --enable-rag flag used):
    RAG.Index(".devpilot/workspaces/abc123/")
    ↓
    Vector embeddings of:
@@ -335,6 +335,9 @@ devpilot "Add email validation to User model"
 
    NOT DevPilot's files!
    NOT DevPilot's CLAUDE.md!
+
+   Uses Ollama (mxbai-embed-large) for local embeddings
+   Stores in SQLite vector database: .devpilot/rag/abc123.db
 
 4. Planner Agent:
    System Prompt: .devpilot/workspaces/abc123/.agents/planner/system-prompt.md
@@ -425,6 +428,8 @@ DevPilot (installed globally via dotnet tool)
 - WorkspaceManager copies files from target repo
 - Agents execute in workspace context
 - Default agents (planner, coder, reviewer, tester, evaluator)
+- Repository structure awareness (auto-detects project directories)
+- RAG integration with Ollama (optional via --enable-rag flag)
 
 **⚠️ Needs Verification**:
 - [ ] Do agents read CLAUDE.md from workspace? (Or DevPilot's CLAUDE.md?)
@@ -432,7 +437,7 @@ DevPilot (installed globally via dotnet tool)
 - [ ] Are custom agents merged with default pipeline?
 
 **📋 Future Enhancements**:
-- RAG indexing of workspace files (not DevPilot files)
+- ✅ ~~RAG indexing of workspace files~~ (Implemented in PR #51 - see RAG section)
 - Custom agent discovery and execution
 - .commands/ support (domain-specific workflows)
 - WPF UI for repository selection and pipeline monitoring
@@ -647,21 +652,53 @@ Auto-detection handles most repositories correctly without configuration.
 
 ## Development Roadmap
 
-**Current Status**: PR #42 implements repository structure awareness. Ready for merge after testing.
+**Current Status**: Core MASAI pipeline features implemented. Focus shifting to advanced capabilities and enterprise readiness.
+
+### Completed Recent Work
+
+**✅ PR #52: Windows Command-Line Length Fix** (Completed 2025-10-18)
+- **Problem**: DevPilot couldn't dogfood itself on Windows due to 32KB command-line argument limit
+- **Impact**: CLAUDE.md (37KB) + agent prompts exceeded Windows limit when passed via `--system-prompt`
+- **Solution**: Implemented CLAUDE.md compression approach (chunking, prioritization, dynamic truncation)
+- **Benefit**: DevPilot can now handle repositories with large documentation on Windows
+- **Related**: See "PR #50 Validation" section for discovery context
+
+**✅ PR #51: RAG Integration with Ollama** (Completed 2025-10-18)
+- **Feature**: Optional Retrieval Augmented Generation system using local Ollama embeddings
+- **Components**: DocumentChunker, OllamaEmbeddingService, SqliteVectorStore, RagService
+- **Model**: mxbai-embed-large (1024-dim, 59.25% MTEB accuracy)
+- **Benefits**: Agents receive semantically relevant workspace context (top-5 chunks by cosine similarity)
+- **Usage**: `devpilot --enable-rag "your request"`
+- **Test Coverage**: 28 tests covering chunking, embeddings, vector search
+- **Related**: See "RAG (Retrieval Augmented Generation)" section for full documentation
+
+**✅ PR #42: Repository Structure Awareness** (Completed 2025-10-17)
+- **Feature**: Auto-detects project structure (main/test directories) and provides context to agents
+- **Benefit**: Works with any C# repository layout (not just `src/` and `tests/`)
+- **Impact**: Agents generate correct file paths for non-standard layouts
+- **Validation**: Tested successfully with Testing repository using `Testing/` instead of `src/`
+
+**✅ PR #50: Enhanced Coder Prompt with C# Best Practices** (Completed 2025-10-18)
+- **Feature**: Added ~288 lines of C# best practices to Coder system prompt
+- **Topics**: Async/await, LINQ, null handling, resource management, floating-point precision
+- **Impact**: Code quality +4.0 points (4.5→8.5/10), Documentation +3.0 points (6.0→9.0/10)
+- **Validation**: 98.4% test pass rate on Testing repository
+- **Related**: See "PR #50 Validation" section for metrics
 
 ### Immediate Priority (Next Session)
 
-1. **✅ Merge PR #42** - Get structure awareness into main branch
-   - 4 commits ready: structure detection, context injection, bug fixes, test updates
-   - Build: 0 errors, 0 warnings
-   - Verified working with non-standard repo structure
-
-2. **🔬 Test with Diverse Repositories**
+1. **🔬 Test with Diverse Repositories**
    - Multi-project solutions (multiple main projects)
    - Monorepos (shared libraries + multiple apps)
    - Different naming conventions (CamelCase vs kebab-case)
    - No CLAUDE.md scenarios
    - Custom .agents/ scenarios (all-or-nothing validation)
+
+2. **🧪 RAG Performance Validation**
+   - Validate RAG effectiveness across different repository sizes
+   - Measure impact on code quality scores (with vs without RAG)
+   - Test with complex domain-specific repositories
+   - Optimize chunk size and overlap for C# codebases
 
 ### Short-Term (1-2 Weeks)
 
@@ -703,17 +740,11 @@ Auto-detection handles most repositories correctly without configuration.
    - Benefits: Structured outputs, schema validation, better reliability
    - Example tools: `create_code_change`, `report_code_issue`, `record_test_failure`
 
-9. **📊 RAG Integration for Context Retrieval**
-   - Currently: Agents receive full CLAUDE.md and structure context
-   - Goal: Index workspace files, provide semantic search to agents
-   - Benefit: Agents can find relevant code examples, similar patterns
-   - Technology: Vector embeddings (OpenAI ada-002 or local models)
-
-10. **🖥️ WPF UI for Pipeline Monitoring**
-    - Currently: CLI-only interface with spinner
-    - Goal: Real-time pipeline visualization
-    - Features: Stage progress, agent outputs, file diffs, approval buttons
-    - Design: Similar to Azure DevOps pipeline UI
+9. **🖥️ WPF UI for Pipeline Monitoring**
+   - Currently: CLI-only interface with spinner
+   - Goal: Real-time pipeline visualization
+   - Features: Stage progress, agent outputs, file diffs, approval buttons
+   - Design: Similar to Azure DevOps pipeline UI
 
 ### Long-Term Vision (6+ Months)
 
@@ -984,12 +1015,12 @@ Despite Phase 3 being blocked, the Testing repository validation **conclusively 
 
 ### Next Steps
 
-1. ✅ **Merge PR #50** - Validated and effective
-2. 📝 **File GitHub Issue** - Document Windows command-line length bug with reproduction steps
-3. 🔧 **Plan PR for Bug #1** - Investigate Claude CLI `--system-prompt-file` or alternative solutions
-4. 📚 **Optional Enhancement** - Add test assertion verification guidance to Coder prompt (future PR)
+1. ✅ **Merge PR #50** - Validated and effective (COMPLETED)
+2. ✅ **Fix Windows command-line length bug** - Implemented CLAUDE.md compression approach in PR #52 (COMPLETED)
+3. 📚 **Optional Enhancement** - Add test assertion verification guidance to Coder prompt (future PR)
 
 **Status**: PR #50 validation **COMPLETE AND SUCCESSFUL** ✅
+**Update**: Windows command-line issue resolved in PR #52 via CLAUDE.md compression
 
 ## Related Documentation
 
