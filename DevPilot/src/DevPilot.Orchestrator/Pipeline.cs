@@ -389,7 +389,10 @@ public sealed class Pipeline
         }
 
         var input = BuildStageInput(stage, context);
-        var agentContext = new AgentContext();
+        var agentContext = new AgentContext
+        {
+            WorkspaceRoot = context.WorkspaceRoot
+        };
         agentContext.SetValue("PipelineId", context.PipelineId);
         agentContext.SetValue("CurrentStage", stage);
 
@@ -614,7 +617,10 @@ public sealed class Pipeline
             return AgentResult.CreateFailure($"Agent for stage {stage}", $"No agent configured for stage: {stage}");
         }
 
-        var agentContext = new AgentContext();
+        var agentContext = new AgentContext
+        {
+            WorkspaceRoot = context.WorkspaceRoot
+        };
         agentContext.SetValue("PipelineId", context.PipelineId);
         agentContext.SetValue("CurrentStage", stage);
         agentContext.SetValue("RevisionIteration", context.RevisionIteration);
