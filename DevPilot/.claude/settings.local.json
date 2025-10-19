@@ -6,7 +6,11 @@
       "Bash(find:*)",
       "Bash(awk:*)",
       "Bash(gh pr list --state all --limit 10)",
-      "Bash(dotnet run --project src/DevPilot.Console --help)"
+      "Bash(dotnet run --project src/DevPilot.Console --help)",
+      "Bash(git checkout main)",
+      "Bash(git pull origin main)",
+      "Bash(gh issue list --limit 10)",
+      "Bash(gh issue list --state open --limit 10)"
     ],
     "deny": [],
     "ask": []

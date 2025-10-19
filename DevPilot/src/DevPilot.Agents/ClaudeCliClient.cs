@@ -68,6 +68,7 @@ public sealed class ClaudeCliClient
 
         var effectiveTimeout = timeout ?? _defaultTimeout;
         string? claudeMdPath = null;
+        bool createdClaudeMd = false;  // Track if we created CLAUDE.md (vs finding it pre-existing)
 
         try
         {
@@ -88,7 +89,15 @@ public sealed class ClaudeCliClient
                 }
 
                 claudeMdPath = Path.Combine(workingDirectory, "CLAUDE.md");
-                await File.WriteAllTextAsync(claudeMdPath, systemPrompt, cancellationToken);
+
+                // Only write if CLAUDE.md doesn't exist (it may have been copied by WorkspaceManager.CopyClaudeMd)
+                // If it exists, use the repository's CLAUDE.md as-is (contains domain knowledge)
+                if (!File.Exists(claudeMdPath))
+                {
+                    await File.WriteAllTextAsync(claudeMdPath, systemPrompt, cancellationToken);
+                    createdClaudeMd = true;  // We created it, so we'll clean it up in finally block
+                }
+                // Otherwise, CLAUDE.md already exists from workspace - don't overwrite or delete it
             }
 
             var argumentList = BuildArgumentList(!useClaudeMdFile, systemPrompt, model, mcpConfigPath);
@@ -246,8 +255,9 @@ public sealed class ClaudeCliClient
         }
         finally
         {
-            // Clean up temporary CLAUDE.md file if it was created
-            if (!string.IsNullOrEmpty(claudeMdPath) && File.Exists(claudeMdPath))
+            // Clean up temporary CLAUDE.md file ONLY if we created it
+            // Don't delete if it was pre-existing (copied by WorkspaceManager.CopyClaudeMd)
+            if (createdClaudeMd && !string.IsNullOrEmpty(claudeMdPath) && File.Exists(claudeMdPath))
             {
                 try
                 {
