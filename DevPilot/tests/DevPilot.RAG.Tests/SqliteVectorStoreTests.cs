@@ -1,5 +1,6 @@
 using DevPilot.RAG;
 using FluentAssertions;
+using Xunit;
 
 namespace DevPilot.RAG.Tests;
 
@@ -39,11 +40,11 @@ public sealed class SqliteVectorStoreTests : IDisposable
         using var store = new SqliteVectorStore(_testDatabasePath);
 
         // Act
-        await store.InitializeAsync();
+        await store.InitializeAsync(TestContext.Current.CancellationToken);
 
         // Assert
         File.Exists(_testDatabasePath).Should().BeTrue();
-        var count = await store.GetDocumentCountAsync();
+        var count = await store.GetDocumentCountAsync(TestContext.Current.CancellationToken);
         count.Should().Be(0);
     }
 
@@ -52,7 +53,7 @@ public sealed class SqliteVectorStoreTests : IDisposable
     {
         // Arrange
         using var store = new SqliteVectorStore(_testDatabasePath);
-        await store.InitializeAsync();
+        await store.InitializeAsync(TestContext.Current.CancellationToken);
 
         var document = new VectorDocument
         {
@@ -67,10 +68,10 @@ public sealed class SqliteVectorStoreTests : IDisposable
         };
 
         // Act
-        await store.AddDocumentAsync(document);
+        await store.AddDocumentAsync(document, TestContext.Current.CancellationToken);
 
         // Assert
-        var count = await store.GetDocumentCountAsync();
+        var count = await store.GetDocumentCountAsync(TestContext.Current.CancellationToken);
         count.Should().Be(1);
     }
 
@@ -79,7 +80,7 @@ public sealed class SqliteVectorStoreTests : IDisposable
     {
         // Arrange
         using var store = new SqliteVectorStore(_testDatabasePath);
-        await store.InitializeAsync();
+        await store.InitializeAsync(TestContext.Current.CancellationToken);
 
         var documents = new List<VectorDocument>
         {
@@ -107,10 +108,10 @@ public sealed class SqliteVectorStoreTests : IDisposable
         };
 
         // Act
-        await store.AddDocumentsAsync(documents);
+        await store.AddDocumentsAsync(documents, TestContext.Current.CancellationToken);
 
         // Assert
-        var count = await store.GetDocumentCountAsync();
+        var count = await store.GetDocumentCountAsync(TestContext.Current.CancellationToken);
         count.Should().Be(3);
     }
 
@@ -119,7 +120,7 @@ public sealed class SqliteVectorStoreTests : IDisposable
     {
         // Arrange
         using var store = new SqliteVectorStore(_testDatabasePath);
-        await store.InitializeAsync();
+        await store.InitializeAsync(TestContext.Current.CancellationToken);
 
         var documents = new List<VectorDocument>
         {
@@ -146,11 +147,11 @@ public sealed class SqliteVectorStoreTests : IDisposable
             }
         };
 
-        await store.AddDocumentsAsync(documents);
+        await store.AddDocumentsAsync(documents, TestContext.Current.CancellationToken);
 
         // Act - Query with embedding similar to doc-1 and doc-3
         var queryEmbedding = new float[] { 0.95f, 0.05f, 0.0f };
-        var results = await store.SearchAsync(queryEmbedding, topK: 2);
+        var results = await store.SearchAsync(queryEmbedding, topK: 2, TestContext.Current.CancellationToken);
 
         // Assert
         results.Should().HaveCount(2);
@@ -164,7 +165,7 @@ public sealed class SqliteVectorStoreTests : IDisposable
     {
         // Arrange
         using var store = new SqliteVectorStore(_testDatabasePath);
-        await store.InitializeAsync();
+        await store.InitializeAsync(TestContext.Current.CancellationToken);
 
         var documents = Enumerable.Range(1, 10)
             .Select(i => new VectorDocument
@@ -176,10 +177,10 @@ public sealed class SqliteVectorStoreTests : IDisposable
             })
             .ToList();
 
-        await store.AddDocumentsAsync(documents);
+        await store.AddDocumentsAsync(documents, TestContext.Current.CancellationToken);
 
         // Act
-        var results = await store.SearchAsync(new float[] { 0.5f, 0.5f, 0.5f }, topK: 3);
+        var results = await store.SearchAsync(new float[] { 0.5f, 0.5f, 0.5f }, topK: 3, TestContext.Current.CancellationToken);
 
         // Assert
         results.Should().HaveCount(3);
@@ -190,7 +191,7 @@ public sealed class SqliteVectorStoreTests : IDisposable
     {
         // Arrange
         using var store = new SqliteVectorStore(_testDatabasePath);
-        await store.InitializeAsync();
+        await store.InitializeAsync(TestContext.Current.CancellationToken);
 
         var documents = new List<VectorDocument>
         {
@@ -217,11 +218,11 @@ public sealed class SqliteVectorStoreTests : IDisposable
             }
         };
 
-        await store.AddDocumentsAsync(documents);
+        await store.AddDocumentsAsync(documents, TestContext.Current.CancellationToken);
 
         // Act - Search with workspace filter
         var filter = new Dictionary<string, object> { ["workspace_id"] = "ws-1" };
-        var results = await store.SearchAsync(new float[] { 1.0f, 0.0f, 0.0f }, topK: 10, filter);
+        var results = await store.SearchAsync(new float[] { 1.0f, 0.0f, 0.0f }, topK: 10, filter, TestContext.Current.CancellationToken);
 
         // Assert
         results.Should().HaveCount(2);
@@ -241,9 +242,9 @@ public sealed class SqliteVectorStoreTests : IDisposable
     {
         // Arrange
         using var store = new SqliteVectorStore(_testDatabasePath);
-        await store.InitializeAsync();
+        await store.InitializeAsync(TestContext.Current.CancellationToken);
 
-        var initialCount = await store.GetDocumentCountAsync();
+        var initialCount = await store.GetDocumentCountAsync(TestContext.Current.CancellationToken);
         initialCount.Should().Be(0);
 
         // Act - Add documents
@@ -253,7 +254,7 @@ public sealed class SqliteVectorStoreTests : IDisposable
             Text = "Test",
             Embedding = new float[] { 0.1f, 0.2f, 0.3f },
             Metadata = new Dictionary<string, object> { ["workspace_id"] = "ws-1" }
-        });
+        }, TestContext.Current.CancellationToken);
 
         await store.AddDocumentAsync(new VectorDocument
         {
@@ -261,10 +262,10 @@ public sealed class SqliteVectorStoreTests : IDisposable
             Text = "Test 2",
             Embedding = new float[] { 0.4f, 0.5f, 0.6f },
             Metadata = new Dictionary<string, object> { ["workspace_id"] = "ws-1" }
-        });
+        }, TestContext.Current.CancellationToken);
 
         // Assert
-        var finalCount = await store.GetDocumentCountAsync();
+        var finalCount = await store.GetDocumentCountAsync(TestContext.Current.CancellationToken);
         finalCount.Should().Be(2);
     }
 
@@ -273,7 +274,7 @@ public sealed class SqliteVectorStoreTests : IDisposable
     {
         // Arrange
         using var store = new SqliteVectorStore(_testDatabasePath);
-        await store.InitializeAsync();
+        await store.InitializeAsync(TestContext.Current.CancellationToken);
 
         var documents = new List<VectorDocument>
         {
@@ -293,15 +294,15 @@ public sealed class SqliteVectorStoreTests : IDisposable
             }
         };
 
-        await store.AddDocumentsAsync(documents);
-        var beforeCount = await store.GetDocumentCountAsync();
+        await store.AddDocumentsAsync(documents, TestContext.Current.CancellationToken);
+        var beforeCount = await store.GetDocumentCountAsync(TestContext.Current.CancellationToken);
         beforeCount.Should().Be(2);
 
         // Act
-        await store.ClearAsync();
+        await store.ClearAsync(TestContext.Current.CancellationToken);
 
         // Assert
-        var afterCount = await store.GetDocumentCountAsync();
+        var afterCount = await store.GetDocumentCountAsync(TestContext.Current.CancellationToken);
         afterCount.Should().Be(0);
     }
 
@@ -310,10 +311,10 @@ public sealed class SqliteVectorStoreTests : IDisposable
     {
         // Arrange
         using var store = new SqliteVectorStore(_testDatabasePath);
-        await store.InitializeAsync();
+        await store.InitializeAsync(TestContext.Current.CancellationToken);
 
         // Act
-        var results = await store.SearchAsync(new float[] { 1.0f, 0.0f, 0.0f }, topK: 5);
+        var results = await store.SearchAsync(new float[] { 1.0f, 0.0f, 0.0f }, topK: 5, TestContext.Current.CancellationToken);
 
         // Assert
         results.Should().BeEmpty();
