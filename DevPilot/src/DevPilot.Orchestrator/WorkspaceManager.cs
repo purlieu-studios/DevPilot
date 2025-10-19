@@ -10,6 +10,7 @@ namespace DevPilot.Orchestrator;
 public sealed class WorkspaceManager : IDisposable
 {
     private readonly string _workspaceRoot;
+    private readonly string _pipelineId;
     private readonly List<AppliedChange> _appliedChanges;
     private bool _disposed;
 
@@ -17,9 +18,11 @@ public sealed class WorkspaceManager : IDisposable
     /// Initializes a new instance of the <see cref="WorkspaceManager"/> class.
     /// </summary>
     /// <param name="workspaceRoot">The root directory for this workspace.</param>
-    private WorkspaceManager(string workspaceRoot)
+    /// <param name="pipelineId">The unique pipeline execution ID.</param>
+    private WorkspaceManager(string workspaceRoot, string pipelineId)
     {
         _workspaceRoot = workspaceRoot;
+        _pipelineId = pipelineId;
         _appliedChanges = new List<AppliedChange>();
     }
 
@@ -27,6 +30,11 @@ public sealed class WorkspaceManager : IDisposable
     /// Gets the root directory of this workspace.
     /// </summary>
     public string WorkspaceRoot => _workspaceRoot;
+
+    /// <summary>
+    /// Gets the unique pipeline execution ID for this workspace.
+    /// </summary>
+    public string PipelineId => _pipelineId;
 
     /// <summary>
     /// Gets the list of files that have been created or modified in this workspace.
@@ -66,7 +74,7 @@ public sealed class WorkspaceManager : IDisposable
             throw new IOException($"Failed to create workspace directory: {workspaceRoot}", ex);
         }
 
-        return new WorkspaceManager(workspaceRoot);
+        return new WorkspaceManager(workspaceRoot, pipelineId);
     }
 
     /// <summary>

@@ -53,7 +53,12 @@ public sealed class Pipeline
         ArgumentException.ThrowIfNullOrWhiteSpace(userRequest);
 
         var stopwatch = Stopwatch.StartNew();
-        var context = new PipelineContext { UserRequest = userRequest };
+        var context = new PipelineContext
+        {
+            UserRequest = userRequest,
+            PipelineId = _workspace.PipelineId
+        };
+        bool success = false;
 
         try
         {
@@ -343,9 +348,11 @@ public sealed class Pipeline
             if (context.HasTestFailures)
             {
                 var warningMsg = $"{context.TestFailureCount} test(s) failed";
+                success = true; // Preserve workspace on success (even with warnings)
                 return PipelineResult.CreatePassedWithWarnings(context, stopwatch.Elapsed, warningMsg);
             }
 
+            success = true; // Preserve workspace on success
             return PipelineResult.CreateSuccess(context, stopwatch.Elapsed);
         }
         catch (OperationCanceledException)
@@ -374,9 +381,12 @@ public sealed class Pipeline
         }
         finally
         {
-            // Always preserve workspace for inspection (both success and failure)
-            // User can manually clean up workspaces when no longer needed
-            // This allows investigation of why evaluator rejected the code
+            // Clean up workspace on failure (no point keeping failed attempts)
+            // Preserve workspace on success (so user can review and apply changes)
+            if (!success)
+            {
+                _workspace.Dispose();
+            }
         }
     }
 

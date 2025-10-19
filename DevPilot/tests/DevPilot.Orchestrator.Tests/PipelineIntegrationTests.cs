@@ -15,7 +15,7 @@ public sealed class PipelineIntegrationTests : IDisposable
 
     public PipelineIntegrationTests()
     {
-        _testBaseDirectory = Path.Combine(Path.GetTempPath(), "devpilot-integration-tests", Guid.NewGuid().ToString());
+        _testBaseDirectory = Path.Combine(Path.GetTempPath(), "devpilot-integration-tests", Guid.NewGuid().ToString(), "workspaces");
         _workspacesToCleanup = new List<string>();
         Directory.CreateDirectory(_testBaseDirectory);
     }
@@ -528,8 +528,35 @@ public sealed class PipelineIntegrationTests : IDisposable
 
     private (WorkspaceManager workspace, Pipeline pipeline) SetupPipelineWithRevisionLoop()
     {
-        // For now, return successful pipeline - revision loop tests would require more complex mocking
-        return SetupPipelineWithMockAgents(createSuccessfulAgents: true);
+        var pipelineId = Guid.NewGuid().ToString();
+        var workspace = WorkspaceManager.CreateWorkspace(pipelineId, _testBaseDirectory);
+        _workspacesToCleanup.Add(workspace.WorkspaceRoot);
+
+        // Create agents with a stateful reviewer that triggers revision loop
+        var planJson = """
+            {
+              "plan": {"summary": "Test plan", "steps": [{"step_number": 1, "description": "Test", "file_target": null, "agent": "coder", "estimated_loc": 50}]},
+              "file_list": [],
+              "risk": {"level": "low", "factors": [], "mitigation": ""},
+              "needs_approval": false,
+              "verify": {"acceptance_criteria": [], "test_commands": [], "manual_checks": []},
+              "rollback": {"strategy": "Safe to rollback", "commands": [], "notes": ""}
+            }
+            """;
+
+        var patchContent = "diff --git a/Test.cs b/Test.cs\nnew file mode 100644\n--- /dev/null\n+++ b/Test.cs\n@@ -0,0 +1,1 @@\n+public class Test { }";
+
+        var agents = new Dictionary<PipelineStage, IAgent>
+        {
+            [PipelineStage.Planning] = new MockAgent("planner", true, planJson),
+            [PipelineStage.Coding] = new MockAgent("coder", true, patchContent),
+            [PipelineStage.Reviewing] = new StatefulMockReviewer(), // Returns REVISE first, then APPROVE
+            [PipelineStage.Testing] = new MockAgent("tester", true, "{\"pass\": true}"),
+            [PipelineStage.Evaluating] = new MockAgent("evaluator", true, """{"evaluation": {"overall_score": 8.0, "scores": {"plan_quality": 8.0, "code_quality": 8.0, "test_coverage": 8.0, "documentation": 8.0, "maintainability": 8.0}, "final_verdict": "ACCEPT"}}""")
+        };
+
+        var pipeline = new Pipeline(agents, workspace, Directory.GetCurrentDirectory());
+        return (workspace, pipeline);
     }
 
     private Dictionary<PipelineStage, IAgent> CreateMockAgents(bool succeeds, double qualityScore, int fileCount)
@@ -654,6 +681,42 @@ public sealed class PipelineIntegrationTests : IDisposable
                 : AgentResult.CreateFailure(Definition.Name, _output);
 
             return Task.FromResult(result);
+        }
+    }
+
+    /// <summary>
+    /// Mock reviewer agent that returns REVISE on first call, APPROVE on subsequent calls.
+    /// Used to test revision loop functionality.
+    /// </summary>
+    private sealed class StatefulMockReviewer : IAgent
+    {
+        private int _callCount = 0;
+
+        public StatefulMockReviewer()
+        {
+            Definition = new AgentDefinition
+            {
+                Name = "reviewer",
+                Version = "1.0.0",
+                Description = "Stateful mock reviewer for testing revision loops",
+                SystemPrompt = "Test prompt",
+                Model = "sonnet"
+            };
+        }
+
+        public AgentDefinition Definition { get; }
+
+        public Task<AgentResult> ExecuteAsync(string input, AgentContext context, CancellationToken cancellationToken = default)
+        {
+            _callCount++;
+
+            // First call: request revision
+            // Subsequent calls: approve
+            var output = _callCount == 1
+                ? "{\"verdict\": \"REVISE\", \"feedback\": \"Please improve the code quality\"}"
+                : "{\"verdict\": \"APPROVE\"}";
+
+            return Task.FromResult(AgentResult.CreateSuccess(Definition.Name, output));
         }
     }
 

@@ -58,7 +58,10 @@ new file mode 100644
 
         // Assert
         result.Context.WorkspaceRoot.Should().Contain(result.Context.PipelineId);
-        Directory.Exists(result.Context.WorkspaceRoot).Should().BeFalse(); // Should be cleaned up
+        Directory.Exists(result.Context.WorkspaceRoot).Should().BeTrue(); // Should be preserved for inspection
+
+        // Cleanup
+        workspace.Dispose();
     }
 
     [Fact]
@@ -112,7 +115,7 @@ new file mode 100644
     }
 
     [Fact]
-    public async Task Pipeline_CleansUpWorkspace_AfterExecution()
+    public async Task Pipeline_PreservesWorkspace_AfterExecution()
     {
         // Arrange
         var coderPatch = @"diff --git a/Test.cs b/Test.cs
@@ -132,11 +135,14 @@ new file mode 100644
 
         // Assert
         workspaceRoot.Should().NotBeNullOrEmpty();
-        Directory.Exists(workspaceRoot).Should().BeFalse(); // Workspace should be cleaned up
+        Directory.Exists(workspaceRoot).Should().BeTrue(); // Workspace should be preserved for inspection
+
+        // Cleanup
+        workspace.Dispose();
     }
 
     [Fact]
-    public async Task Pipeline_CleansUpWorkspace_EvenOnFailure()
+    public async Task Pipeline_CleansUpWorkspace_OnFailure()
     {
         // Arrange
         var invalidPatch = "invalid patch content";
@@ -152,7 +158,7 @@ new file mode 100644
         // Assert
         result.Success.Should().BeFalse();
         workspaceRoot.Should().NotBeNullOrEmpty();
-        Directory.Exists(workspaceRoot).Should().BeFalse(); // Workspace cleaned up even on failure
+        Directory.Exists(workspaceRoot).Should().BeFalse(); // Workspace cleaned up on failure
     }
 
     [Fact]

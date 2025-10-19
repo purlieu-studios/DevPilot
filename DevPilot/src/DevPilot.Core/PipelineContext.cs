@@ -11,7 +11,7 @@ public sealed class PipelineContext
     /// <summary>
     /// Gets the unique identifier for this pipeline execution.
     /// </summary>
-    public string PipelineId { get; } = Guid.NewGuid().ToString();
+    public string PipelineId { get; init; } = Guid.NewGuid().ToString();
 
     /// <summary>
     /// Gets the current stage of the pipeline.
