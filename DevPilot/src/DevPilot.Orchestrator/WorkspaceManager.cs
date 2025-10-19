@@ -135,6 +135,72 @@ public sealed class WorkspaceManager : IDisposable
             // Copy the file
             File.Copy(sourceFile, destFile, overwrite: true);
         }
+
+        // Ensure workspace has a .sln file for 'dotnet test' to discover projects
+        GenerateSolutionFile();
+    }
+
+    /// <summary>
+    /// Generates a minimal .sln file in workspace root containing all discovered .csproj files.
+    /// This ensures 'dotnet test' can discover and run tests from workspace root.
+    /// </summary>
+    private void GenerateSolutionFile()
+    {
+        var excludedDirectories = new[] { ".devpilot", "bin", "obj", ".git", ".vs", "node_modules", "packages", "TestResults", "nupkg" };
+        var projectFiles = FindFilesRecursive(_workspaceRoot, "*.csproj", excludedDirectories).ToList();
+
+        if (projectFiles.Count == 0)
+        {
+            return; // No projects to add to solution
+        }
+
+        var slnPath = Path.Combine(_workspaceRoot, "DevPilot.sln");
+
+        var slnContent = new StringBuilder();
+        slnContent.AppendLine("Microsoft Visual Studio Solution File, Format Version 12.00");
+        slnContent.AppendLine("# Visual Studio Version 17");
+        slnContent.AppendLine("VisualStudioVersion = 17.0.31903.59");
+        slnContent.AppendLine("MinimumVisualStudioVersion = 10.0.40219.1");
+
+        var projectGuids = new List<(string Path, Guid ProjectGuid, Guid TypeGuid)>();
+
+        // Add each .csproj to solution
+        foreach (var projectPath in projectFiles)
+        {
+            var relativePath = Path.GetRelativePath(_workspaceRoot, projectPath);
+            var projectName = Path.GetFileNameWithoutExtension(projectPath);
+            var projectGuid = Guid.NewGuid();
+            var typeGuid = Guid.Parse("FAE04EC0-301F-11D3-BF4B-00C04F79EFBC"); // C# project type
+
+            projectGuids.Add((relativePath, projectGuid, typeGuid));
+
+            slnContent.AppendLine($"Project(\"{{{typeGuid}}}\") = \"{projectName}\", \"{relativePath}\", \"{{{projectGuid}}}\"");
+            slnContent.AppendLine("EndProject");
+        }
+
+        slnContent.AppendLine("Global");
+        slnContent.AppendLine("\tGlobalSection(SolutionConfigurationPlatforms) = preSolution");
+        slnContent.AppendLine("\t\tDebug|Any CPU = Debug|Any CPU");
+        slnContent.AppendLine("\t\tRelease|Any CPU = Release|Any CPU");
+        slnContent.AppendLine("\tEndGlobalSection");
+
+        slnContent.AppendLine("\tGlobalSection(ProjectConfigurationPlatforms) = postSolution");
+        foreach (var (_, projectGuid, _) in projectGuids)
+        {
+            slnContent.AppendLine($"\t\t{{{projectGuid}}}.Debug|Any CPU.ActiveCfg = Debug|Any CPU");
+            slnContent.AppendLine($"\t\t{{{projectGuid}}}.Debug|Any CPU.Build.0 = Debug|Any CPU");
+            slnContent.AppendLine($"\t\t{{{projectGuid}}}.Release|Any CPU.ActiveCfg = Release|Any CPU");
+            slnContent.AppendLine($"\t\t{{{projectGuid}}}.Release|Any CPU.Build.0 = Release|Any CPU");
+        }
+        slnContent.AppendLine("\tEndGlobalSection");
+
+        slnContent.AppendLine("\tGlobalSection(SolutionProperties) = preSolution");
+        slnContent.AppendLine("\t\tHideSolutionNode = FALSE");
+        slnContent.AppendLine("\tEndGlobalSection");
+
+        slnContent.AppendLine("EndGlobal");
+
+        File.WriteAllText(slnPath, slnContent.ToString());
     }
 
     /// <summary>

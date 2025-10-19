@@ -471,6 +471,110 @@ new file mode 100644
         content.Should().Contain("return a + b;");
     }
 
+    [Fact]
+    public void CopyProjectFiles_GeneratesSolutionFile_WithAllProjects()
+    {
+        // Arrange - Create workspace
+        var pipelineId = Guid.NewGuid().ToString();
+        using var workspace = WorkspaceManager.CreateWorkspace(pipelineId, _testBaseDirectory);
+        _workspacesToCleanup.Add(workspace.WorkspaceRoot);
+
+        // Create source directory with main project
+        var sourceDir = Path.Combine(_testBaseDirectory, "Source");
+        Directory.CreateDirectory(sourceDir);
+        var mainProjectDir = Path.Combine(sourceDir, "TestApp");
+        Directory.CreateDirectory(mainProjectDir);
+        var mainCsprojPath = Path.Combine(mainProjectDir, "TestApp.csproj");
+        File.WriteAllText(mainCsprojPath, "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup></Project>");
+
+        // Create patch that adds test project
+        var patch = @"diff --git a/TestApp.Tests/TestApp.Tests.csproj b/TestApp.Tests/TestApp.Tests.csproj
+new file mode 100644
+--- /dev/null
++++ b/TestApp.Tests/TestApp.Tests.csproj
+@@ -0,0 +1,5 @@
++<Project Sdk=""Microsoft.NET.Sdk"">
++  <PropertyGroup>
++    <TargetFramework>net8.0</TargetFramework>
++  </PropertyGroup>
++</Project>";
+
+        workspace.ApplyPatch(patch);
+
+        // Act - Copy project files (this should generate .sln)
+        workspace.CopyProjectFiles(sourceDir);
+
+        // Assert - Verify .sln file was generated
+        var slnPath = Path.Combine(workspace.WorkspaceRoot, "DevPilot.sln");
+        File.Exists(slnPath).Should().BeTrue("solution file should be generated");
+
+        // Verify .sln contains both projects
+        var slnContent = File.ReadAllText(slnPath);
+        slnContent.Should().Contain("TestApp");
+        slnContent.Should().Contain("TestApp.Tests");
+        slnContent.Should().Contain("Microsoft Visual Studio Solution File");
+        slnContent.Should().Contain("GlobalSection(SolutionConfigurationPlatforms)");
+        slnContent.Should().Contain("Debug|Any CPU");
+        slnContent.Should().Contain("Release|Any CPU");
+
+        // Verify both .csproj files are referenced
+        slnContent.Should().Contain("TestApp\\TestApp.csproj");
+        slnContent.Should().Contain("TestApp.Tests\\TestApp.Tests.csproj");
+    }
+
+    [Fact]
+    public void CopyProjectFiles_RegeneratesSolutionFile_WhenAlreadyExists()
+    {
+        // Arrange - Create workspace with existing incomplete .sln
+        var pipelineId = Guid.NewGuid().ToString();
+        using var workspace = WorkspaceManager.CreateWorkspace(pipelineId, _testBaseDirectory);
+        _workspacesToCleanup.Add(workspace.WorkspaceRoot);
+
+        // Create source directory with incomplete .sln (only 1 project)
+        var sourceDir = Path.Combine(_testBaseDirectory, "Source2");
+        Directory.CreateDirectory(sourceDir);
+        var mainProjectDir = Path.Combine(sourceDir, "MyApp");
+        Directory.CreateDirectory(mainProjectDir);
+        File.WriteAllText(Path.Combine(mainProjectDir, "MyApp.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup></Project>");
+
+        // Create incomplete .sln in source (only has MyApp, missing MyApp.Tests)
+        var incompleteSln = @"Microsoft Visual Studio Solution File, Format Version 12.00
+Project(""{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}"") = ""MyApp"", ""MyApp\MyApp.csproj"", ""{11111111-1111-1111-1111-111111111111}""
+EndProject
+Global
+EndGlobal";
+        File.WriteAllText(Path.Combine(sourceDir, "DevPilot.sln"), incompleteSln);
+
+        // Create patch that adds test project
+        var patch = @"diff --git a/MyApp.Tests/MyApp.Tests.csproj b/MyApp.Tests/MyApp.Tests.csproj
+new file mode 100644
+--- /dev/null
++++ b/MyApp.Tests/MyApp.Tests.csproj
+@@ -0,0 +1,5 @@
++<Project Sdk=""Microsoft.NET.Sdk"">
++  <PropertyGroup>
++    <TargetFramework>net8.0</TargetFramework>
++  </PropertyGroup>
++</Project>";
+
+        workspace.ApplyPatch(patch);
+
+        // Act - Copy project files (should regenerate .sln to include both projects)
+        workspace.CopyProjectFiles(sourceDir);
+
+        // Assert - Verify .sln was regenerated with BOTH projects
+        var slnPath = Path.Combine(workspace.WorkspaceRoot, "DevPilot.sln");
+        var slnContent = File.ReadAllText(slnPath);
+
+        // Should have both projects now (not just MyApp from the incomplete source .sln)
+        slnContent.Should().Contain("MyApp.csproj");
+        slnContent.Should().Contain("MyApp.Tests.csproj");
+
+        // Count project entries (should be 2)
+        var projectCount = System.Text.RegularExpressions.Regex.Matches(slnContent, @"Project\(""").Count;
+        projectCount.Should().Be(2, "solution should contain exactly 2 projects after regeneration");
+    }
+
     public void Dispose()
     {
         // Clean up all test workspaces
