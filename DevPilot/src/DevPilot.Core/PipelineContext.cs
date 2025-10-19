@@ -69,6 +69,26 @@ public sealed class PipelineContext
     public string? RAGContext { get; private set; }
 
     /// <summary>
+    /// Gets whether RAG (Retrieval Augmented Generation) was enabled for this pipeline run.
+    /// </summary>
+    public bool RAGEnabled { get; private set; }
+
+    /// <summary>
+    /// Gets the number of document chunks indexed by RAG (0 if RAG disabled).
+    /// </summary>
+    public int RAGChunkCount { get; private set; }
+
+    /// <summary>
+    /// Gets the number of relevant chunks retrieved by RAG query (0 if RAG disabled or no results).
+    /// </summary>
+    public int RAGRetrievalCount { get; private set; }
+
+    /// <summary>
+    /// Gets the time taken to index workspace files for RAG (TimeSpan.Zero if RAG disabled).
+    /// </summary>
+    public TimeSpan RAGIndexingTime { get; private set; }
+
+    /// <summary>
     /// Gets the list of files that were created or modified by applying the patch.
     /// </summary>
     public IReadOnlyList<string>? AppliedFiles { get; private set; }
@@ -206,6 +226,33 @@ public sealed class PipelineContext
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(ragContext);
         RAGContext = ragContext;
+    }
+
+    /// <summary>
+    /// Sets RAG metrics for this pipeline execution.
+    /// </summary>
+    /// <param name="chunkCount">Number of chunks indexed.</param>
+    /// <param name="retrievalCount">Number of chunks retrieved.</param>
+    /// <param name="indexingTime">Time taken for indexing.</param>
+    public void SetRAGMetrics(int chunkCount, int retrievalCount, TimeSpan indexingTime)
+    {
+        if (chunkCount < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(chunkCount), "Chunk count cannot be negative");
+        }
+        if (retrievalCount < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(retrievalCount), "Retrieval count cannot be negative");
+        }
+        if (indexingTime < TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(indexingTime), "Indexing time cannot be negative");
+        }
+
+        RAGEnabled = true;
+        RAGChunkCount = chunkCount;
+        RAGRetrievalCount = retrievalCount;
+        RAGIndexingTime = indexingTime;
     }
 
     /// <summary>

@@ -174,9 +174,8 @@ public sealed class RagService : IRagService
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceId);
 
-        // Note: Current IVectorStore.ClearAsync() clears ALL data
-        // Future enhancement: Add workspace-specific deletion
-        await _vectorStore.ClearAsync(cancellationToken);
+        // Clear only documents for this specific workspace
+        await _vectorStore.ClearAsync(workspaceId, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -184,9 +183,8 @@ public sealed class RagService : IRagService
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceId);
 
-        // Note: Current IVectorStore.GetDocumentCountAsync() returns ALL documents
-        // Future enhancement: Add workspace-specific counting
-        return await _vectorStore.GetDocumentCountAsync(cancellationToken);
+        // Get document count for this specific workspace
+        return await _vectorStore.GetDocumentCountAsync(workspaceId, cancellationToken);
     }
 
     /// <inheritdoc />

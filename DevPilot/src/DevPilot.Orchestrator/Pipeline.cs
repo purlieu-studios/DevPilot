@@ -76,10 +76,14 @@ public sealed class Pipeline
                 try
                 {
                     // Index all workspace files
-                    await _ragService.IndexWorkspaceAsync(
+                    AnsiConsole.MarkupLine("[cyan]📚 Indexing workspace for RAG...[/]");
+                    var indexStopwatch = Stopwatch.StartNew();
+                    var chunkCount = await _ragService.IndexWorkspaceAsync(
                         _workspace.WorkspaceRoot,
                         context.PipelineId,
                         cancellationToken);
+                    indexStopwatch.Stop();
+                    AnsiConsole.MarkupLine($"[green]✓[/] Indexed {chunkCount} chunks in {indexStopwatch.Elapsed.TotalSeconds:F1}s");
 
                     // Query for relevant context based on user request
                     var ragResults = await _ragService.QueryAsync(
@@ -93,7 +97,23 @@ public sealed class Pipeline
                     {
                         var formattedContext = _ragService.FormatContext(ragResults, maxTokens: 8000);
                         context.SetRAGContext(formattedContext);
+
+                        // Display retrieved chunks for observability
+                        AnsiConsole.MarkupLine($"[cyan]🔍 Retrieved {ragResults.Count} relevant chunks:[/]");
+                        foreach (var doc in ragResults.Take(5))
+                        {
+                            var filePath = doc.Metadata.TryGetValue("file_path", out var path) ? path.ToString() : "unknown";
+                            var chunkIndex = doc.Metadata.TryGetValue("chunk_index", out var idx) ? idx.ToString() : "?";
+                            AnsiConsole.MarkupLine($"[dim]  - {filePath} (chunk {chunkIndex}, score: {doc.Score:F3})[/]");
+                        }
                     }
+                    else
+                    {
+                        AnsiConsole.MarkupLine("[yellow]⚠[/] [dim]No relevant chunks found for query[/]");
+                    }
+
+                    // Record RAG metrics in pipeline context
+                    context.SetRAGMetrics(chunkCount, ragResults.Count, indexStopwatch.Elapsed);
                 }
                 catch (InvalidOperationException ex)
                 {
