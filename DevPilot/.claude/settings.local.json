@@ -4,7 +4,9 @@
       "Bash(dotnet build:*)",
       "Bash(tee:*)",
       "Bash(find:*)",
-      "Bash(awk:*)"
+      "Bash(awk:*)",
+      "Bash(gh pr list --state all --limit 10)",
+      "Bash(dotnet run --project src/DevPilot.Console --help)"
     ],
     "deny": [],
     "ask": []

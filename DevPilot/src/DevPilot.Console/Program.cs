@@ -270,7 +270,8 @@ internal sealed class Program
             }
         }
 
-        return new Pipeline(agents, workspace, ragService);
+        var sourceRoot = Directory.GetCurrentDirectory();
+        return new Pipeline(agents, workspace, sourceRoot, ragService);
     }
 
     /// <summary>

@@ -56,7 +56,7 @@ public sealed class PlannerUsesMcpToolsTest
 
         var mockAgents = CreateMinimalMockAgents(validPlanJson);
         var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
-        var pipeline = new Pipeline(mockAgents, workspace);
+        var pipeline = new Pipeline(mockAgents, workspace, workspace.WorkspaceRoot);
 
         // Act
         var result = await pipeline.ExecuteAsync("Create Calculator class", TestContext.Current.CancellationToken);
@@ -90,7 +90,7 @@ public sealed class PlannerUsesMcpToolsTest
 
         var mockAgents = CreateMinimalMockAgents(invalidPlanJson);
         var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
-        var pipeline = new Pipeline(mockAgents, workspace);
+        var pipeline = new Pipeline(mockAgents, workspace, workspace.WorkspaceRoot);
 
         // Act
         var result = await pipeline.ExecuteAsync("Invalid request", TestContext.Current.CancellationToken);
@@ -107,7 +107,7 @@ public sealed class PlannerUsesMcpToolsTest
         // Arrange - Empty output
         var mockAgents = CreateMinimalMockAgents("");
         var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
-        var pipeline = new Pipeline(mockAgents, workspace);
+        var pipeline = new Pipeline(mockAgents, workspace, workspace.WorkspaceRoot);
 
         // Act
         var result = await pipeline.ExecuteAsync("Empty response test", TestContext.Current.CancellationToken);
@@ -126,7 +126,7 @@ public sealed class PlannerUsesMcpToolsTest
 
         var mockAgents = CreateMinimalMockAgents(nonJsonOutput);
         var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
-        var pipeline = new Pipeline(mockAgents, workspace);
+        var pipeline = new Pipeline(mockAgents, workspace, workspace.WorkspaceRoot);
 
         // Act
         var result = await pipeline.ExecuteAsync("Non-JSON test", TestContext.Current.CancellationToken);
@@ -152,7 +152,7 @@ public sealed class PlannerUsesMcpToolsTest
 
         var mockAgents = CreateMinimalMockAgents(partialPlanJson);
         var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
-        var pipeline = new Pipeline(mockAgents, workspace);
+        var pipeline = new Pipeline(mockAgents, workspace, workspace.WorkspaceRoot);
 
         // Act
         var result = await pipeline.ExecuteAsync("Partial plan test", TestContext.Current.CancellationToken);
