@@ -151,7 +151,7 @@ public sealed class SqliteVectorStoreTests : IDisposable
 
         // Act - Query with embedding similar to doc-1 and doc-3
         var queryEmbedding = new float[] { 0.95f, 0.05f, 0.0f };
-        var results = await store.SearchAsync(queryEmbedding, topK: 2, TestContext.Current.CancellationToken);
+        var results = await store.SearchAsync(queryEmbedding, topK: 2, null, TestContext.Current.CancellationToken);
 
         // Assert
         results.Should().HaveCount(2);
@@ -180,7 +180,7 @@ public sealed class SqliteVectorStoreTests : IDisposable
         await store.AddDocumentsAsync(documents, TestContext.Current.CancellationToken);
 
         // Act
-        var results = await store.SearchAsync(new float[] { 0.5f, 0.5f, 0.5f }, topK: 3, TestContext.Current.CancellationToken);
+        var results = await store.SearchAsync(new float[] { 0.5f, 0.5f, 0.5f }, topK: 3, null, TestContext.Current.CancellationToken);
 
         // Assert
         results.Should().HaveCount(3);
@@ -314,7 +314,7 @@ public sealed class SqliteVectorStoreTests : IDisposable
         await store.InitializeAsync(TestContext.Current.CancellationToken);
 
         // Act
-        var results = await store.SearchAsync(new float[] { 1.0f, 0.0f, 0.0f }, topK: 5, TestContext.Current.CancellationToken);
+        var results = await store.SearchAsync(new float[] { 1.0f, 0.0f, 0.0f }, topK: 5, null, TestContext.Current.CancellationToken);
 
         // Assert
         results.Should().BeEmpty();

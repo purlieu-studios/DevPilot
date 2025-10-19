@@ -438,7 +438,7 @@ public sealed class Pipeline
         var baseInput = stage switch
         {
             PipelineStage.Planning => context.UserRequest,
-            PipelineStage.Coding => context.Plan ?? string.Empty,
+            PipelineStage.Coding => BuildCoderInput(context),
             PipelineStage.Reviewing => context.Patch ?? string.Empty,
             PipelineStage.Testing => BuildTesterInput(context),
             PipelineStage.Evaluating => BuildEvaluatorInput(context),
@@ -499,6 +499,24 @@ public sealed class Pipeline
             or PipelineStage.Reviewing
             or PipelineStage.Testing
             or PipelineStage.Evaluating;
+    }
+
+    /// <summary>
+    /// Builds the input for the coder agent with explicit instruction to generate unified diff.
+    /// </summary>
+    /// <param name="context">The pipeline context.</param>
+    /// <returns>The coder input with plan and clear instruction.</returns>
+    private static string BuildCoderInput(PipelineContext context)
+    {
+        return $"""
+            Implement the following plan by generating a unified diff patch.
+
+            Output ONLY the unified diff in git format. Do NOT include explanations, analysis, or conversation.
+            Start your response with "diff --git" and nothing else.
+
+            Plan:
+            {context.Plan ?? string.Empty}
+            """;
     }
 
     /// <summary>
