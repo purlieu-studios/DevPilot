@@ -13,6 +13,13 @@ public sealed class ClaudeCliClient
     private readonly TimeSpan _defaultTimeout;
 
     /// <summary>
+    /// Maximum safe length for system prompts passed via command-line arguments.
+    /// Windows CreateProcess limit is ~32K for the ENTIRE command line (all args combined).
+    /// For prompts larger than this, we write to a temporary settings JSON file instead.
+    /// </summary>
+    private const int MaxCommandLineLength = 30000;
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="ClaudeCliClient"/> class.
     /// </summary>
     /// <param name="cliPath">Path to the Claude CLI executable (default: "claude").</param>
@@ -42,6 +49,7 @@ public sealed class ClaudeCliClient
     /// <param name="systemPrompt">The system prompt to configure Claude's behavior.</param>
     /// <param name="model">The model to use (e.g., "sonnet", "opus", or full model name).</param>
     /// <param name="mcpConfigPath">Optional MCP config file path for tool usage.</param>
+    /// <param name="workingDirectory">Optional working directory where Claude CLI will execute (if null, uses current directory).</param>
     /// <param name="timeout">Optional timeout override.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>A ClaudeCliResponse with the execution result.</returns>
@@ -50,6 +58,7 @@ public sealed class ClaudeCliClient
         string systemPrompt,
         string model = "sonnet",
         string? mcpConfigPath = null,
+        string? workingDirectory = null,
         TimeSpan? timeout = null,
         CancellationToken cancellationToken = default)
     {
@@ -58,12 +67,31 @@ public sealed class ClaudeCliClient
         ArgumentException.ThrowIfNullOrWhiteSpace(model);
 
         var effectiveTimeout = timeout ?? _defaultTimeout;
+        string? claudeMdPath = null;
 
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var argumentList = BuildArgumentList(systemPrompt, model, mcpConfigPath);
+            // Determine if we need to use CLAUDE.md file approach (for large system prompts)
+            // Windows command-line limit is ~32K for entire command line
+            var useClaudeMdFile = systemPrompt.Length > MaxCommandLineLength;
+
+            // If using CLAUDE.md approach, write system prompt to file in working directory
+            if (useClaudeMdFile)
+            {
+                if (string.IsNullOrEmpty(workingDirectory))
+                {
+                    throw new InvalidOperationException(
+                        $"System prompt is too large ({systemPrompt.Length} chars > {MaxCommandLineLength} limit). " +
+                        "Working directory must be specified to use CLAUDE.md file approach.");
+                }
+
+                claudeMdPath = Path.Combine(workingDirectory, "CLAUDE.md");
+                await File.WriteAllTextAsync(claudeMdPath, systemPrompt, cancellationToken);
+            }
+
+            var argumentList = BuildArgumentList(!useClaudeMdFile, systemPrompt, model, mcpConfigPath);
 
             // Resolve .cmd wrappers to underlying Node.js scripts
             // This fixes argument passing issues with Windows batch files
@@ -79,6 +107,12 @@ public sealed class ClaudeCliClient
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
+
+            // Set working directory if specified (required for CLAUDE.md file to be read)
+            if (!string.IsNullOrEmpty(workingDirectory))
+            {
+                processStartInfo.WorkingDirectory = workingDirectory;
+            }
 
             // If calling a .js file, add it as first argument to node
             if (isNodeScript)
@@ -210,25 +244,48 @@ public sealed class ClaudeCliClient
                 $"Claude CLI invalid operation: {ex.Message}",
                 exitCode: -1);
         }
+        finally
+        {
+            // Clean up temporary CLAUDE.md file if it was created
+            if (!string.IsNullOrEmpty(claudeMdPath) && File.Exists(claudeMdPath))
+            {
+                try
+                {
+                    File.Delete(claudeMdPath);
+                }
+                catch (IOException)
+                {
+                    // Best effort cleanup - ignore if file can't be deleted
+                    // (workspace is isolated anyway, so leaving it is not critical)
+                }
+            }
+        }
     }
 
     /// <summary>
     /// Builds the command-line arguments for Claude CLI as a list.
     /// </summary>
-    /// <param name="systemPrompt">The system prompt.</param>
+    /// <param name="includeSystemPrompt">Whether to include --system-prompt argument (false when using CLAUDE.md).</param>
+    /// <param name="systemPrompt">The system prompt (only used if includeSystemPrompt is true).</param>
     /// <param name="model">The model name.</param>
     /// <param name="mcpConfigPath">Optional MCP config file path.</param>
     /// <returns>The arguments list.</returns>
-    private static List<string> BuildArgumentList(string systemPrompt, string model, string? mcpConfigPath)
+    private static List<string> BuildArgumentList(bool includeSystemPrompt, string systemPrompt, string model, string? mcpConfigPath)
     {
         var args = new List<string>
         {
             "--print",
-            "--system-prompt",
-            systemPrompt,
             "--model",
             model
         };
+
+        // Only add --system-prompt if not using CLAUDE.md file
+        // When CLAUDE.md exists in working directory, Claude CLI reads it automatically
+        if (includeSystemPrompt)
+        {
+            args.Add("--system-prompt");
+            args.Add(systemPrompt);
+        }
 
         // When using MCP, use stream-json format for tool interactions
         if (!string.IsNullOrWhiteSpace(mcpConfigPath))

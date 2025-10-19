@@ -14,6 +14,11 @@ public sealed class AgentContext
     public string ContextId { get; } = Guid.NewGuid().ToString();
 
     /// <summary>
+    /// Gets or sets the workspace root directory (needed for CLAUDE.md file approach).
+    /// </summary>
+    public string? WorkspaceRoot { get; set; }
+
+    /// <summary>
     /// Gets the conversation history.
     /// </summary>
     public IReadOnlyList<AgentMessage> History => _history.AsReadOnly();
