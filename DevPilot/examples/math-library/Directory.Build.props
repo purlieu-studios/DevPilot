@@ -1,0 +1,9 @@
+<Project>
+  <!-- Global package references for test projects -->
+  <ItemGroup Condition="'$(IsPackable)' == 'false'">
+    <PackageReference Include="coverlet.collector" Version="6.0.2">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+</Project>
