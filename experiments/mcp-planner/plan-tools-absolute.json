@@ -1,9 +1,9 @@
 {
   "mcpServers": {
-    "planning-tools": {
+    "pipeline-tools": {
       "command": "node",
-      "args": ["C:\\DevPilot\\DevPilot\\experiments\\mcp-planner\\mcp-server.js"],
-      "cwd": "C:\\DevPilot\\DevPilot\\experiments\\mcp-planner"
+      "args": ["C:\\DevPilot\\experiments\\mcp-planner\\mcp-server.js"],
+      "cwd": "C:\\DevPilot\\experiments\\mcp-planner"
     }
   }
 }

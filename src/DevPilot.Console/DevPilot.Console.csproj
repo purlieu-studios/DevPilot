@@ -31,6 +31,7 @@
       <Pack>true</Pack>
       <PackagePath>tools\net8.0\any\.agents\%(RecursiveDir)%(Filename)%(Extension)</PackagePath>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>.agents\%(RecursiveDir)%(Filename)%(Extension)</Link>
     </None>
 
     <!-- Include experiments folder in tool package (for MCP configs) -->
@@ -38,6 +39,7 @@
       <Pack>true</Pack>
       <PackagePath>tools\net8.0\any\experiments\%(RecursiveDir)%(Filename)%(Extension)</PackagePath>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>experiments\%(RecursiveDir)%(Filename)%(Extension)</Link>
     </None>
   </ItemGroup>
 
