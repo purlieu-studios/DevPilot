@@ -8,6 +8,7 @@ namespace DevPilot.Agents.IntegrationTests;
 /// These tests are separated from unit tests to avoid API costs on every build.
 /// They run on a schedule via GitHub Actions to detect Claude CLI breaking changes.
 /// </summary>
+[Trait("Category", "Integration")]
 public sealed class ClaudeCliClientIntegrationTests
 {
     [Fact]

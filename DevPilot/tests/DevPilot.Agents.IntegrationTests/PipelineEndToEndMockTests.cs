@@ -10,6 +10,7 @@ namespace DevPilot.Agents.IntegrationTests;
 /// Comprehensive mock-based integration tests covering all pipeline failure scenarios.
 /// These tests run fast without API calls, enabling CI/CD regression testing.
 /// </summary>
+[Trait("Category", "Integration")]
 public sealed class PipelineEndToEndMockTests
 {
     [Fact]

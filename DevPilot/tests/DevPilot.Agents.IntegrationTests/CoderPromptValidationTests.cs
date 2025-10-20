@@ -9,6 +9,7 @@ namespace DevPilot.Agents.IntegrationTests;
 /// for discovery, self-verification, and quality standards.
 /// These tests ensure prompt regressions don't silently break agent behavior.
 /// </summary>
+[Trait("Category", "Integration")]
 public sealed class CoderPromptValidationTests
 {
     private const string CoderAgentPath = "../../../../../.agents/coder";

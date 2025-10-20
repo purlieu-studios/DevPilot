@@ -12,6 +12,7 @@ namespace DevPilot.Orchestrator.Tests;
 /// IMPORTANT: These tests create temporary workspaces and run actual dotnet commands.
 /// They are slower than unit tests but catch real integration issues.
 /// </summary>
+[Trait("Category", "Integration")]
 public sealed class TestRunnerIntegrationTests : IDisposable
 {
     private readonly string _testBaseDirectory;
