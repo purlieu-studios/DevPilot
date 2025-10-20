@@ -759,8 +759,43 @@ public sealed class WorkspaceManager : IDisposable
     }
 
     /// <summary>
-    /// Applies a single hunk to a list of lines.
+    /// Fuzzy line matching that normalizes whitespace for comparison.
+    /// This helps patches apply even when there are minor whitespace differences.
     /// </summary>
+    private static bool FuzzyLineMatch(string actual, string expected)
+    {
+        // Exact match first (fast path)
+        if (actual == expected)
+        {
+            return true;
+        }
+
+        // Normalize whitespace: trim and collapse multiple spaces to single space
+        var normalizedActual = NormalizeWhitespace(actual);
+        var normalizedExpected = NormalizeWhitespace(expected);
+
+        return normalizedActual == normalizedExpected;
+    }
+
+    /// <summary>
+    /// Normalizes whitespace in a string by trimming and collapsing runs of whitespace to single spaces.
+    /// </summary>
+    private static string NormalizeWhitespace(string input)
+    {
+        if (string.IsNullOrEmpty(input))
+        {
+            return input;
+        }
+
+        // Trim leading/trailing whitespace
+        var trimmed = input.Trim();
+
+        // Collapse multiple whitespace characters to single space
+        var normalized = System.Text.RegularExpressions.Regex.Replace(trimmed, @"\s+", " ");
+
+        return normalized;
+    }
+
     private static void ApplyHunk(List<string> lines, Hunk hunk)
     {
         var currentLine = hunk.OldStart - 1; // Convert to 0-based index
@@ -773,8 +808,8 @@ public sealed class WorkspaceManager : IDisposable
             switch (diffLine.Type)
             {
                 case DiffLineType.Context:
-                    // Context line - verify it matches
-                    if (currentLine < lines.Count && lines[currentLine] != diffLine.Content)
+                    // Context line - verify it matches (with fuzzy whitespace matching)
+                    if (currentLine < lines.Count && !FuzzyLineMatch(lines[currentLine], diffLine.Content))
                     {
                         throw new PatchApplicationException(
                             $"Context mismatch at line {currentLine + 1}. Expected: '{diffLine.Content}', Found: '{lines[currentLine]}'");
@@ -783,8 +818,8 @@ public sealed class WorkspaceManager : IDisposable
                     break;
 
                 case DiffLineType.Remove:
-                    // Remove line - verify it matches and remove
-                    if (currentLine >= lines.Count || lines[currentLine] != diffLine.Content)
+                    // Remove line - verify it matches (with fuzzy whitespace matching) and remove
+                    if (currentLine >= lines.Count || !FuzzyLineMatch(lines[currentLine], diffLine.Content))
                     {
                         throw new PatchApplicationException(
                             $"Remove line mismatch at line {currentLine + 1}. Expected: '{diffLine.Content}', Found: '{(currentLine < lines.Count ? lines[currentLine] : "EOF")}'");

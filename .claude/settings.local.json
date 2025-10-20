@@ -10,7 +10,10 @@
       "Bash(git checkout main)",
       "Bash(git pull origin main)",
       "Bash(gh issue list --limit 10)",
-      "Bash(gh issue list --state open --limit 10)"
+      "Bash(gh issue list --state open --limit 10)",
+      "Bash(dotnet test --list-tests)",
+      "Bash(dotnet test --list-tests tests/DevPilot.Orchestrator.Tests)",
+      "Read(//c/DevPilot/**)"
     ],
     "deny": [],
     "ask": []

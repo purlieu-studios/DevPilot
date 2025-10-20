@@ -508,14 +508,17 @@ public sealed class Pipeline
     /// <returns>True if RAG context should be included; otherwise, false.</returns>
     private static bool ShouldIncludeRAGContext(PipelineStage stage)
     {
-        // All stages benefit from relevant context:
+        // RAG context is valuable for creative/analytical stages:
         // - Planning: Domain knowledge, architectural patterns
-        // - Coding: Similar code examples, conventions
         // - Reviewing: Project-specific review guidelines
         // - Testing: Test patterns, existing test structure
         // - Evaluating: Quality standards from documentation
+        //
+        // Coding stage is EXCLUDED because:
+        // - Coder needs EXACT, COMPLETE file content (via Read tool)
+        // - RAG provides partial chunks (~512 tokens) which cause incorrect patches
+        // - Planner already incorporates RAG patterns into the plan
         return stage is PipelineStage.Planning
-            or PipelineStage.Coding
             or PipelineStage.Reviewing
             or PipelineStage.Testing
             or PipelineStage.Evaluating;
