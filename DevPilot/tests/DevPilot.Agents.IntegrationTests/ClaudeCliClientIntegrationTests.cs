@@ -9,6 +9,7 @@ namespace DevPilot.Agents.IntegrationTests;
 /// They run on a schedule via GitHub Actions to detect Claude CLI breaking changes.
 /// </summary>
 [Trait("Category", "Integration")]
+[Trait("Category", "RequiresClaudeAuth")]
 public sealed class ClaudeCliClientIntegrationTests
 {
     [Fact]
