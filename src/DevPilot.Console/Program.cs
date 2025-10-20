@@ -1,5 +1,6 @@
 using DevPilot.Agents;
 using DevPilot.Core;
+using DevPilot.Diagnostics;
 using DevPilot.Orchestrator;
 using DevPilot.RAG;
 using DevPilot.Telemetry;
@@ -16,6 +17,12 @@ internal sealed class Program
     {
         try
         {
+            // Check for diagnose command first
+            if (args.Length > 0 && args[0] == "diagnose")
+            {
+                return await HandleDiagnoseCommandAsync(args);
+            }
+
             // Parse command-line arguments first to check for flags
             bool autoApprove = false;
             bool enableRag = false;
@@ -697,6 +704,86 @@ internal sealed class Program
     }
 
     /// <summary>
+    /// Handles the diagnose command.
+    /// </summary>
+    private static async Task<int> HandleDiagnoseCommandAsync(string[] args)
+    {
+        // Display header
+        AnsiConsole.Write(
+            new FigletText("DevPilot")
+                .Color(Color.Blue));
+
+        AnsiConsole.MarkupLine("[dim]Diagnostic Tools[/]");
+        AnsiConsole.WriteLine();
+
+        if (args.Length < 2)
+        {
+            DisplayDiagnoseUsage();
+            return 1;
+        }
+
+        var diagnosticType = args[1].ToLowerInvariant();
+
+        DiagnosticResult result;
+
+        try
+        {
+            result = diagnosticType switch
+            {
+                "tests" or "test" => await TestDiagnostics.RunAsync(),
+                "build" => await BuildDiagnostics.RunAsync(),
+                "workspace" or "workspaces" => await WorkspaceDiagnostics.RunAsync(),
+                "ci" => await CiDiagnostics.RunAsync(),
+                _ => throw new ArgumentException($"Unknown diagnostic type: {diagnosticType}")
+            };
+
+            DiagnosticFormatter.Display(result);
+            return result.HasIssues ? 1 : 0;
+        }
+        catch (ArgumentException ex)
+        {
+            AnsiConsole.MarkupLine($"[red]Error:[/] {ex.Message}");
+            AnsiConsole.WriteLine();
+            DisplayDiagnoseUsage();
+            return 1;
+        }
+        catch (Exception ex)
+        {
+            AnsiConsole.MarkupLine($"[red]Diagnostic failed:[/] {ex.Message}");
+            return 1;
+        }
+    }
+
+    /// <summary>
+    /// Displays usage information for the diagnose command.
+    /// </summary>
+    private static void DisplayDiagnoseUsage()
+    {
+        var usage = new Panel(new Markup("""
+            [bold]Usage:[/]
+              devpilot diagnose <type>
+
+            [bold]Diagnostic Types:[/]
+              tests      - Analyze test failures and identify patterns
+              build      - Categorize and prioritize build errors
+              workspace  - Identify locked files and orphaned workspaces
+              ci         - Parse GitHub Actions logs for failures
+
+            [bold]Examples:[/]
+              devpilot diagnose tests      # Analyze test failures
+              devpilot diagnose build      # Check for build errors
+              devpilot diagnose workspace  # Find locked/orphaned workspaces
+              devpilot diagnose ci         # Check latest CI run failures
+            """))
+        {
+            Header = new PanelHeader("Diagnose Command", Justify.Center),
+            Border = BoxBorder.Rounded
+        };
+
+        AnsiConsole.Write(usage);
+    }
+
+    /// <summary>
     /// Displays usage information.
     /// </summary>
     private static void DisplayUsage()
@@ -711,11 +798,13 @@ internal sealed class Program
         var usage = new Panel(new Markup("""
             [bold]Usage:[/]
               devpilot "<request>"
+              devpilot diagnose <type>
 
             [bold]Examples:[/]
               devpilot "Create Calculator class with Add and Subtract methods"
               devpilot "Add error handling to UserService"
               devpilot "Refactor PaymentProcessor to use dependency injection"
+              devpilot diagnose tests      # Run diagnostic tools
 
             [bold]Pipeline Stages:[/]
               1. Planning    - Analyzes request, creates execution plan
@@ -723,6 +812,9 @@ internal sealed class Program
               3. Reviewing   - Validates code quality and correctness
               4. Testing     - Executes tests and reports results
               5. Evaluating  - Scores overall quality and provides verdict
+
+            [bold]Diagnostic Tools:[/]
+              Run 'devpilot diagnose' to see available diagnostic commands
             """))
         {
             Header = new PanelHeader("DevPilot CLI", Justify.Center),
