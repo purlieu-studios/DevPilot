@@ -205,12 +205,8 @@ public sealed class Pipeline
                         }
 
                         // Skip compilation validation for test workspaces
-                        // Detect test workspaces by common patterns: .devpilot/workspaces, devpilot-integration-tests, temp directories
-                        var isTestWorkspace = _workspace.WorkspaceRoot.Contains(Path.Combine(".devpilot", "workspaces")) ||
-                                              _workspace.WorkspaceRoot.Contains("devpilot-integration-tests") ||
-                                              _workspace.WorkspaceRoot.Contains(Path.Combine(Path.GetTempPath().TrimEnd(Path.DirectorySeparatorChar)));
-
-                        if (!isTestWorkspace)
+                        // Only run compilation validation for production workspaces
+                        if (_workspace.Type == WorkspaceType.Production)
                         {
                             // Copy project files (.csproj and .sln) to workspace for compilation
                             _workspace.CopyProjectFiles(context.SourceRoot!);

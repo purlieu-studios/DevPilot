@@ -5,12 +5,34 @@ using DevPilot.Core;
 namespace DevPilot.Orchestrator;
 
 /// <summary>
+/// Specifies the type of workspace for pipeline execution.
+/// </summary>
+public enum WorkspaceType
+{
+    /// <summary>
+    /// Production workspace for actual code generation in user projects.
+    /// </summary>
+    Production,
+
+    /// <summary>
+    /// Test workspace for unit/integration tests (compilation validation skipped).
+    /// </summary>
+    Test,
+
+    /// <summary>
+    /// Integration test workspace for full pipeline testing.
+    /// </summary>
+    Integration
+}
+
+/// <summary>
 /// Manages isolated workspaces for pipeline execution and applies unified diff patches to files.
 /// </summary>
 public sealed class WorkspaceManager : IDisposable
 {
     private readonly string _workspaceRoot;
     private readonly string _pipelineId;
+    private readonly WorkspaceType _workspaceType;
     private readonly List<AppliedChange> _appliedChanges;
     private bool _disposed;
 
@@ -19,10 +41,12 @@ public sealed class WorkspaceManager : IDisposable
     /// </summary>
     /// <param name="workspaceRoot">The root directory for this workspace.</param>
     /// <param name="pipelineId">The unique pipeline execution ID.</param>
-    private WorkspaceManager(string workspaceRoot, string pipelineId)
+    /// <param name="workspaceType">The type of workspace (production, test, or integration).</param>
+    private WorkspaceManager(string workspaceRoot, string pipelineId, WorkspaceType workspaceType)
     {
         _workspaceRoot = workspaceRoot;
         _pipelineId = pipelineId;
+        _workspaceType = workspaceType;
         _appliedChanges = new List<AppliedChange>();
     }
 
@@ -37,6 +61,11 @@ public sealed class WorkspaceManager : IDisposable
     public string PipelineId => _pipelineId;
 
     /// <summary>
+    /// Gets the type of this workspace (production, test, or integration).
+    /// </summary>
+    public WorkspaceType Type => _workspaceType;
+
+    /// <summary>
     /// Gets the list of files that have been created or modified in this workspace.
     /// </summary>
     public IReadOnlyList<string> AppliedFiles => _appliedChanges
@@ -49,10 +78,14 @@ public sealed class WorkspaceManager : IDisposable
     /// </summary>
     /// <param name="pipelineId">The unique pipeline execution ID.</param>
     /// <param name="baseDirectory">The base directory for all workspaces (defaults to .devpilot/workspaces).</param>
+    /// <param name="workspaceType">The type of workspace (production, test, or integration). Defaults to Production.</param>
     /// <returns>A new WorkspaceManager instance.</returns>
     /// <exception cref="ArgumentException">Thrown when pipelineId is null or whitespace.</exception>
     /// <exception cref="IOException">Thrown when workspace directory already exists or cannot be created.</exception>
-    public static WorkspaceManager CreateWorkspace(string pipelineId, string? baseDirectory = null)
+    public static WorkspaceManager CreateWorkspace(
+        string pipelineId,
+        string? baseDirectory = null,
+        WorkspaceType workspaceType = WorkspaceType.Production)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(pipelineId);
 
@@ -74,7 +107,7 @@ public sealed class WorkspaceManager : IDisposable
             throw new IOException($"Failed to create workspace directory: {workspaceRoot}", ex);
         }
 
-        return new WorkspaceManager(workspaceRoot, pipelineId);
+        return new WorkspaceManager(workspaceRoot, pipelineId, workspaceType);
     }
 
     /// <summary>

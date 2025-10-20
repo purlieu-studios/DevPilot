@@ -49,7 +49,7 @@ public sealed class ValidationCatchesPathIssuesTest
             """;
 
         var mockAgents = CreateMockAgents(validPlanJson, orphanTestPatch);
-        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString(), null, WorkspaceType.Test);
         var pipeline = new Pipeline(mockAgents, workspace, Directory.GetCurrentDirectory());
 
         // Act
@@ -98,7 +98,7 @@ public sealed class ValidationCatchesPathIssuesTest
             """;
 
         var mockAgents = CreateMockAgents(validPlanJson, newDirectoryPatch);
-        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString(), null, WorkspaceType.Test);
         var pipeline = new Pipeline(mockAgents, workspace, Directory.GetCurrentDirectory());
 
         // Act

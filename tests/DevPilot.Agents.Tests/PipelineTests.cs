@@ -11,7 +11,7 @@ public sealed class PipelineTests
     {
         // Arrange
         var agents = CreateMockAgents(allSucceed: true);
-        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString(), null, WorkspaceType.Test);
         var pipeline = new Pipeline(agents, workspace, Directory.GetCurrentDirectory());
 
         // Act
@@ -33,7 +33,7 @@ public sealed class PipelineTests
         // Arrange
         var agents = CreateMockAgents(allSucceed: true);
         agents[PipelineStage.Planning] = new MockAgent("planner", succeeds: false, output: "Planning failed");
-        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString(), null, WorkspaceType.Test);
         var pipeline = new Pipeline(agents, workspace, Directory.GetCurrentDirectory());
 
         // Act
@@ -51,7 +51,7 @@ public sealed class PipelineTests
         // Arrange
         var agents = CreateMockAgents(allSucceed: true);
         agents[PipelineStage.Coding] = new MockAgent("coder", succeeds: false, output: "Code generation failed");
-        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString(), null, WorkspaceType.Test);
         var pipeline = new Pipeline(agents, workspace, Directory.GetCurrentDirectory());
 
         // Act
@@ -90,7 +90,7 @@ public sealed class PipelineTests
 
         var agents = CreateMockAgents(allSucceed: true);
         agents[PipelineStage.Reviewing] = new MockAgent("reviewer", true, reviewerJson);
-        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString(), null, WorkspaceType.Test);
         var pipeline = new Pipeline(agents, workspace, Directory.GetCurrentDirectory());
 
         // Act
@@ -124,7 +124,7 @@ public sealed class PipelineTests
 
         var agents = CreateMockAgents(allSucceed: true);
         agents[PipelineStage.Reviewing] = new MockAgent("reviewer", true, reviewerJson);
-        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString(), null, WorkspaceType.Test);
         var pipeline = new Pipeline(agents, workspace, Directory.GetCurrentDirectory());
 
         // Act
@@ -143,7 +143,7 @@ public sealed class PipelineTests
     {
         // Arrange
         var agents = CreateMockAgents(allSucceed: true);
-        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString(), null, WorkspaceType.Test);
         var pipeline = new Pipeline(agents, workspace, Directory.GetCurrentDirectory());
 
         // Act
@@ -158,7 +158,7 @@ public sealed class PipelineTests
     {
         // Arrange
         var agents = CreateMockAgents(allSucceed: true);
-        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString(), null, WorkspaceType.Test);
         var pipeline = new Pipeline(agents, workspace, Directory.GetCurrentDirectory());
 
         // Act
@@ -173,7 +173,7 @@ public sealed class PipelineTests
     {
         // Arrange
         var agents = CreateMockAgents(allSucceed: true);
-        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString(), null, WorkspaceType.Test);
         var pipeline = new Pipeline(agents, workspace, Directory.GetCurrentDirectory());
         var cts = new CancellationTokenSource();
         cts.Cancel();
@@ -191,7 +191,7 @@ public sealed class PipelineTests
     public void Constructor_ThrowsArgumentException_WhenAgentsIsNull()
     {
         // Arrange
-        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString(), null, WorkspaceType.Test);
 
         // Act
         var act = () => new Pipeline(null!, workspace, Directory.GetCurrentDirectory());
@@ -206,7 +206,7 @@ public sealed class PipelineTests
         // Arrange
         var agents = CreateMockAgents(allSucceed: true);
         agents.Remove(PipelineStage.Planning);
-        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString(), null, WorkspaceType.Test);
 
         // Act
         var act = () => new Pipeline(agents, workspace, Directory.GetCurrentDirectory());
@@ -222,7 +222,7 @@ public sealed class PipelineTests
         // Arrange
         var agents = CreateMockAgents(allSucceed: true);
         agents.Remove(PipelineStage.Coding);
-        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString(), null, WorkspaceType.Test);
 
         // Act
         var act = () => new Pipeline(agents, workspace, Directory.GetCurrentDirectory());
@@ -239,7 +239,7 @@ public sealed class PipelineTests
         var agents = CreateMockAgents(allSucceed: true);
         agents.Remove(PipelineStage.Planning);
         agents.Remove(PipelineStage.Testing);
-        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString(), null, WorkspaceType.Test);
 
         // Act
         var act = () => new Pipeline(agents, workspace, Directory.GetCurrentDirectory());
@@ -254,7 +254,7 @@ public sealed class PipelineTests
     {
         // Arrange
         var agents = CreateMockAgents(allSucceed: true);
-        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString(), null, WorkspaceType.Test);
         var pipeline = new Pipeline(agents, workspace, Directory.GetCurrentDirectory());
 
         // Act
@@ -271,7 +271,7 @@ public sealed class PipelineTests
     {
         // Arrange
         var agents = CreateMockAgents(allSucceed: true);
-        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString(), null, WorkspaceType.Test);
         var pipeline = new Pipeline(agents, workspace, Directory.GetCurrentDirectory());
 
         // Act
@@ -299,7 +299,7 @@ public sealed class PipelineTests
 
         var agents = CreateMockAgents(allSucceed: true);
         agents[PipelineStage.Planning] = new MockAgent("planner", true, plannerJson);
-        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString(), null, WorkspaceType.Test);
         var pipeline = new Pipeline(agents, workspace, Directory.GetCurrentDirectory());
 
         // Act
@@ -335,7 +335,7 @@ public sealed class PipelineTests
 
         var agents = CreateMockAgents(allSucceed: true);
         agents[PipelineStage.Planning] = new MockAgent("planner", true, plannerJson);
-        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString(), null, WorkspaceType.Test);
         var pipeline = new Pipeline(agents, workspace, Directory.GetCurrentDirectory());
 
         // Act
@@ -375,7 +375,7 @@ public sealed class PipelineTests
         var reviewerOutputs = new Queue<string>(new[] { reviseJson, approveJson });
         agents[PipelineStage.Reviewing] = new MultiOutputMockAgent("reviewer", reviewerOutputs);
 
-        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString(), null, WorkspaceType.Test);
         var pipeline = new Pipeline(agents, workspace, Directory.GetCurrentDirectory());
 
         // Act
@@ -405,7 +405,7 @@ public sealed class PipelineTests
         // Reviewer always returns REVISE (will hit max iterations)
         agents[PipelineStage.Reviewing] = new MockAgent("reviewer", true, reviseJson);
 
-        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString(), null, WorkspaceType.Test);
         var pipeline = new Pipeline(agents, workspace, Directory.GetCurrentDirectory());
 
         // Act
@@ -430,7 +430,7 @@ public sealed class PipelineTests
         var reviewerOutputs = new Queue<string>(new[] { reviseJson, rejectJson });
         agents[PipelineStage.Reviewing] = new MultiOutputMockAgent("reviewer", reviewerOutputs);
 
-        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString(), null, WorkspaceType.Test);
         var pipeline = new Pipeline(agents, workspace, Directory.GetCurrentDirectory());
 
         // Act

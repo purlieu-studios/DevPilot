@@ -72,6 +72,29 @@ internal sealed class Program
             AnsiConsole.MarkupLine("[dim]MASAI Pipeline - Automated Code Generation & Review[/]");
             AnsiConsole.WriteLine();
 
+            // Pre-flight validation: Check environment before starting
+            var sourceRoot = Directory.GetCurrentDirectory();
+            var validator = new PreFlightValidator();
+            var validationResult = validator.Validate(sourceRoot);
+
+            if (!validationResult.IsValid)
+            {
+                AnsiConsole.MarkupLine($"[red]✗ Pre-flight validation failed:[/] {validationResult.ErrorMessage}");
+                if (validationResult.Suggestion != null)
+                {
+                    AnsiConsole.WriteLine();
+                    AnsiConsole.MarkupLine($"[yellow]💡 Suggestion:[/]");
+                    AnsiConsole.MarkupLine($"[dim]{Markup.Escape(validationResult.Suggestion)}[/]");
+                }
+                return 1;
+            }
+
+            if (validationResult.WarningMessage != null)
+            {
+                AnsiConsole.MarkupLine($"[yellow]⚠ Warning:[/] {validationResult.WarningMessage}");
+                AnsiConsole.WriteLine();
+            }
+
             // Generate pipeline ID early (before workspace creation)
             var pipelineId = Guid.NewGuid().ToString();
 
@@ -82,7 +105,6 @@ internal sealed class Program
                 workspace = WorkspaceManager.CreateWorkspace(pipelineId);
 
                 // Copy domain files (CLAUDE.md, .agents/, docs/, src/, tests/ + devpilot.json configured folders)
-                var sourceRoot = Directory.GetCurrentDirectory();
                 workspace.CopyDomainFiles(sourceRoot);
 
                 // Copy project files (.csproj, .sln, config files)
