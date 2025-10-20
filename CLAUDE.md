@@ -377,6 +377,7 @@ Auto-detection handles most repositories correctly without configuration.
 
 ### Recent Completed Work
 
+- ✅ **Automatic Using Directive Injection** (2025-10-20) - Deterministic auto-fix for CS0246 compilation errors, solves Divide method 2.0/10 issue, improves scores to 9.2-9.8/10 - See [docs/LESSONS_LEARNED.md](./docs/LESSONS_LEARNED.md#automatic-using-directive-injection-2025-10-20)
 - ✅ **Repository Restructuring** (2025-10-19) - Flattened structure (moved DevPilot/* to root), created docs/{RAG,LESSONS_LEARNED,ARCHITECTURE}.md, reduced CLAUDE.md from 54k → 19k tokens (65% reduction)
 - ✅ **PR #57**: Zero-warning build (2025-10-19) - 0 warnings, 453/453 tests passing
 - ✅ **PR #56**: Continuous regression testing (2025-10-19) - 100% test pass rate, no timeouts
