@@ -385,7 +385,7 @@ public sealed class PipelineIntegrationTests : IDisposable
         int fileCount = 1)
     {
         var pipelineId = Guid.NewGuid().ToString();
-        var workspace = WorkspaceManager.CreateWorkspace(pipelineId, _testBaseDirectory);
+        var workspace = WorkspaceManager.CreateWorkspace(pipelineId, _testBaseDirectory, WorkspaceType.Test);
         _workspacesToCleanup.Add(workspace.WorkspaceRoot);
 
         var agents = CreateMockAgents(createSuccessfulAgents, qualityScore, fileCount);
@@ -397,7 +397,7 @@ public sealed class PipelineIntegrationTests : IDisposable
     private (WorkspaceManager workspace, Pipeline pipeline) SetupPipelineWithFailingPlanner()
     {
         var pipelineId = Guid.NewGuid().ToString();
-        var workspace = WorkspaceManager.CreateWorkspace(pipelineId, _testBaseDirectory);
+        var workspace = WorkspaceManager.CreateWorkspace(pipelineId, _testBaseDirectory, WorkspaceType.Test);
         _workspacesToCleanup.Add(workspace.WorkspaceRoot);
 
         var agents = new Dictionary<PipelineStage, IAgent>
@@ -415,7 +415,7 @@ public sealed class PipelineIntegrationTests : IDisposable
     private (WorkspaceManager workspace, Pipeline pipeline) SetupPipelineWithFailingCoder()
     {
         var pipelineId = Guid.NewGuid().ToString();
-        var workspace = WorkspaceManager.CreateWorkspace(pipelineId, _testBaseDirectory);
+        var workspace = WorkspaceManager.CreateWorkspace(pipelineId, _testBaseDirectory, WorkspaceType.Test);
         _workspacesToCleanup.Add(workspace.WorkspaceRoot);
 
         var agents = new Dictionary<PipelineStage, IAgent>
@@ -433,7 +433,7 @@ public sealed class PipelineIntegrationTests : IDisposable
     private (WorkspaceManager workspace, Pipeline pipeline) SetupPipelineWithRejectingReviewer()
     {
         var pipelineId = Guid.NewGuid().ToString();
-        var workspace = WorkspaceManager.CreateWorkspace(pipelineId, _testBaseDirectory);
+        var workspace = WorkspaceManager.CreateWorkspace(pipelineId, _testBaseDirectory, WorkspaceType.Test);
         _workspacesToCleanup.Add(workspace.WorkspaceRoot);
 
         var agents = new Dictionary<PipelineStage, IAgent>
@@ -451,7 +451,7 @@ public sealed class PipelineIntegrationTests : IDisposable
     private (WorkspaceManager workspace, Pipeline pipeline) SetupPipelineWithFailingTests()
     {
         var pipelineId = Guid.NewGuid().ToString();
-        var workspace = WorkspaceManager.CreateWorkspace(pipelineId, _testBaseDirectory);
+        var workspace = WorkspaceManager.CreateWorkspace(pipelineId, _testBaseDirectory, WorkspaceType.Test);
         _workspacesToCleanup.Add(workspace.WorkspaceRoot);
 
         var agents = new Dictionary<PipelineStage, IAgent>
@@ -469,7 +469,7 @@ public sealed class PipelineIntegrationTests : IDisposable
     private (WorkspaceManager workspace, Pipeline pipeline) SetupPipelineWithRejectingEvaluator()
     {
         var pipelineId = Guid.NewGuid().ToString();
-        var workspace = WorkspaceManager.CreateWorkspace(pipelineId, _testBaseDirectory);
+        var workspace = WorkspaceManager.CreateWorkspace(pipelineId, _testBaseDirectory, WorkspaceType.Test);
         _workspacesToCleanup.Add(workspace.WorkspaceRoot);
 
         var evaluatorJson = """
@@ -507,7 +507,7 @@ public sealed class PipelineIntegrationTests : IDisposable
     private (WorkspaceManager workspace, Pipeline pipeline) SetupPipelineWithInvalidPatch()
     {
         var pipelineId = Guid.NewGuid().ToString();
-        var workspace = WorkspaceManager.CreateWorkspace(pipelineId, _testBaseDirectory);
+        var workspace = WorkspaceManager.CreateWorkspace(pipelineId, _testBaseDirectory, WorkspaceType.Test);
         _workspacesToCleanup.Add(workspace.WorkspaceRoot);
 
         var agents = new Dictionary<PipelineStage, IAgent>
@@ -530,7 +530,7 @@ public sealed class PipelineIntegrationTests : IDisposable
     private (WorkspaceManager workspace, Pipeline pipeline) SetupPipelineWithRevisionLoop()
     {
         var pipelineId = Guid.NewGuid().ToString();
-        var workspace = WorkspaceManager.CreateWorkspace(pipelineId, _testBaseDirectory);
+        var workspace = WorkspaceManager.CreateWorkspace(pipelineId, _testBaseDirectory, WorkspaceType.Test);
         _workspacesToCleanup.Add(workspace.WorkspaceRoot);
 
         // Create agents with a stateful reviewer that triggers revision loop

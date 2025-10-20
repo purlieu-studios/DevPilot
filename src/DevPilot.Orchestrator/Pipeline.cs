@@ -17,6 +17,7 @@ public sealed class Pipeline
     private readonly WorkspaceManager _workspace;
     private readonly IRagService? _ragService;
     private readonly string _sourceRoot;
+    private readonly bool _preserveWorkspace;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="Pipeline"/> class.
@@ -25,11 +26,13 @@ public sealed class Pipeline
     /// <param name="workspace">The workspace manager for this pipeline execution.</param>
     /// <param name="sourceRoot">The source repository root directory (where DevPilot was executed from).</param>
     /// <param name="ragService">Optional RAG service for context retrieval (null to disable RAG).</param>
+    /// <param name="preserveWorkspace">If true, preserves workspace on failure for debugging (default: false).</param>
     public Pipeline(
         IReadOnlyDictionary<PipelineStage, IAgent> agents,
         WorkspaceManager workspace,
         string sourceRoot,
-        IRagService? ragService = null)
+        IRagService? ragService = null,
+        bool preserveWorkspace = false)
     {
         ArgumentNullException.ThrowIfNull(agents);
         ArgumentNullException.ThrowIfNull(workspace);
@@ -40,6 +43,7 @@ public sealed class Pipeline
         _workspace = workspace;
         _sourceRoot = sourceRoot;
         _ragService = ragService;
+        _preserveWorkspace = preserveWorkspace;
     }
 
     /// <summary>
@@ -189,10 +193,7 @@ public sealed class Pipeline
 
                         context.SetAppliedFiles(_workspace.AppliedFiles);
 
-                        // Copy project files (.csproj and .sln) to workspace for compilation
-                        _workspace.CopyProjectFiles(context.SourceRoot!);
-
-                        // Validate only modified files to prevent false positives from existing code
+                        // Validate only modified files to prevent false positives from existing code (always run)
                         var validator = new CodeValidator();
                         var validationResult = validator.ValidateModifiedFiles(_workspace.WorkspaceRoot, _workspace.AppliedFiles);
                         if (!validationResult.Success)
@@ -202,6 +203,77 @@ public sealed class Pipeline
                             stopwatch.Stop();
                             return PipelineResult.CreateFailure(context, stopwatch.Elapsed, errorMsg);
                         }
+
+                        // Skip compilation validation for test workspaces
+                        // Only run compilation validation for production workspaces
+                        if (_workspace.Type == WorkspaceType.Production)
+                        {
+                            // Copy project files (.csproj and .sln) to workspace for compilation
+                            _workspace.CopyProjectFiles(context.SourceRoot!);
+
+                            // NEW: Validate compilation after syntax validation
+                            var compilationResult = await ValidateCompilationAsync(cancellationToken);
+
+                        if (!compilationResult.Success)
+                        {
+                            // Attempt automatic fix for missing using directives (with multiple iterations)
+                            AnsiConsole.MarkupLine("[yellow]⚠️  Compilation failed. Attempting to fix using directive errors...[/]");
+
+                            const int maxAutoFixAttempts = 5;
+                            var currentErrors = compilationResult.Errors;
+                            var totalFixedFiles = new List<string>();
+
+                            for (int attempt = 1; attempt <= maxAutoFixAttempts; attempt++)
+                            {
+                                var fixResult = await TryAutoFixUsingDirectives(currentErrors, cancellationToken);
+
+                                if (fixResult.Fixed)
+                                {
+                                    totalFixedFiles.AddRange(fixResult.FixedFiles);
+                                    AnsiConsole.MarkupLine($"[green]✓ Auto-fixed {fixResult.FixedFiles.Count} file(s): {string.Join(", ", fixResult.FixedFiles)}[/]");
+
+                                    // Re-validate compilation after fix
+                                    var retryCompilationResult = await ValidateCompilationAsync(cancellationToken);
+                                    if (retryCompilationResult.Success)
+                                    {
+                                        AnsiConsole.MarkupLine($"[green]✓ Compilation successful after {attempt} auto-fix iteration(s)[/]");
+                                        break;
+                                    }
+
+                                    // If still failing, update currentErrors for next iteration
+                                    currentErrors = retryCompilationResult.Errors;
+                                }
+                                else
+                                {
+                                    // No more files can be auto-fixed
+                                    if (totalFixedFiles.Count > 0)
+                                    {
+                                        var errorMsg = $"Code still does not compile after auto-fixing {totalFixedFiles.Count} file(s):\n\n{currentErrors}";
+                                        context.AdvanceToStage(PipelineStage.Failed, errorMsg);
+                                        stopwatch.Stop();
+                                        return PipelineResult.CreateFailure(context, stopwatch.Elapsed, errorMsg);
+                                    }
+                                    else
+                                    {
+                                        var errorMsg = $"Compilation failed with errors that could not be auto-fixed:\n\n{compilationResult.Errors}";
+                                        context.AdvanceToStage(PipelineStage.Failed, errorMsg);
+                                        stopwatch.Stop();
+                                        return PipelineResult.CreateFailure(context, stopwatch.Elapsed, errorMsg);
+                                    }
+                                }
+                            }
+
+                            // Check final compilation status
+                            var finalCompilationResult = await ValidateCompilationAsync(cancellationToken);
+                            if (!finalCompilationResult.Success)
+                            {
+                                var errorMsg = $"Code still does not compile after {maxAutoFixAttempts} auto-fix attempts:\n\n{finalCompilationResult.Errors}";
+                                context.AdvanceToStage(PipelineStage.Failed, errorMsg);
+                                stopwatch.Stop();
+                                return PipelineResult.CreateFailure(context, stopwatch.Elapsed, errorMsg);
+                            }
+                        }
+                        } // End if (!isTestWorkspace)
                     }
                     catch (PatchApplicationException ex)
                     {
@@ -403,7 +475,8 @@ public sealed class Pipeline
         {
             // Clean up workspace on failure (no point keeping failed attempts)
             // Preserve workspace on success (so user can review and apply changes)
-            if (!success)
+            // Also preserve if --preserve-workspace flag is set (for debugging)
+            if (!success && !_preserveWorkspace)
             {
                 _workspace.Dispose();
             }
@@ -751,6 +824,97 @@ public sealed class Pipeline
     }
 
     /// <summary>
+    /// Builds input for Coder to fix compilation errors in the current workspace state.
+    /// </summary>
+    /// <param name="context">The current pipeline context.</param>
+    /// <param name="compilationErrors">The compilation errors from the build.</param>
+    /// <param name="currentFileContents">The ACTUAL current content of modified files from the workspace.</param>
+    /// <returns>Input text for Coder to generate a fix patch.</returns>
+    private static string BuildCoderFixInput(PipelineContext context, string compilationErrors, Dictionary<string, string> currentFileContents)
+    {
+        // Parse compilation error to identify which file has the error
+        var errorFileMatch = System.Text.RegularExpressions.Regex.Match(
+            compilationErrors,
+            @"([^\\:]+\.cs)\((\d+),(\d+)\):\s*error\s+CS\d+:\s*(.+?)(?:\[|$)",
+            System.Text.RegularExpressions.RegexOptions.Multiline);
+
+        string errorFilePath = string.Empty;
+        string errorLine = string.Empty;
+        string errorMessage = string.Empty;
+        string? fileTopLines = null;
+
+        if (errorFileMatch.Success)
+        {
+            errorFilePath = errorFileMatch.Groups[1].Value;
+            errorLine = errorFileMatch.Groups[2].Value;
+            errorMessage = errorFileMatch.Groups[4].Value.Trim();
+
+            // Find the matching file in currentFileContents
+            var matchingEntry = currentFileContents.FirstOrDefault(kvp =>
+                kvp.Key.Contains(errorFilePath, StringComparison.OrdinalIgnoreCase));
+
+            if (matchingEntry.Key != null)
+            {
+                // Show first 10 lines of the file to see existing using directives
+                var lines = matchingEntry.Value.Split('\n');
+                fileTopLines = string.Join("\n", lines.Take(10));
+                errorFilePath = matchingEntry.Key; // Use the full relative path
+            }
+        }
+
+        var filesSummary = string.Join(", ", currentFileContents.Keys);
+
+        return $"""
+            COMPILATION FIX REQUIRED
+
+            ERROR LOCATION: {errorFilePath} (line {errorLine})
+            ERROR MESSAGE: {errorMessage}
+
+            CURRENT FILE HEADER (first 10 lines of {errorFilePath}):
+            ```
+            {fileTopLines ?? "File not found in current changes"}
+            ```
+
+            FULL COMPILATION OUTPUT:
+            {compilationErrors}
+
+            FILES MODIFIED IN THIS RUN: {filesSummary}
+
+            ====================
+            TASK: Generate a MINIMAL unified diff patch to add the missing using directive.
+
+            MOST COMMON FIX:
+            If error says "type or namespace name 'DivideByZeroException' could not be found":
+            → Add "using System;" at the TOP of {errorFilePath}
+
+            Other common using directives:
+            - ArgumentException, ArgumentNullException → using System;
+            - List<T>, Dictionary<K,V> → using System.Collections.Generic;
+            - Task<T> → using System.Threading.Tasks;
+
+            CRITICAL OUTPUT FORMAT:
+            1. Output ONLY a unified diff patch in git format
+            2. Do NOT include explanations or conversation
+            3. Start directly with: diff --git a/{errorFilePath} b/{errorFilePath}
+            4. The patch must be MINIMAL - only add the missing using directive
+            5. Include enough context lines (3-5 lines) for the patch to apply correctly
+
+            EXAMPLE OUTPUT (adapt to actual file):
+            diff --git a/{errorFilePath} b/{errorFilePath}
+            --- a/{errorFilePath}
+            +++ b/{errorFilePath}
+            @@ -1,4 +1,6 @@
+            +using System;
+            +
+             using Xunit;
+
+             namespace Calculator.Tests;
+
+            Now generate the fix patch (ONLY the patch, no other text):
+            """;
+    }
+
+    /// <summary>
     /// Validates that the Planner output contains the required JSON structure.
     /// </summary>
     /// <param name="plannerOutput">The output from the Planner agent.</param>
@@ -841,5 +1005,299 @@ public sealed class Pipeline
         {
             return 0; // If required properties missing, assume no failures
         }
+    }
+
+    /// <summary>
+    /// Validates that the generated code compiles successfully.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>A tuple containing success status and compilation errors (if any).</returns>
+    private async Task<(bool Success, string Errors)> ValidateCompilationAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            // Find the solution file to build (handle multiple .sln files)
+            var slnFiles = Directory.GetFiles(_workspace.WorkspaceRoot, "*.sln", SearchOption.TopDirectoryOnly);
+
+            string buildTarget;
+
+            if (slnFiles.Length == 1)
+            {
+                // Use the single solution file
+                buildTarget = Path.GetFileName(slnFiles[0]);
+            }
+            else if (slnFiles.Length > 1)
+            {
+                // Multiple solution files - prefer non-DevPilot.sln (original solution from source)
+                var preferredSln = slnFiles.FirstOrDefault(s => !s.EndsWith("DevPilot.sln"));
+                buildTarget = Path.GetFileName(preferredSln ?? slnFiles[0]);
+            }
+            else
+            {
+                // No solution file - just use default dotnet build
+                buildTarget = string.Empty;
+            }
+
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = "dotnet",
+                Arguments = string.IsNullOrEmpty(buildTarget)
+                    ? "build"
+                    : $"build \"{buildTarget}\"",
+                WorkingDirectory = _workspace.WorkspaceRoot,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using var process = new Process { StartInfo = startInfo };
+            process.Start();
+
+            var output = await process.StandardOutput.ReadToEndAsync(cancellationToken);
+            var errors = await process.StandardError.ReadToEndAsync(cancellationToken);
+            await process.WaitForExitAsync(cancellationToken);
+
+            if (process.ExitCode == 0)
+            {
+                return (true, string.Empty);
+            }
+
+            // Extract compilation errors from output
+            var compilationErrors = output + "\n" + errors;
+            return (false, compilationErrors);
+        }
+        catch (Exception ex)
+        {
+            return (false, $"Compilation validation failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Result of automatic using directive fix attempt.
+    /// </summary>
+    private record AutoFixResult(bool Fixed, List<string> FixedFiles);
+
+    /// <summary>
+    /// Attempts to automatically fix compilation errors caused by missing using directives.
+    /// Parses CS0246 errors, determines required namespaces, and injects them into files.
+    /// </summary>
+    /// <param name="compilationErrors">The compilation error output.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Result indicating whether fixes were applied and which files were modified.</returns>
+    private async Task<AutoFixResult> TryAutoFixUsingDirectives(string compilationErrors, CancellationToken cancellationToken)
+    {
+        // Map common type names to their required namespaces
+        var typeToNamespace = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            // System namespace
+            ["ArgumentException"] = "System",
+            ["ArgumentNullException"] = "System",
+            ["ArgumentOutOfRangeException"] = "System",
+            ["DivideByZeroException"] = "System",
+            ["InvalidOperationException"] = "System",
+            ["NotImplementedException"] = "System",
+            ["NotSupportedException"] = "System",
+            ["NullReferenceException"] = "System",
+            ["IndexOutOfRangeException"] = "System",
+            ["FormatException"] = "System",
+            ["OverflowException"] = "System",
+            ["TimeoutException"] = "System",
+            ["Guid"] = "System",
+            ["DateTime"] = "System",
+            ["DateTimeOffset"] = "System",
+            ["TimeSpan"] = "System",
+            ["Math"] = "System",
+            ["Convert"] = "System",
+            ["Console"] = "System",
+            ["Environment"] = "System",
+            ["Exception"] = "System",
+            ["Tuple"] = "System",
+            ["ValueTuple"] = "System",
+
+            // System.Collections.Generic
+            ["List"] = "System.Collections.Generic",
+            ["Dictionary"] = "System.Collections.Generic",
+            ["HashSet"] = "System.Collections.Generic",
+            ["Queue"] = "System.Collections.Generic",
+            ["Stack"] = "System.Collections.Generic",
+            ["IEnumerable"] = "System.Collections.Generic",
+            ["ICollection"] = "System.Collections.Generic",
+            ["IList"] = "System.Collections.Generic",
+            ["IDictionary"] = "System.Collections.Generic",
+            ["LinkedList"] = "System.Collections.Generic",
+            ["SortedDictionary"] = "System.Collections.Generic",
+            ["SortedList"] = "System.Collections.Generic",
+            ["KeyValuePair"] = "System.Collections.Generic",
+
+            // System.Threading.Tasks
+            ["Task"] = "System.Threading.Tasks",
+
+            // System.Linq
+            ["IQueryable"] = "System.Linq",
+            ["IOrderedQueryable"] = "System.Linq",
+
+            // System.Text
+            ["StringBuilder"] = "System.Text",
+            ["Encoding"] = "System.Text",
+
+            // System.Text.RegularExpressions
+            ["Regex"] = "System.Text.RegularExpressions",
+            ["Match"] = "System.Text.RegularExpressions",
+
+            // System.IO
+            ["File"] = "System.IO",
+            ["Directory"] = "System.IO",
+            ["Path"] = "System.IO",
+            ["FileStream"] = "System.IO",
+            ["StreamReader"] = "System.IO",
+            ["StreamWriter"] = "System.IO",
+            ["IOException"] = "System.IO",
+            ["FileNotFoundException"] = "System.IO",
+            ["DirectoryNotFoundException"] = "System.IO"
+        };
+
+        // Parse CS0246 errors: "The type or namespace name 'TypeName' could not be found"
+        var cs0246Pattern = new System.Text.RegularExpressions.Regex(
+            @"([^:]+\.cs)\(\d+,\d+\):\s*error\s+CS0246:\s*The type or namespace name\s+'([^']+)'\s+could not be found",
+            System.Text.RegularExpressions.RegexOptions.Multiline);
+
+        var matches = cs0246Pattern.Matches(compilationErrors);
+        if (matches.Count == 0)
+        {
+            return new AutoFixResult(false, new List<string>());
+        }
+
+        // Group errors by file
+        var fileToMissingTypes = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        foreach (System.Text.RegularExpressions.Match match in matches)
+        {
+            var fileName = match.Groups[1].Value;
+            var typeName = match.Groups[2].Value;
+
+            // Find the full file path in the workspace
+            var fullPath = FindFileInWorkspace(fileName);
+            if (fullPath == null) continue;
+
+            if (!fileToMissingTypes.ContainsKey(fullPath))
+            {
+                fileToMissingTypes[fullPath] = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            }
+
+            fileToMissingTypes[fullPath].Add(typeName);
+        }
+
+        var fixedFiles = new List<string>();
+
+        // Fix each file
+        foreach (var (filePath, missingTypes) in fileToMissingTypes)
+        {
+            var content = await File.ReadAllTextAsync(filePath, cancellationToken);
+            var requiredNamespaces = new HashSet<string>();
+
+            // Determine which namespaces are needed
+            foreach (var typeName in missingTypes)
+            {
+                if (typeToNamespace.TryGetValue(typeName, out var ns))
+                {
+                    requiredNamespaces.Add(ns);
+                }
+            }
+
+            if (requiredNamespaces.Count == 0) continue;
+
+            // Check which using directives are already present
+            var existingUsings = ExtractExistingUsings(content);
+            var usingsToAdd = requiredNamespaces.Except(existingUsings).ToList();
+
+            if (usingsToAdd.Count == 0) continue;
+
+            // Inject missing using directives at the top of the file
+            var updatedContent = InjectUsingDirectives(content, usingsToAdd);
+            await File.WriteAllTextAsync(filePath, updatedContent, cancellationToken);
+
+            fixedFiles.Add(Path.GetRelativePath(_workspace.WorkspaceRoot, filePath));
+        }
+
+        return new AutoFixResult(fixedFiles.Count > 0, fixedFiles);
+    }
+
+    /// <summary>
+    /// Finds a file in the workspace by its file name (handles relative paths).
+    /// </summary>
+    private string? FindFileInWorkspace(string fileName)
+    {
+        var searchPath = Path.Combine(_workspace.WorkspaceRoot, fileName);
+        return File.Exists(searchPath) ? searchPath : null;
+    }
+
+    /// <summary>
+    /// Extracts existing using directives from C# source code.
+    /// </summary>
+    private static HashSet<string> ExtractExistingUsings(string content)
+    {
+        var usings = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var usingPattern = new System.Text.RegularExpressions.Regex(@"^\s*using\s+([^;]+)\s*;", System.Text.RegularExpressions.RegexOptions.Multiline);
+        var matches = usingPattern.Matches(content);
+
+        foreach (System.Text.RegularExpressions.Match match in matches)
+        {
+            var usingDirective = match.Groups[1].Value.Trim();
+            // Handle both "using System;" and "using static System.Math;"
+            if (!usingDirective.StartsWith("static ", StringComparison.Ordinal))
+            {
+                usings.Add(usingDirective);
+            }
+        }
+
+        return usings;
+    }
+
+    /// <summary>
+    /// Injects using directives at the top of the file (after any existing usings).
+    /// </summary>
+    private static string InjectUsingDirectives(string content, List<string> namespacesToAdd)
+    {
+        var lines = content.Split('\n');
+        var insertIndex = 0;
+
+        // Find the last existing using directive
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i].TrimStart();
+            if (line.StartsWith("using ", StringComparison.Ordinal))
+            {
+                insertIndex = i + 1;
+            }
+            else if (!string.IsNullOrWhiteSpace(line) && !line.StartsWith("//"))
+            {
+                // Stop at the first non-using, non-comment, non-blank line
+                break;
+            }
+        }
+
+        // If no using directives found, insert at the very top
+        if (insertIndex == 0)
+        {
+            insertIndex = 0;
+        }
+
+        // Sort the namespaces to add (System first, then alphabetically)
+        var sortedNamespaces = namespacesToAdd.OrderBy(ns => ns == "System" ? "0" : ns).ToList();
+
+        // Build the new using directives
+        var newUsings = sortedNamespaces.Select(ns => $"using {ns};").ToList();
+
+        // Insert the new using directives
+        var updatedLines = lines.ToList();
+        updatedLines.InsertRange(insertIndex, newUsings);
+
+        // If there were no existing usings, add a blank line after the new ones
+        if (insertIndex == 0 && lines.Length > 0)
+        {
+            updatedLines.Insert(newUsings.Count, string.Empty);
+        }
+
+        return string.Join("\n", updatedLines);
     }
 }

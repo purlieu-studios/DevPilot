@@ -25,7 +25,7 @@ new file mode 100644
 ";
 
         var agents = CreateMockAgentsWithPatch(coderPatch);
-        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString(), null, WorkspaceType.Test);
         var pipeline = new Pipeline(agents, workspace, Directory.GetCurrentDirectory());
 
         // Act
@@ -50,7 +50,7 @@ new file mode 100644
 +public class Test { }";
 
         var agents = CreateMockAgentsWithPatch(coderPatch);
-        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString(), null, WorkspaceType.Test);
         var pipeline = new Pipeline(agents, workspace, Directory.GetCurrentDirectory());
 
         // Act
@@ -82,7 +82,7 @@ new file mode 100644
 +public class File2 { }";
 
         var agents = CreateMockAgentsWithPatch(coderPatch);
-        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString(), null, WorkspaceType.Test);
         var pipeline = new Pipeline(agents, workspace, Directory.GetCurrentDirectory());
 
         // Act
@@ -102,7 +102,7 @@ new file mode 100644
         var invalidPatch = "This is not a valid unified diff";
 
         var agents = CreateMockAgentsWithPatch(invalidPatch);
-        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString(), null, WorkspaceType.Test);
         var pipeline = new Pipeline(agents, workspace, Directory.GetCurrentDirectory());
 
         // Act
@@ -126,7 +126,7 @@ new file mode 100644
 +public class Test { }";
 
         var agents = CreateMockAgentsWithPatch(coderPatch);
-        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString(), null, WorkspaceType.Test);
         var pipeline = new Pipeline(agents, workspace, Directory.GetCurrentDirectory());
 
         // Act
@@ -148,7 +148,7 @@ new file mode 100644
         var invalidPatch = "invalid patch content";
 
         var agents = CreateMockAgentsWithPatch(invalidPatch);
-        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString(), null, WorkspaceType.Test);
         var pipeline = new Pipeline(agents, workspace, Directory.GetCurrentDirectory());
 
         // Act
@@ -175,7 +175,7 @@ new file mode 100644
 +}";
 
         var agents = CreateMockAgentsWithPatch(coderPatch);
-        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString(), null, WorkspaceType.Test);
         var pipeline = new Pipeline(agents, workspace, Directory.GetCurrentDirectory());
 
         // Act

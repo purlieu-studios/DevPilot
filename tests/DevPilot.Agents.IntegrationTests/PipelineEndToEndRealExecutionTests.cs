@@ -50,7 +50,7 @@ public sealed class PipelineEndToEndRealExecutionTests
             agents[stage] = agent;
         }
 
-        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString(), null, WorkspaceType.Test);
         var pipeline = new Pipeline(agents, workspace, Directory.GetCurrentDirectory());
         var userRequest = "Create a Calculator class with Add and Subtract methods";
 
@@ -122,7 +122,7 @@ public sealed class PipelineEndToEndRealExecutionTests
             agents[stage] = agent;
         }
 
-        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString(), null, WorkspaceType.Test);
         var pipeline = new Pipeline(agents, workspace, Directory.GetCurrentDirectory());
         var userRequest = "Delete all user authentication files and remove database migration scripts";
 
@@ -182,7 +182,7 @@ public sealed class PipelineEndToEndRealExecutionTests
             [PipelineStage.Evaluating] = new MockAgent("evaluator", true, highScores)
         };
 
-        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString(), null, WorkspaceType.Test);
         var pipeline = new Pipeline(agents, workspace, Directory.GetCurrentDirectory());
         var userRequest = "Create a Calculator class";
 
@@ -262,7 +262,7 @@ public sealed class PipelineEndToEndRealExecutionTests
             [PipelineStage.Evaluating] = new MockAgent("evaluator", true, "{}")
         };
 
-        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString(), null, WorkspaceType.Test);
         var pipeline = new Pipeline(agents, workspace, Directory.GetCurrentDirectory());
         var userRequest = "Create a Calculator class";
 
@@ -344,7 +344,7 @@ public sealed class PipelineEndToEndRealExecutionTests
             [PipelineStage.Evaluating] = new MockAgent("evaluator", true, lowScores)
         };
 
-        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString(), null, WorkspaceType.Test);
         var pipeline = new Pipeline(agents, workspace, Directory.GetCurrentDirectory());
         var userRequest = "Create a Calculator class";
 

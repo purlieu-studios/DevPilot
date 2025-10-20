@@ -38,7 +38,7 @@ public sealed class PipelineEndToEndMockTests
             """;
 
         var agents = CreateMockAgents(safePlanJson, validPatch, approvalReview, failingTests, "{}");
-        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString(), null, WorkspaceType.Test);
         var pipeline = new Pipeline(agents, workspace, Directory.GetCurrentDirectory());
 
         // Act
@@ -79,7 +79,7 @@ public sealed class PipelineEndToEndMockTests
             [PipelineStage.Evaluating] = new MockAgent("evaluator", true, "{}")
         };
 
-        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString(), null, WorkspaceType.Test);
         var pipeline = new Pipeline(agents, workspace, Directory.GetCurrentDirectory());
 
         // Act
@@ -130,7 +130,7 @@ public sealed class PipelineEndToEndMockTests
             [PipelineStage.Evaluating] = new MockAgent("evaluator", true, highScores)
         };
 
-        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString(), null, WorkspaceType.Test);
         var pipeline = new Pipeline(agents, workspace, Directory.GetCurrentDirectory());
 
         // Act
@@ -159,7 +159,7 @@ public sealed class PipelineEndToEndMockTests
             [PipelineStage.Evaluating] = new MockAgent("evaluator", true, "{}")
         };
 
-        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString(), null, WorkspaceType.Test);
         var pipeline = new Pipeline(agents, workspace, Directory.GetCurrentDirectory());
 
         // Act
@@ -189,7 +189,7 @@ public sealed class PipelineEndToEndMockTests
             [PipelineStage.Evaluating] = new MockAgent("evaluator", true, "{}")
         };
 
-        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString(), null, WorkspaceType.Test);
         var pipeline = new Pipeline(agents, workspace, Directory.GetCurrentDirectory());
 
         // Act
@@ -211,7 +211,7 @@ public sealed class PipelineEndToEndMockTests
         var invalidPatch = "This is not a valid diff format at all";
 
         var agents = CreateMockAgents(safePlanJson, invalidPatch, "{}", "{}", "{}");
-        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString());
+        var workspace = WorkspaceManager.CreateWorkspace(Guid.NewGuid().ToString(), null, WorkspaceType.Test);
         var pipeline = new Pipeline(agents, workspace, Directory.GetCurrentDirectory());
 
         // Act

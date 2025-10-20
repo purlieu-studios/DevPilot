@@ -19,6 +19,7 @@ internal sealed class Program
             // Parse command-line arguments first to check for flags
             bool autoApprove = false;
             bool enableRag = false;
+            bool preserveWorkspace = false;
             string? userRequest = null;
 
             foreach (var arg in args)
@@ -30,6 +31,10 @@ internal sealed class Program
                 else if (arg == "--enable-rag")
                 {
                     enableRag = true;
+                }
+                else if (arg == "--preserve-workspace")
+                {
+                    preserveWorkspace = true;
                 }
                 else if (!string.IsNullOrWhiteSpace(arg))
                 {
@@ -67,6 +72,29 @@ internal sealed class Program
             AnsiConsole.MarkupLine("[dim]MASAI Pipeline - Automated Code Generation & Review[/]");
             AnsiConsole.WriteLine();
 
+            // Pre-flight validation: Check environment before starting
+            var sourceRoot = Directory.GetCurrentDirectory();
+            var validator = new PreFlightValidator();
+            var validationResult = validator.Validate(sourceRoot);
+
+            if (!validationResult.IsValid)
+            {
+                AnsiConsole.MarkupLine($"[red]✗ Pre-flight validation failed:[/] {validationResult.ErrorMessage}");
+                if (validationResult.Suggestion != null)
+                {
+                    AnsiConsole.WriteLine();
+                    AnsiConsole.MarkupLine($"[yellow]💡 Suggestion:[/]");
+                    AnsiConsole.MarkupLine($"[dim]{Markup.Escape(validationResult.Suggestion)}[/]");
+                }
+                return 1;
+            }
+
+            if (validationResult.WarningMessage != null)
+            {
+                AnsiConsole.MarkupLine($"[yellow]⚠ Warning:[/] {validationResult.WarningMessage}");
+                AnsiConsole.WriteLine();
+            }
+
             // Generate pipeline ID early (before workspace creation)
             var pipelineId = Guid.NewGuid().ToString();
 
@@ -77,7 +105,6 @@ internal sealed class Program
                 workspace = WorkspaceManager.CreateWorkspace(pipelineId);
 
                 // Copy domain files (CLAUDE.md, .agents/, docs/, src/, tests/ + devpilot.json configured folders)
-                var sourceRoot = Directory.GetCurrentDirectory();
                 workspace.CopyDomainFiles(sourceRoot);
 
                 // Copy project files (.csproj, .sln, config files)
@@ -90,7 +117,7 @@ internal sealed class Program
             }
 
             // Load agents and build pipeline with workspace context
-            var pipeline = await BuildPipelineAsync(workspace, enableRag);
+            var pipeline = await BuildPipelineAsync(workspace, enableRag, preserveWorkspace);
 
             // Execute pipeline
             AnsiConsole.MarkupLine($"[bold]Request:[/] {userRequest}");
@@ -112,11 +139,21 @@ internal sealed class Program
             // Prompt to apply changes if pipeline succeeded
             if (result.Success && result.Context.AppliedFiles?.Count > 0)
             {
-                var applied = await PromptAndApplyChanges(result, workspace, autoApprove);
+                var applied = await PromptAndApplyChanges(result, workspace, autoApprove, preserveWorkspace);
                 if (!applied)
                 {
                     AnsiConsole.MarkupLine("[yellow]Changes not applied. Workspace preserved for review.[/]");
                 }
+            }
+            else if (!preserveWorkspace)
+            {
+                // Clean up workspace for failed or no-change pipelines (unless preserveWorkspace is set)
+                workspace.Dispose();
+            }
+
+            if (preserveWorkspace)
+            {
+                AnsiConsole.MarkupLine($"[dim]Workspace preserved at:[/] [cyan]{Markup.Escape(workspace.WorkspaceRoot)}[/]");
             }
 
             return result.Success ? 0 : 1;
@@ -193,8 +230,9 @@ internal sealed class Program
     /// </summary>
     /// <param name="workspace">The workspace manager containing the target repository files.</param>
     /// <param name="enableRag">Whether to enable RAG (Retrieval Augmented Generation) context retrieval.</param>
+    /// <param name="preserveWorkspace">Whether to preserve workspace on failure for debugging.</param>
     /// <returns>The configured pipeline ready for execution.</returns>
-    private static async Task<Pipeline> BuildPipelineAsync(WorkspaceManager workspace, bool enableRag)
+    private static async Task<Pipeline> BuildPipelineAsync(WorkspaceManager workspace, bool enableRag, bool preserveWorkspace)
     {
         // Find agents directory (workspace custom agents or DevPilot defaults)
         var agentsDirectory = FindAgentsDirectory(workspace.WorkspaceRoot, out var usingCustomAgents);
@@ -275,7 +313,7 @@ internal sealed class Program
         }
 
         var sourceRoot = Directory.GetCurrentDirectory();
-        return new Pipeline(agents, workspace, sourceRoot, ragService);
+        return new Pipeline(agents, workspace, sourceRoot, ragService, preserveWorkspace);
     }
 
     /// <summary>
@@ -463,7 +501,8 @@ internal sealed class Program
     /// <param name="result">The pipeline result containing changes to apply.</param>
     /// <param name="workspace">The workspace manager containing the files.</param>
     /// <param name="autoApprove">If true, skips prompts and auto-applies changes.</param>
-    private static async Task<bool> PromptAndApplyChanges(PipelineResult result, WorkspaceManager workspace, bool autoApprove)
+    /// <param name="preserveWorkspace">If true, skips workspace cleanup after applying changes.</param>
+    private static async Task<bool> PromptAndApplyChanges(PipelineResult result, WorkspaceManager workspace, bool autoApprove, bool preserveWorkspace)
     {
         if (result.Context.WorkspaceRoot == null || result.Context.AppliedFiles == null)
         {
@@ -585,8 +624,8 @@ internal sealed class Program
         }
         finally
         {
-            // Clean up workspace after user decision (apply or decline)
-            if (Directory.Exists(result.Context.WorkspaceRoot))
+            // Clean up workspace after user decision (apply or decline) unless preserveWorkspace is set
+            if (!preserveWorkspace && Directory.Exists(result.Context.WorkspaceRoot))
             {
                 try
                 {

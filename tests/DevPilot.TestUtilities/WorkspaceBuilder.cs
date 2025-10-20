@@ -137,7 +137,7 @@ public sealed class WorkspaceBuilder : IDisposable
 
         // Create workspace and copy files
         var pipelineId = Guid.NewGuid().ToString();
-        _workspace = WorkspaceManager.CreateWorkspace(pipelineId, _testBaseDirectory);
+        _workspace = WorkspaceManager.CreateWorkspace(pipelineId, _testBaseDirectory, WorkspaceType.Test);
         _workspace.CopyDomainFiles(_sourceDirectory);
 
         return _workspace;
