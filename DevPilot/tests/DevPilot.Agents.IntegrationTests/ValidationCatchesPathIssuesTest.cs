@@ -11,6 +11,7 @@ namespace DevPilot.Agents.IntegrationTests;
 /// path issues before compilation, such as test files in orphan directories.
 /// Validates pre-build validation infrastructure from PR #30.
 /// </summary>
+[Trait("Category", "Integration")]
 public sealed class ValidationCatchesPathIssuesTest
 {
     [Fact]

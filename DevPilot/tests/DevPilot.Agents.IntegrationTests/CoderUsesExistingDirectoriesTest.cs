@@ -12,6 +12,7 @@ namespace DevPilot.Agents.IntegrationTests;
 /// Validates fixes for path generation bugs where Coder created EmailValidator.Tests/
 /// and src/ instead of using existing Testing.Tests/ and Testing/ directories.
 /// </summary>
+[Trait("Category", "Integration")]
 public sealed class CoderUsesExistingDirectoriesTest
 {
     /// <summary>

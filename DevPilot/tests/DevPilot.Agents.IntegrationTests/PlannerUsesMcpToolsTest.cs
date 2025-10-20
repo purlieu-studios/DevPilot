@@ -12,6 +12,7 @@ namespace DevPilot.Agents.IntegrationTests;
 /// and returns valid JSON with all required properties.
 /// Validates fixes from PR fixing MCP/Planner timeout issue.
 /// </summary>
+[Trait("Category", "Integration")]
 public sealed class PlannerUsesMcpToolsTest
 {
     [Fact]

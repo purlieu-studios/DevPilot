@@ -9,6 +9,7 @@ namespace DevPilot.Agents.IntegrationTests;
 /// Smoke tests to verify agent definitions can be loaded successfully.
 /// These tests do not make API calls - they only verify infrastructure.
 /// </summary>
+[Trait("Category", "Integration")]
 public sealed class AgentLoadingSmokeTests
 {
     private const string AgentsDirectory = "../../../../../.agents";

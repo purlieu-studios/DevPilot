@@ -8,6 +8,7 @@ namespace DevPilot.Orchestrator.Tests;
 /// Comprehensive integration tests for the complete MASAI pipeline.
 /// Tests end-to-end scenarios with different request types and repository structures.
 /// </summary>
+[Trait("Category", "Integration")]
 public sealed class PipelineIntegrationTests : IDisposable
 {
     private readonly string _testBaseDirectory;

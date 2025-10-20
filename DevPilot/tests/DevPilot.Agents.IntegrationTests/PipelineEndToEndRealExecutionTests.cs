@@ -10,6 +10,7 @@ namespace DevPilot.Agents.IntegrationTests;
 /// End-to-end validation tests that execute the full pipeline with real Claude API calls.
 /// These tests are skipped by default and should be run manually to validate infrastructure.
 /// </summary>
+[Trait("Category", "Integration")]
 public sealed class PipelineEndToEndRealExecutionTests
 {
     private const string AgentsDirectory = "../../../../../.agents";
