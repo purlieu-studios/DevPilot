@@ -299,7 +299,7 @@ public sealed class WorkspaceManager : IDisposable
         }
 
         // Copy individual files (NOTE: CLAUDE.md is copied separately after Planning to reduce context)
-        var filesToCopy = new[] { ".editorconfig" };
+        var filesToCopy = new[] { ".editorconfig", "Directory.Build.props" };
         foreach (var fileName in filesToCopy)
         {
             var sourceFile = Path.Combine(sourceRoot, fileName);
