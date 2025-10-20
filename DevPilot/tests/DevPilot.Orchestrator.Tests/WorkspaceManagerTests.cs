@@ -575,6 +575,132 @@ new file mode 100644
         projectCount.Should().Be(2, "solution should contain exactly 2 projects after regeneration");
     }
 
+    /// <summary>
+    /// Validates that devpilot.json configuration is properly parsed and applied.
+    /// Regression test to ensure config-driven directory copying works correctly.
+    /// </summary>
+    [Fact]
+    public void CopyDomainFiles_RespectsDevPilotJsonConfiguration()
+    {
+        // Arrange - Create source directory with devpilot.json
+        var sourceDir = Path.Combine(_testBaseDirectory, "ConfigTest");
+        Directory.CreateDirectory(sourceDir);
+
+        // Create custom directories specified in devpilot.json
+        var customDir1 = Path.Combine(sourceDir, "custom-lib");
+        var customDir2 = Path.Combine(sourceDir, "shared");
+        Directory.CreateDirectory(customDir1);
+        Directory.CreateDirectory(customDir2);
+        File.WriteAllText(Path.Combine(customDir1, "test.cs"), "// custom lib");
+        File.WriteAllText(Path.Combine(customDir2, "shared.cs"), "// shared code");
+
+        // Create devpilot.json with custom folders
+        var configJson = @"{
+  ""folders"": [""custom-lib"", ""shared""],
+  ""copyAllFiles"": false
+}";
+        File.WriteAllText(Path.Combine(sourceDir, "devpilot.json"), configJson);
+
+        var pipelineId = Guid.NewGuid().ToString();
+        using var workspace = WorkspaceManager.CreateWorkspace(pipelineId, _testBaseDirectory);
+        _workspacesToCleanup.Add(workspace.WorkspaceRoot);
+
+        // Act - Copy domain files (should respect devpilot.json config)
+        workspace.CopyDomainFiles(sourceDir);
+
+        // Assert - Custom directories from config should be copied
+        Directory.Exists(Path.Combine(workspace.WorkspaceRoot, "custom-lib")).Should().BeTrue(
+            "because 'custom-lib' is specified in devpilot.json folders");
+        Directory.Exists(Path.Combine(workspace.WorkspaceRoot, "shared")).Should().BeTrue(
+            "because 'shared' is specified in devpilot.json folders");
+
+        File.Exists(Path.Combine(workspace.WorkspaceRoot, "custom-lib", "test.cs")).Should().BeTrue();
+        File.Exists(Path.Combine(workspace.WorkspaceRoot, "shared", "shared.cs")).Should().BeTrue();
+    }
+
+    /// <summary>
+    /// Validates that CopyDomainFiles auto-detects project directories (directories containing .csproj files).
+    /// Ensures WorkspaceManager discovers all project directories regardless of naming conventions.
+    /// </summary>
+    [Fact]
+    public void CopyDomainFiles_AutoDetectsProjectDirectories()
+    {
+        // Arrange - Create source with non-standard project directory names
+        var sourceDir = Path.Combine(_testBaseDirectory, "AutoDetectTest");
+        Directory.CreateDirectory(sourceDir);
+
+        // Create project directory with non-standard name (not "src" or "tests")
+        var customProjectDir = Path.Combine(sourceDir, "MyCustomApp");
+        Directory.CreateDirectory(customProjectDir);
+        File.WriteAllText(Path.Combine(customProjectDir, "MyCustomApp.csproj"),
+            "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup></Project>");
+        File.WriteAllText(Path.Combine(customProjectDir, "Program.cs"), "// main program");
+
+        // Create another project with different name
+        var anotherProjectDir = Path.Combine(sourceDir, "Utilities");
+        Directory.CreateDirectory(anotherProjectDir);
+        File.WriteAllText(Path.Combine(anotherProjectDir, "Utilities.csproj"),
+            "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup></Project>");
+        File.WriteAllText(Path.Combine(anotherProjectDir, "Helper.cs"), "// utilities");
+
+        var pipelineId = Guid.NewGuid().ToString();
+        using var workspace = WorkspaceManager.CreateWorkspace(pipelineId, _testBaseDirectory);
+        _workspacesToCleanup.Add(workspace.WorkspaceRoot);
+
+        // Act - Copy domain files (should auto-detect project directories)
+        workspace.CopyDomainFiles(sourceDir);
+
+        // Assert - Both project directories should be auto-detected and copied
+        Directory.Exists(Path.Combine(workspace.WorkspaceRoot, "MyCustomApp")).Should().BeTrue(
+            "because MyCustomApp contains a .csproj file and should be auto-detected");
+        Directory.Exists(Path.Combine(workspace.WorkspaceRoot, "Utilities")).Should().BeTrue(
+            "because Utilities contains a .csproj file and should be auto-detected");
+
+        File.Exists(Path.Combine(workspace.WorkspaceRoot, "MyCustomApp", "Program.cs")).Should().BeTrue();
+        File.Exists(Path.Combine(workspace.WorkspaceRoot, "Utilities", "Helper.cs")).Should().BeTrue();
+    }
+
+    /// <summary>
+    /// Validates that .devpilot directories are excluded from copying to prevent infinite recursion.
+    /// Regression test for critical bug where WorkspaceManager recursively copied .devpilot/workspaces/.
+    /// </summary>
+    [Fact]
+    public void CopyDomainFiles_ExcludesDevPilotDirectories_PreventsRecursion()
+    {
+        // Arrange - Create source with .devpilot directory (workspace nesting scenario)
+        var sourceDir = Path.Combine(_testBaseDirectory, "RecursionTest");
+        Directory.CreateDirectory(sourceDir);
+
+        // Create .devpilot/workspaces directory with fake nested workspace
+        var devpilotDir = Path.Combine(sourceDir, ".devpilot");
+        var workspacesDir = Path.Combine(devpilotDir, "workspaces");
+        var nestedWorkspaceDir = Path.Combine(workspacesDir, "old-pipeline-123");
+        Directory.CreateDirectory(nestedWorkspaceDir);
+        File.WriteAllText(Path.Combine(nestedWorkspaceDir, "OldFile.cs"), "// old workspace artifact");
+
+        // Create legitimate src directory
+        var srcDir = Path.Combine(sourceDir, "src");
+        Directory.CreateDirectory(srcDir);
+        File.WriteAllText(Path.Combine(srcDir, "App.cs"), "// application code");
+
+        var pipelineId = Guid.NewGuid().ToString();
+        using var workspace = WorkspaceManager.CreateWorkspace(pipelineId, _testBaseDirectory);
+        _workspacesToCleanup.Add(workspace.WorkspaceRoot);
+
+        // Act - Copy domain files (should exclude .devpilot directory)
+        workspace.CopyDomainFiles(sourceDir);
+
+        // Assert - .devpilot directory should NOT be copied (prevents recursion)
+        Directory.Exists(Path.Combine(workspace.WorkspaceRoot, ".devpilot")).Should().BeFalse(
+            "because .devpilot directories must be excluded to prevent recursive workspace nesting");
+        File.Exists(Path.Combine(workspace.WorkspaceRoot, ".devpilot", "workspaces", "old-pipeline-123", "OldFile.cs"))
+            .Should().BeFalse("because nested workspace artifacts must not be copied");
+
+        // Legitimate src directory should still be copied
+        Directory.Exists(Path.Combine(workspace.WorkspaceRoot, "src")).Should().BeTrue();
+        File.Exists(Path.Combine(workspace.WorkspaceRoot, "src", "App.cs")).Should().BeTrue();
+    }
+
     public void Dispose()
     {
         // Clean up all test workspaces
