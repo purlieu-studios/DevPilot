@@ -17,10 +17,25 @@ internal sealed class Program
     {
         try
         {
-            // Check for diagnose command first
+            // Check for diagnostic and cleanup commands first
             if (args.Length > 0 && args[0] == "diagnose")
             {
                 return await HandleDiagnoseCommandAsync(args);
+            }
+
+            if (args.Length > 0 && args[0] == "cleanup")
+            {
+                return await HandleCleanupCommandAsync(args);
+            }
+
+            if (args.Length > 0 && args[0] == "install-hook")
+            {
+                return HandleInstallHookCommand(args);
+            }
+
+            if (args.Length > 0 && args[0] == "uninstall-hook")
+            {
+                return HandleUninstallHookCommand(args);
             }
 
             // Parse command-line arguments first to check for flags
@@ -755,6 +770,68 @@ internal sealed class Program
     }
 
     /// <summary>
+    /// Handles the cleanup command.
+    /// </summary>
+    private static async Task<int> HandleCleanupCommandAsync(string[] args)
+    {
+        // Display header
+        AnsiConsole.Write(
+            new FigletText("DevPilot")
+                .Color(Color.Blue));
+
+        AnsiConsole.MarkupLine("[dim]Workspace Cleanup[/]");
+        AnsiConsole.WriteLine();
+
+        // Parse flags
+        bool force = args.Contains("--force") || args.Contains("-f");
+        bool dryRun = args.Contains("--dry-run") || args.Contains("-d");
+
+        try
+        {
+            var result = await WorkspaceCleanup.RunAsync(
+                force: force,
+                dryRun: dryRun);
+
+            // Display result
+            var color = result.DryRun ? "yellow" : result.WorkspacesDeleted > 0 ? "green" : "blue";
+            var icon = result.DryRun ? "👁" : result.WorkspacesDeleted > 0 ? "✓" : "ℹ";
+
+            AnsiConsole.MarkupLine($"[{color}]{icon} {Markup.Escape(result.Message)}[/]");
+            AnsiConsole.WriteLine();
+
+            if (result.Errors?.Count > 0)
+            {
+                AnsiConsole.MarkupLine("[red]Errors encountered:[/]");
+                foreach (var error in result.Errors)
+                {
+                    AnsiConsole.MarkupLine($"  [red]•[/] {Markup.Escape(error)}");
+                }
+                AnsiConsole.WriteLine();
+            }
+
+            // Show summary
+            var summaryTable = new Table()
+                .Border(TableBorder.Rounded)
+                .AddColumn("Metric")
+                .AddColumn(new TableColumn("Value").RightAligned());
+
+            summaryTable.AddRow("Workspaces " + (dryRun ? "to delete" : "deleted"), result.WorkspacesDeleted.ToString());
+            summaryTable.AddRow("Processes terminated", result.ProcessesTerminated.ToString());
+            summaryTable.AddRow("Space " + (dryRun ? "to free" : "freed"), $"{result.BytesFreed / (1024 * 1024)} MB");
+            summaryTable.AddRow("Duration", $"{result.Duration.TotalSeconds:F1}s");
+
+            AnsiConsole.Write(summaryTable);
+
+            return result.WorkspacesDeleted > 0 || result.DryRun ? 0 : 1;
+        }
+        catch (Exception ex)
+        {
+            AnsiConsole.MarkupLine($"[red]Cleanup failed:[/] {ex.Message}");
+            return 1;
+        }
+    }
+
+    /// <summary>
     /// Displays usage information for the diagnose command.
     /// </summary>
     private static void DisplayDiagnoseUsage()
@@ -799,12 +876,17 @@ internal sealed class Program
             [bold]Usage:[/]
               devpilot "<request>"
               devpilot diagnose <type>
+              devpilot cleanup [--force] [--dry-run]
+              devpilot install-hook [--force]
+              devpilot uninstall-hook
 
             [bold]Examples:[/]
               devpilot "Create Calculator class with Add and Subtract methods"
               devpilot "Add error handling to UserService"
               devpilot "Refactor PaymentProcessor to use dependency injection"
-              devpilot diagnose tests      # Run diagnostic tools
+              devpilot diagnose tests       # Run diagnostic tools
+              devpilot cleanup --dry-run    # Preview workspace cleanup
+              devpilot install-hook         # Install pre-commit hook
 
             [bold]Pipeline Stages:[/]
               1. Planning    - Analyzes request, creates execution plan
@@ -813,8 +895,11 @@ internal sealed class Program
               4. Testing     - Executes tests and reports results
               5. Evaluating  - Scores overall quality and provides verdict
 
-            [bold]Diagnostic Tools:[/]
-              Run 'devpilot diagnose' to see available diagnostic commands
+            [bold]Quality Tools:[/]
+              diagnose tests      - Analyze test failures
+              diagnose workspace  - Check workspace health
+              cleanup             - Remove orphaned workspaces
+              install-hook        - Add pre-commit quality checks
             """))
         {
             Header = new PanelHeader("DevPilot CLI", Justify.Center),
@@ -822,5 +907,81 @@ internal sealed class Program
         };
 
         AnsiConsole.Write(usage);
+    }
+
+    /// <summary>
+    /// Handles the 'install-hook' command.
+    /// </summary>
+    private static int HandleInstallHookCommand(string[] args)
+    {
+        try
+        {
+            // Display header
+            AnsiConsole.Write(new FigletText("DevPilot").Color(Color.Blue));
+            AnsiConsole.MarkupLine("[dim]Git Hook Installation[/]");
+            AnsiConsole.WriteLine();
+
+            // Parse flags
+            bool force = args.Contains("--force") || args.Contains("-f");
+
+            // Install hook
+            var result = HookInstaller.Install(force: force);
+
+            if (result.Success)
+            {
+                AnsiConsole.MarkupLine($"[green]✓ {Markup.Escape(result.Message)}[/]");
+                AnsiConsole.WriteLine();
+                AnsiConsole.MarkupLine("[dim]The pre-commit hook will run 'devpilot diagnose tests' before each commit.[/]");
+                AnsiConsole.MarkupLine("[dim]To skip the hook, use 'git commit --no-verify'[/]");
+                return 0;
+            }
+            else
+            {
+                AnsiConsole.MarkupLine($"[red]✗ {Markup.Escape(result.Message)}[/]");
+                return 1;
+            }
+        }
+#pragma warning disable CA1031 // Do not catch general exception types
+        catch (Exception ex)
+        {
+            AnsiConsole.MarkupLine($"[red]Error installing hook: {Markup.Escape(ex.Message)}[/]");
+            return 1;
+        }
+#pragma warning restore CA1031
+    }
+
+    /// <summary>
+    /// Handles the 'uninstall-hook' command.
+    /// </summary>
+    private static int HandleUninstallHookCommand(string[] args)
+    {
+        try
+        {
+            // Display header
+            AnsiConsole.Write(new FigletText("DevPilot").Color(Color.Blue));
+            AnsiConsole.MarkupLine("[dim]Git Hook Removal[/]");
+            AnsiConsole.WriteLine();
+
+            // Uninstall hook
+            var result = HookInstaller.Uninstall();
+
+            if (result.Success)
+            {
+                AnsiConsole.MarkupLine($"[green]✓ {Markup.Escape(result.Message)}[/]");
+                return 0;
+            }
+            else
+            {
+                AnsiConsole.MarkupLine($"[red]✗ {Markup.Escape(result.Message)}[/]");
+                return 1;
+            }
+        }
+#pragma warning disable CA1031 // Do not catch general exception types
+        catch (Exception ex)
+        {
+            AnsiConsole.MarkupLine($"[red]Error removing hook: {Markup.Escape(ex.Message)}[/]");
+            return 1;
+        }
+#pragma warning restore CA1031
     }
 }
