@@ -876,8 +876,8 @@ internal sealed class Program
             [bold]Usage:[/]
               devpilot "<request>"
               devpilot diagnose <type>
-              devpilot cleanup [--force] [--dry-run]
-              devpilot install-hook [--force]
+              devpilot cleanup [[--force]] [[--dry-run]]
+              devpilot install-hook [[--force]]
               devpilot uninstall-hook
 
             [bold]Examples:[/]
