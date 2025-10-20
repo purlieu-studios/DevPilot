@@ -1,5 +1,7 @@
 # DevPilot
 
+<!-- CI Workflow Validation Test -->
+
 **An autonomous AI coding agent implementing the MASAI architecture for C# projects**
 
 DevPilot is a reusable MASAI (Modular Architecture for Software-engineering AI) pipeline that orchestrates five specialized agents to plan, code, review, test, and evaluate software changes—all automatically.
