@@ -50,10 +50,9 @@ public sealed class AgentLoadingSmokeTests
     }
 
     [Theory]
-    [InlineData("coder")]
     [InlineData("reviewer")]
     [InlineData("tester")]
-    public async Task LoadAgent_NonPlannerAgents_NoMcpConfig(string agentName)
+    public async Task LoadAgent_NonMcpAgents_NoMcpConfig(string agentName)
     {
         // Arrange
         var loader = new AgentLoader(AgentsDirectory);

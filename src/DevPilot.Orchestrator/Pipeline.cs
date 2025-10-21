@@ -182,16 +182,39 @@ public sealed class Pipeline
                 {
                     try
                     {
-                        var patchResult = _workspace.ApplyPatch(agentResult.Output);
-                        if (!patchResult.Success)
-                        {
-                            var errorMsg = $"Failed to apply patch: {patchResult.ErrorMessage}";
-                            context.AdvanceToStage(PipelineStage.Failed, errorMsg);
-                            stopwatch.Stop();
-                            return PipelineResult.CreateFailure(context, stopwatch.Elapsed, errorMsg);
-                        }
+                        // Check if Coder is using MCP tools or unified diff
+                        var coderConfigPath = Path.Combine(context.SourceRoot!, ".agents", "coder", "config.json");
+                        var usesMcp = File.Exists(coderConfigPath) &&
+                                     File.ReadAllText(coderConfigPath).Contains("mcp_config_path");
 
-                        context.SetAppliedFiles(_workspace.AppliedFiles);
+                        if (usesMcp)
+                        {
+                            // Parse MCP file operations from agent output
+                            var fileOpsResult = ParseAndApplyFileOperations(agentResult.Output);
+                            if (!fileOpsResult.Success)
+                            {
+                                var errorMsg = $"Failed to apply file operations: {fileOpsResult.ErrorMessage}";
+                                context.AdvanceToStage(PipelineStage.Failed, errorMsg);
+                                stopwatch.Stop();
+                                return PipelineResult.CreateFailure(context, stopwatch.Elapsed, errorMsg);
+                            }
+
+                            context.SetAppliedFiles(fileOpsResult.FilesModified);
+                        }
+                        else
+                        {
+                            // Fallback: Use unified diff patch (backward compatibility)
+                            var patchResult = _workspace.ApplyPatch(agentResult.Output);
+                            if (!patchResult.Success)
+                            {
+                                var errorMsg = $"Failed to apply patch: {patchResult.ErrorMessage}";
+                                context.AdvanceToStage(PipelineStage.Failed, errorMsg);
+                                stopwatch.Stop();
+                                return PipelineResult.CreateFailure(context, stopwatch.Elapsed, errorMsg);
+                            }
+
+                            context.SetAppliedFiles(_workspace.AppliedFiles);
+                        }
 
                         // Validate only modified files to prevent false positives from existing code (always run)
                         var validator = new CodeValidator();
@@ -1299,5 +1322,110 @@ public sealed class Pipeline
         }
 
         return string.Join("\n", updatedLines);
+    }
+
+    /// <summary>
+    /// Parse MCP file operations output and apply to workspace.
+    /// </summary>
+    private MCPFileOperationResult ParseAndApplyFileOperations(string mcpOutput)
+    {
+        try
+        {
+            // Parse finalize_file_operations result from MCP output
+            var json = JsonDocument.Parse(mcpOutput);
+
+            if (!json.RootElement.TryGetProperty("file_operations", out var fileOpsElement))
+            {
+                return new MCPFileOperationResult
+                {
+                    Success = false,
+                    ErrorMessage = "MCP output missing 'file_operations' property"
+                };
+            }
+
+            if (!fileOpsElement.TryGetProperty("operations", out var opsArray))
+            {
+                return new MCPFileOperationResult
+                {
+                    Success = false,
+                    ErrorMessage = "MCP file_operations missing 'operations' array"
+                };
+            }
+
+            var operations = new List<MCPFileOperation>();
+
+            foreach (var op in opsArray.EnumerateArray())
+            {
+                var type = op.GetProperty("type").GetString();
+                operations.Add(type switch
+                {
+                    "create" => new MCPFileOperation
+                    {
+                        Type = MCPFileOperationType.Create,
+                        Path = op.GetProperty("path").GetString(),
+                        Content = op.GetProperty("content").GetString(),
+                        Reason = op.TryGetProperty("reason", out var r) ? r.GetString() : null
+                    },
+                    "modify" => new MCPFileOperation
+                    {
+                        Type = MCPFileOperationType.Modify,
+                        Path = op.GetProperty("path").GetString(),
+                        Changes = ParseLineChanges(op.GetProperty("changes"))
+                    },
+                    "delete" => new MCPFileOperation
+                    {
+                        Type = MCPFileOperationType.Delete,
+                        Path = op.GetProperty("path").GetString(),
+                        Reason = op.TryGetProperty("reason", out var r) ? r.GetString() : null
+                    },
+                    "rename" => new MCPFileOperation
+                    {
+                        Type = MCPFileOperationType.Rename,
+                        OldPath = op.GetProperty("old_path").GetString(),
+                        NewPath = op.GetProperty("new_path").GetString(),
+                        Reason = op.TryGetProperty("reason", out var r) ? r.GetString() : null
+                    },
+                    _ => throw new InvalidOperationException($"Unknown operation type: {type}")
+                });
+            }
+
+            return _workspace.ApplyFileOperations(operations);
+        }
+        catch (JsonException ex)
+        {
+            return new MCPFileOperationResult
+            {
+                Success = false,
+                ErrorMessage = $"Failed to parse MCP output: {ex.Message}"
+            };
+        }
+        catch (Exception ex)
+        {
+            return new MCPFileOperationResult
+            {
+                Success = false,
+                ErrorMessage = $"Error applying file operations: {ex.Message}"
+            };
+        }
+    }
+
+    /// <summary>
+    /// Parse line changes from JSON element.
+    /// </summary>
+    private static List<MCPLineChange> ParseLineChanges(JsonElement changesElement)
+    {
+        var changes = new List<MCPLineChange>();
+
+        foreach (var change in changesElement.EnumerateArray())
+        {
+            changes.Add(new MCPLineChange
+            {
+                LineNumber = change.GetProperty("line_number").GetInt32(),
+                OldContent = change.TryGetProperty("old_content", out var old) ? old.GetString() : null,
+                NewContent = change.GetProperty("new_content").GetString()!
+            });
+        }
+
+        return changes;
     }
 }
