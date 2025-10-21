@@ -610,17 +610,14 @@ public sealed class Pipeline
     }
 
     /// <summary>
-    /// Builds the input for the coder agent with explicit instruction to generate unified diff.
+    /// Builds the input for the coder agent with the plan to implement using MCP file operation tools.
     /// </summary>
     /// <param name="context">The pipeline context.</param>
-    /// <returns>The coder input with plan and clear instruction.</returns>
+    /// <returns>The coder input with plan.</returns>
     private static string BuildCoderInput(PipelineContext context)
     {
         return $"""
-            Implement the following plan by generating a unified diff patch.
-
-            Output ONLY the unified diff in git format. Do NOT include explanations, analysis, or conversation.
-            Start your response with "diff --git" and nothing else.
+            Implement the following plan using MCP file operation tools.
 
             Plan:
             {context.Plan ?? string.Empty}
