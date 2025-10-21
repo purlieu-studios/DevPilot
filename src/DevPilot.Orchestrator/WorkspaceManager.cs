@@ -1222,7 +1222,9 @@ public sealed class WorkspaceManager : IDisposable
         var lines = File.ReadAllLines(filePath).ToList();
 
         // Sort changes by line number (descending) to avoid index shifting issues
-        foreach (var change in changes.OrderByDescending(c => c.LineNumber))
+        var sortedChanges = changes.OrderByDescending(c => c.LineNumber).ToList();
+
+        foreach (var change in sortedChanges)
         {
             var index = change.LineNumber - 1; // Convert to 0-indexed
 
@@ -1231,13 +1233,14 @@ public sealed class WorkspaceManager : IDisposable
                 throw new InvalidOperationException($"Line {change.LineNumber} out of range (file has {lines.Count} lines)");
             }
 
-            // Optional validation: check if old content matches
+            // Optional validation: check if old content matches (warn if mismatch, don't fail)
+            // Note: This is non-blocking because Coder doesn't have read_file tool access
             if (change.OldContent != null && index < lines.Count)
             {
                 if (!lines[index].Trim().Equals(change.OldContent.Trim(), StringComparison.OrdinalIgnoreCase))
                 {
-                    throw new InvalidOperationException(
-                        $"Line {change.LineNumber} validation failed. Expected '{change.OldContent}', found '{lines[index]}'");
+                    // Log warning but continue - old_content is optional validation
+                    Console.WriteLine($"[MCP] Warning: Line {change.LineNumber} content mismatch (expected vs actual). Continuing anyway.");
                 }
             }
 
@@ -1250,15 +1253,32 @@ public sealed class WorkspaceManager : IDisposable
                     lines.RemoveAt(index);
                 }
             }
-            else if (index == lines.Count)
-            {
-                // Append new line at end
-                lines.Add(change.NewContent);
-            }
             else
             {
-                // Replace existing line
-                lines[index] = change.NewContent;
+                // Split new_content on newlines to handle multiline replacements
+                var newLines = change.NewContent.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+
+                if (index == lines.Count)
+                {
+                    // Append new lines at end
+                    foreach (var line in newLines)
+                    {
+                        lines.Add(line);
+                    }
+                }
+                else
+                {
+                    // Replace existing line with first new line, then insert remaining lines
+                    lines[index] = newLines[0];
+
+                    // Insert additional lines after the first one, tracking position dynamically
+                    int insertPosition = index + 1;
+                    for (int i = 1; i < newLines.Length; i++)
+                    {
+                        lines.Insert(insertPosition, newLines[i]);
+                        insertPosition++;  // Track actual position for next insertion
+                    }
+                }
             }
         }
 
