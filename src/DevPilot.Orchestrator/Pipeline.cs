@@ -1532,7 +1532,8 @@ public sealed class Pipeline
             {
                 LineNumber = change.GetProperty("line_number").GetInt32(),
                 OldContent = change.TryGetProperty("old_content", out var old) ? old.GetString() : null,
-                NewContent = change.GetProperty("new_content").GetString()!
+                NewContent = change.GetProperty("new_content").GetString()!,
+                LinesToReplace = change.TryGetProperty("lines_to_replace", out var lines) ? lines.GetInt32() : 1
             });
         }
 

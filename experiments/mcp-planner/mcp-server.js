@@ -288,7 +288,8 @@ const tools = [
             properties: {
               line_number: { type: 'number', description: 'Line number in the ORIGINAL file (1-indexed). Must be <= current file length. Example: to modify line 5 in a 10-line file, use line_number: 5.' },
               old_content: { type: 'string', description: 'Expected current line content (optional, for validation)' },
-              new_content: { type: 'string', description: 'New line content (can contain \\n for multiline replacements; empty string to delete line)' }
+              new_content: { type: 'string', description: 'New line content (can contain \\n for multiline replacements; empty string to delete line)' },
+              lines_to_replace: { type: 'number', description: 'Number of consecutive lines to delete before inserting new_content (default: 1). When modifying multi-line methods, set this to the number of lines in the old method to avoid duplicates.' }
             },
             required: ['line_number', 'new_content']
           }

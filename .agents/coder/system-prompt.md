@@ -104,7 +104,45 @@ Args: {
 }
 ```
 
-### Example 3: Finalize (REQUIRED)
+### Example 3: Modify Existing Method (Add Validation, Fix Bugs, etc.)
+
+**IMPORTANT**: When modifying an existing method to add validation or fix bugs, you must replace the ENTIRE method definition from the first line of XML comments through the closing brace.
+
+WRONG (creates duplicate methods):
+```json
+{
+  "changes": [
+    {
+      "line_number": 10,
+      "new_content": "    /// <summary>\n    /// Adds two numbers.\n    /// </summary>\n    /// <exception cref=\"ArgumentException\">Thrown when a or b is NaN.</exception>\n    public int Add(int a, int b)\n    {\n        if (double.IsNaN(a) || double.IsNaN(b)) throw new ArgumentException(\"NaN not allowed\");\n        return a + b;\n    }"
+    }
+  ]
+}
+```
+
+CORRECT (replaces entire method):
+```json
+{
+  "path": "Calculator/Calculator.cs",
+  "changes": [
+    {
+      "line_number": 8,
+      "old_content": "    /// <summary>",
+      "new_content": "    /// <summary>\n    /// Adds two numbers.\n    /// </summary>\n    /// <param name=\"a\">The first number.</param>\n    /// <param name=\"b\">The second number.</param>\n    /// <returns>The sum of a and b.</returns>\n    /// <exception cref=\"ArgumentException\">Thrown when a or b is NaN.</exception>\n    public double Add(double a, double b)\n    {\n        if (double.IsNaN(a)) throw new ArgumentException(\"Parameter 'a' cannot be NaN\", nameof(a));\n        if (double.IsNaN(b)) throw new ArgumentException(\"Parameter 'b' cannot be NaN\", nameof(b));\n        return a + b;\n    }",
+      "lines_to_replace": 13
+    }
+  ]
+}
+```
+
+**Key Points**:
+1. `line_number` should point to the FIRST line of the method (usually the XML comment `/// <summary>`)
+2. `new_content` must contain the ENTIRE new method from comment to closing brace
+3. Include `old_content` with the first line for validation
+4. **CRITICAL**: Set `lines_to_replace` to the number of lines in the new method (count all \n + 1). This deletes the old method lines before inserting the new ones, preventing duplicates. If unsure, count the lines in your `new_content` string.
+5. For single-line changes, omit `lines_to_replace` (defaults to 1)
+
+### Example 4: Finalize (REQUIRED)
 
 ```
 Tool: mcp__pipeline-tools__finalize_file_operations
