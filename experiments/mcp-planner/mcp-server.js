@@ -275,20 +275,20 @@ const tools = [
   },
   {
     name: 'modify_file',
-    description: 'Modify an existing file with line-based changes. Use this for files that already exist.',
+    description: 'Modify an existing file with line-based changes. Use this for files that already exist. IMPORTANT: line_number refers to the line in the ORIGINAL file (before any changes), not the final file. Changes are applied in descending order to prevent line number shifts.',
     inputSchema: {
       type: 'object',
       properties: {
         path: { type: 'string', description: 'Path to existing file' },
         changes: {
           type: 'array',
-          description: 'List of line changes to apply sequentially',
+          description: 'List of line changes. Each line_number must refer to the ORIGINAL file (as it exists now, before modifications). The system will sort changes in descending order automatically.',
           items: {
             type: 'object',
             properties: {
-              line_number: { type: 'number', description: 'Line to modify (1-indexed)' },
+              line_number: { type: 'number', description: 'Line number in the ORIGINAL file (1-indexed). Must be <= current file length. Example: to modify line 5 in a 10-line file, use line_number: 5.' },
               old_content: { type: 'string', description: 'Expected current line content (optional, for validation)' },
-              new_content: { type: 'string', description: 'New line content (empty string to delete line)' }
+              new_content: { type: 'string', description: 'New line content (can contain \\n for multiline replacements; empty string to delete line)' }
             },
             required: ['line_number', 'new_content']
           }
