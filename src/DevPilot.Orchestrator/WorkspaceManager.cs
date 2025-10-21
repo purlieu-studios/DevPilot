@@ -357,23 +357,25 @@ public sealed class WorkspaceManager : IDisposable
             }
         }
 
-        // Auto-detect project directories (any directory containing .csproj files)
+        // Auto-detect project directories recursively (handles monorepo structures like apps/app1/, apps/app2/)
         var excludedDirectories = new[] { "bin", "obj", ".git", ".vs", "node_modules", ".devpilot", "packages" };
-        foreach (var directory in Directory.GetDirectories(sourceRoot))
+        var projectFiles = FindFilesRecursive(sourceRoot, "*.csproj", excludedDirectories);
+
+        foreach (var projectFile in projectFiles)
         {
-            var dirName = Path.GetFileName(directory);
+            // Add all parent directories up to sourceRoot to preserve full hierarchy
+            // Example: For apps/app1/App1.csproj, this adds both "apps" and "apps/app1"
+            var projectDir = Path.GetDirectoryName(projectFile);
 
-            // Skip excluded directories
-            if (excludedDirectories.Contains(dirName, StringComparer.OrdinalIgnoreCase))
+            while (projectDir != null &&
+                   !Path.GetFullPath(projectDir).Equals(Path.GetFullPath(sourceRoot), StringComparison.OrdinalIgnoreCase))
             {
-                continue;
-            }
-
-            // Check if directory contains .csproj files (project directory)
-            var hasCsproj = Directory.GetFiles(directory, "*.csproj", SearchOption.TopDirectoryOnly).Length > 0;
-            if (hasCsproj)
-            {
-                directoriesToCopy.Add(dirName);
+                var relativePath = Path.GetRelativePath(sourceRoot, projectDir);
+                if (!directoriesToCopy.Contains(relativePath))
+                {
+                    directoriesToCopy.Add(relativePath);
+                }
+                projectDir = Path.GetDirectoryName(projectDir);
             }
         }
 

@@ -661,6 +661,63 @@ new file mode 100644
     }
 
     /// <summary>
+    /// Validates that nested project directories are copied with full hierarchy preserved (monorepo support).
+    /// Regression test for GitHub Issue #83 where apps/app1/Program.cs files were not copied,
+    /// causing CS5001 compilation errors in monorepo structures.
+    /// </summary>
+    [Fact]
+    public void CopyDomainFiles_CopiesNestedProjectDirectories_PreservesHierarchy()
+    {
+        // Arrange - Create monorepo structure (apps/app1/, apps/app2/, shared/core/)
+        var sourceDir = Path.Combine(_testBaseDirectory, "MonorepoTest");
+        Directory.CreateDirectory(sourceDir);
+
+        // Create apps/app1/
+        var app1Dir = Path.Combine(sourceDir, "apps", "app1");
+        Directory.CreateDirectory(app1Dir);
+        File.WriteAllText(Path.Combine(app1Dir, "App1.csproj"),
+            "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup></Project>");
+        File.WriteAllText(Path.Combine(app1Dir, "Program.cs"), "Console.WriteLine(\"App1\");");
+
+        // Create apps/app2/
+        var app2Dir = Path.Combine(sourceDir, "apps", "app2");
+        Directory.CreateDirectory(app2Dir);
+        File.WriteAllText(Path.Combine(app2Dir, "App2.csproj"),
+            "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup></Project>");
+        File.WriteAllText(Path.Combine(app2Dir, "Program.cs"), "Console.WriteLine(\"App2\");");
+
+        // Create shared/core/
+        var coreDir = Path.Combine(sourceDir, "shared", "core");
+        Directory.CreateDirectory(coreDir);
+        File.WriteAllText(Path.Combine(coreDir, "Shared.Core.csproj"),
+            "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup></Project>");
+        File.WriteAllText(Path.Combine(coreDir, "Logger.cs"), "public class Logger { }");
+
+        var pipelineId = Guid.NewGuid().ToString();
+        using var workspace = WorkspaceManager.CreateWorkspace(pipelineId, _testBaseDirectory);
+        _workspacesToCleanup.Add(workspace.WorkspaceRoot);
+
+        // Act - Copy domain files (should recursively find .csproj and preserve hierarchy)
+        workspace.CopyDomainFiles(sourceDir);
+
+        // Assert - Full directory hierarchy should be preserved
+        File.Exists(Path.Combine(workspace.WorkspaceRoot, "apps", "app1", "Program.cs")).Should().BeTrue(
+            "because apps/app1/Program.cs should be copied with full hierarchy preserved");
+        File.Exists(Path.Combine(workspace.WorkspaceRoot, "apps", "app1", "App1.csproj")).Should().BeTrue(
+            "because apps/app1/App1.csproj should be copied");
+
+        File.Exists(Path.Combine(workspace.WorkspaceRoot, "apps", "app2", "Program.cs")).Should().BeTrue(
+            "because apps/app2/Program.cs should be copied with full hierarchy preserved");
+        File.Exists(Path.Combine(workspace.WorkspaceRoot, "apps", "app2", "App2.csproj")).Should().BeTrue(
+            "because apps/app2/App2.csproj should be copied");
+
+        File.Exists(Path.Combine(workspace.WorkspaceRoot, "shared", "core", "Logger.cs")).Should().BeTrue(
+            "because shared/core/Logger.cs should be copied with full hierarchy preserved");
+        File.Exists(Path.Combine(workspace.WorkspaceRoot, "shared", "core", "Shared.Core.csproj")).Should().BeTrue(
+            "because shared/core/Shared.Core.csproj should be copied");
+    }
+
+    /// <summary>
     /// Validates that .devpilot directories are excluded from copying to prevent infinite recursion.
     /// Regression test for critical bug where WorkspaceManager recursively copied .devpilot/workspaces/.
     /// </summary>
