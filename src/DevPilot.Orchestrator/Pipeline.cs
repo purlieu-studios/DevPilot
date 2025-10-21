@@ -182,28 +182,17 @@ public sealed class Pipeline
                 {
                     try
                     {
-                        // Check if Coder is using MCP tools or unified diff
-                        var coderConfigPath = Path.Combine(context.SourceRoot!, ".agents", "coder", "config.json");
-                        var usesMcp = File.Exists(coderConfigPath) &&
-                                     File.ReadAllText(coderConfigPath).Contains("mcp_config_path");
+                        // Try parsing as MCP file operations first
+                        var fileOpsResult = ParseAndApplyFileOperations(agentResult.Output);
 
-                        if (usesMcp)
+                        if (fileOpsResult.Success)
                         {
-                            // Parse MCP file operations from agent output
-                            var fileOpsResult = ParseAndApplyFileOperations(agentResult.Output);
-                            if (!fileOpsResult.Success)
-                            {
-                                var errorMsg = $"Failed to apply file operations: {fileOpsResult.ErrorMessage}";
-                                context.AdvanceToStage(PipelineStage.Failed, errorMsg);
-                                stopwatch.Stop();
-                                return PipelineResult.CreateFailure(context, stopwatch.Elapsed, errorMsg);
-                            }
-
+                            // MCP parsing succeeded - use the file operations
                             context.SetAppliedFiles(fileOpsResult.FilesModified);
                         }
                         else
                         {
-                            // Fallback: Use unified diff patch (backward compatibility)
+                            // MCP parsing failed - fall back to unified diff patch (backward compatibility)
                             var patchResult = _workspace.ApplyPatch(agentResult.Output);
                             if (!patchResult.Success)
                             {
