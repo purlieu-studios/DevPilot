@@ -30,11 +30,14 @@
             - Use Microsoft Code Coverage data collector
             - Keep timeout as defense-in-depth safety net
 
-         TIMEOUT VALUE: 10 seconds
+         TIMEOUT VALUE: 10 minutes (600 seconds)
          - Unit tests run in ~85ms
-         - Integration tests run in <10s
-         - 10s is sufficient buffer for test execution + coverage attempt
-         - Much faster iteration than 120s
+         - TestRunner integration tests can take up to 7 minutes per test:
+           * Create temp workspace: ~1s
+           * dotnet build: up to 2 minutes (BuildTimeout)
+           * dotnet test: up to 5 minutes (TestTimeout)
+         - 10 minutes provides sufficient buffer for all test types
+         - Prevents infinite hangs while allowing long-running integration tests
 
          BEHAVIOR WHEN TIMEOUT EXPIRES:
          1. VSTest prints test summary (shows pass/fail counts)
@@ -50,7 +53,7 @@
          Without this timeout, VSTest hangs at startup (undocumented behavior).
          With coverage disabled, tests complete in ~50-100ms total time.
          ======================================================================== -->
-    <TestSessionTimeout>10000</TestSessionTimeout>
+    <TestSessionTimeout>600000</TestSessionTimeout>
 
     <!-- Treat no tests as error to catch empty test runs -->
     <TreatNoTestsAsError>true</TreatNoTestsAsError>
@@ -77,15 +80,13 @@
   </RunConfiguration>
 
   <!-- Data Collection Configuration -->
+  <!-- TEMPORARILY DISABLED: Coverage collection interferes with TestRunner integration tests -->
+  <!--
   <DataCollectionRunSettings>
     <DataCollectors>
-      <!-- Microsoft Code Coverage Collector (Recommended by Microsoft 2025) -->
-      <!-- Better performance and reliability than coverlet.collector -->
-      <!-- Included automatically with Microsoft.NET.Test.Sdk -->
       <DataCollector friendlyName="Code Coverage">
         <Configuration>
           <CodeCoverage>
-            <!-- Exclude test assemblies from coverage measurement -->
             <ModulePaths>
               <Exclude>
                 <ModulePath>.*Tests\.dll$</ModulePath>
@@ -96,14 +97,12 @@
               </Include>
             </ModulePaths>
 
-            <!-- Exclude specific files (e.g., EF migrations) -->
             <Sources>
               <Exclude>
                 <Source>.*\\Migrations\\.*</Source>
               </Exclude>
             </Sources>
 
-            <!-- Exclude auto-implemented properties for cleaner metrics -->
             <Attributes>
               <Exclude>
                 <Attribute>^System\.Diagnostics\.DebuggerHiddenAttribute$</Attribute>
@@ -117,6 +116,7 @@
       </DataCollector>
     </DataCollectors>
   </DataCollectionRunSettings>
+  -->
 
   <!-- Logging Configuration -->
   <LoggerRunSettings>
