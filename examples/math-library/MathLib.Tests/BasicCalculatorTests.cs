@@ -1,4 +1,5 @@
 using Xunit;
+using System;
 
 namespace MathLib.Tests;
 
@@ -303,6 +304,120 @@ public class BasicCalculatorTests
 
         // Assert
         Assert.Equal(-5.0, result, precision: 5);
+    }
+
+    #endregion
+
+    #region Modulo Tests
+
+    [Fact]
+    public void Modulo_PositiveNumbers_ReturnsRemainder()
+    {
+        // Arrange
+        double a = 10.0;
+        double b = 3.0;
+
+        // Act
+        double result = _calculator.Modulo(a, b);
+
+        // Assert
+        Assert.Equal(1.0, result, precision: 5);
+    }
+
+    [Fact]
+    public void Modulo_NegativeDividend_ReturnsNegativeRemainder()
+    {
+        // Arrange
+        double a = -10.0;
+        double b = 3.0;
+
+        // Act
+        double result = _calculator.Modulo(a, b);
+
+        // Assert
+        Assert.Equal(-1.0, result, precision: 5);
+    }
+
+    [Fact]
+    public void Modulo_ByZero_ThrowsDivideByZeroException()
+    {
+        // Arrange
+        double a = 10.0;
+        double b = 0;
+
+        // Act & Assert
+        Assert.Throws<DivideByZeroException>(() => _calculator.Modulo(a, b));
+    }
+
+    [Fact]
+    public void Modulo_DividendSmallerThanDivisor_ReturnsDividend()
+    {
+        // Arrange
+        double a = 2.0;
+        double b = 5.0;
+
+        // Act
+        double result = _calculator.Modulo(a, b);
+
+        // Assert
+        Assert.Equal(2.0, result, precision: 5);
+    }
+
+    [Fact]
+    public void Modulo_EvenlyDivisible_ReturnsZero()
+    {
+        // Arrange
+        double a = 15.0;
+        double b = 5.0;
+
+        // Act
+        double result = _calculator.Modulo(a, b);
+
+        // Assert
+        Assert.Equal(0, result, precision: 5);
+    }
+
+    #endregion
+
+    #region AbsoluteValue Tests
+
+    [Fact]
+    public void AbsoluteValue_PositiveNumber_ReturnsNumber()
+    {
+        // Arrange
+        double value = 7.5;
+
+        // Act
+        double result = _calculator.AbsoluteValue(value);
+
+        // Assert
+        Assert.Equal(7.5, result, precision: 5);
+    }
+
+    [Fact]
+    public void AbsoluteValue_NegativeNumber_ReturnsPositive()
+    {
+        // Arrange
+        double value = -7.5;
+
+        // Act
+        double result = _calculator.AbsoluteValue(value);
+
+        // Assert
+        Assert.Equal(7.5, result, precision: 5);
+    }
+
+    [Fact]
+    public void AbsoluteValue_Zero_ReturnsZero()
+    {
+        // Arrange
+        double value = 0;
+
+        // Act
+        double result = _calculator.AbsoluteValue(value);
+
+        // Assert
+        Assert.Equal(0, result, precision: 5);
     }
 
     #endregion

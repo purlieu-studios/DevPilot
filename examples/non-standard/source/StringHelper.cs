@@ -17,4 +17,18 @@ public static class StringHelper
         Array.Reverse(chars);
         return new string(chars);
     }
+
+    /// <summary>
+    /// Concatenates two strings with a space separator.
+    /// </summary>
+    /// <param name="first">The first string.</param>
+    /// <param name="second">The second string.</param>
+    /// <returns>A string containing both inputs separated by a space.</returns>
+    public static string Concatenate(string first, string second)
+    {
+        if (first == null) first = string.Empty;
+        if (second == null) second = string.Empty;
+
+        return $"{first} {second}".Trim();
+    }
 }
