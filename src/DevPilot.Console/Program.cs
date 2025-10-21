@@ -2,6 +2,7 @@ using DevPilot.Agents;
 using DevPilot.Core;
 using DevPilot.Diagnostics;
 using DevPilot.Orchestrator;
+using DevPilot.Orchestrator.State;
 using DevPilot.RAG;
 using DevPilot.Telemetry;
 using Spectre.Console;
@@ -36,6 +37,37 @@ internal sealed class Program
             if (args.Length > 0 && args[0] == "uninstall-hook")
             {
                 return HandleUninstallHookCommand(args);
+            }
+
+            // State management commands
+            if (args.Length > 0 && args[0] == "list")
+            {
+                return await HandleListCommandAsync(args);
+            }
+
+            if (args.Length > 0 && args[0] == "review")
+            {
+                return await HandleReviewCommandAsync(args);
+            }
+
+            if (args.Length > 0 && args[0] == "resume")
+            {
+                return await HandleResumeCommandAsync(args);
+            }
+
+            if (args.Length > 0 && args[0] == "approve")
+            {
+                return await HandleApproveCommandAsync(args);
+            }
+
+            if (args.Length > 0 && args[0] == "reject")
+            {
+                return await HandleRejectCommandAsync(args);
+            }
+
+            if (args.Length > 0 && args[0] == "cleanup-states")
+            {
+                return await HandleCleanupStatesCommandAsync(args);
             }
 
             // Parse command-line arguments first to check for flags
@@ -335,7 +367,8 @@ internal sealed class Program
         }
 
         var sourceRoot = Directory.GetCurrentDirectory();
-        return new Pipeline(agents, workspace, sourceRoot, ragService, preserveWorkspace);
+        var stateManager = new StateManager(sourceRoot);
+        return new Pipeline(agents, workspace, sourceRoot, ragService, stateManager, preserveWorkspace);
     }
 
     /// <summary>
@@ -454,9 +487,12 @@ internal sealed class Program
 
         var panel = new Panel(new Markup($"""
             [bold]Reason:[/] {result.Context.ApprovalReason ?? "Unknown"}
+            [bold]Pipeline ID:[/] {result.Context.PipelineId}
 
-            [dim]Note: State persistence not yet implemented.
-            The pipeline cannot be resumed via CLI at this time.[/]
+            [dim]Pipeline state has been saved. Use the following commands:[/]
+            [cyan]devpilot review {result.Context.PipelineId}[/] - Review changes
+            [cyan]devpilot approve {result.Context.PipelineId}[/] - Apply changes
+            [cyan]devpilot reject {result.Context.PipelineId}[/] - Discard changes
             """))
         {
             Header = new PanelHeader("Approval Required", Justify.Left),
@@ -880,13 +916,21 @@ internal sealed class Program
               devpilot install-hook [[--force]]
               devpilot uninstall-hook
 
+            [bold]State Management:[/]
+              devpilot list                 - List all saved pipeline states
+              devpilot review <pipeline-id> - Review changes without applying
+              devpilot resume <pipeline-id> - Resume a paused pipeline
+              devpilot approve <pipeline-id> - Approve and apply changes
+              devpilot reject <pipeline-id>  - Reject and discard changes
+              devpilot cleanup-states [[days]] - Delete old states (default: 7 days)
+
             [bold]Examples:[/]
               devpilot "Create Calculator class with Add and Subtract methods"
               devpilot "Add error handling to UserService"
               devpilot "Refactor PaymentProcessor to use dependency injection"
-              devpilot diagnose tests       # Run diagnostic tools
-              devpilot cleanup --dry-run    # Preview workspace cleanup
-              devpilot install-hook         # Install pre-commit hook
+              devpilot list                 # View all pipeline states
+              devpilot review abc123        # Review changes for pipeline abc123
+              devpilot approve abc123       # Apply changes from pipeline abc123
 
             [bold]Pipeline Stages:[/]
               1. Planning    - Analyzes request, creates execution plan
@@ -980,6 +1024,457 @@ internal sealed class Program
         catch (Exception ex)
         {
             AnsiConsole.MarkupLine($"[red]Error removing hook: {Markup.Escape(ex.Message)}[/]");
+            return 1;
+        }
+#pragma warning restore CA1031
+    }
+
+    /// <summary>
+    /// Handles the 'list' command - displays all saved pipeline states.
+    /// </summary>
+    private static async Task<int> HandleListCommandAsync(string[] args)
+    {
+        try
+        {
+            // Display header
+            AnsiConsole.Write(new FigletText("DevPilot").Color(Color.Blue));
+            AnsiConsole.MarkupLine("[dim]Pipeline States[/]");
+            AnsiConsole.WriteLine();
+
+            var stateManager = new StateManager();
+            var states = await stateManager.ListStatesAsync();
+
+            if (states.Count == 0)
+            {
+                AnsiConsole.MarkupLine("[yellow]No saved pipeline states found.[/]");
+                return 0;
+            }
+
+            // Display states in a table
+            var table = new Table()
+                .Border(TableBorder.Rounded)
+                .AddColumn("Pipeline ID")
+                .AddColumn("Request")
+                .AddColumn("Status")
+                .AddColumn("Stage")
+                .AddColumn("Timestamp");
+
+            foreach (var state in states)
+            {
+                var statusColor = state.Status switch
+                {
+                    PipelineStatus.Completed => "green",
+                    PipelineStatus.Approved => "cyan",
+                    PipelineStatus.AwaitingApproval => "yellow",
+                    PipelineStatus.Failed => "red",
+                    PipelineStatus.Rejected => "grey",
+                    PipelineStatus.Running => "blue",
+                    _ => "white"
+                };
+
+                // Truncate request if too long
+                var request = state.UserRequest.Length > 50
+                    ? state.UserRequest.Substring(0, 47) + "..."
+                    : state.UserRequest;
+
+                table.AddRow(
+                    state.PipelineId.Substring(0, 8),
+                    Markup.Escape(request),
+                    $"[{statusColor}]{state.Status}[/]",
+                    state.CurrentStage.ToString(),
+                    state.Timestamp.ToString("yyyy-MM-dd HH:mm"));
+            }
+
+            AnsiConsole.Write(table);
+            AnsiConsole.WriteLine();
+            AnsiConsole.MarkupLine($"[dim]Total: {states.Count} pipeline(s)[/]");
+
+            return 0;
+        }
+#pragma warning disable CA1031 // Do not catch general exception types
+        catch (Exception ex)
+        {
+            AnsiConsole.MarkupLine($"[red]Error listing states: {Markup.Escape(ex.Message)}[/]");
+            return 1;
+        }
+#pragma warning restore CA1031
+    }
+
+    /// <summary>
+    /// Handles the 'review' command - displays patch diff without applying changes.
+    /// </summary>
+    private static async Task<int> HandleReviewCommandAsync(string[] args)
+    {
+        try
+        {
+            // Display header
+            AnsiConsole.Write(new FigletText("DevPilot").Color(Color.Blue));
+            AnsiConsole.MarkupLine("[dim]Review Pipeline Changes[/]");
+            AnsiConsole.WriteLine();
+
+            if (args.Length < 2)
+            {
+                AnsiConsole.MarkupLine("[red]Error:[/] Pipeline ID required");
+                AnsiConsole.MarkupLine("[dim]Usage: devpilot review <pipeline-id>[/]");
+                return 1;
+            }
+
+            var pipelineId = args[1];
+            var stateManager = new StateManager();
+            var state = await stateManager.LoadStateAsync(pipelineId);
+
+            if (state == null)
+            {
+                AnsiConsole.MarkupLine($"[red]Error:[/] Pipeline state not found: {pipelineId}");
+                return 1;
+            }
+
+            // Display pipeline info
+            var infoPanel = new Panel(new Markup($"""
+                [bold]Request:[/] {Markup.Escape(state.UserRequest)}
+                [bold]Status:[/] {state.Status}
+                [bold]Stage:[/] {state.CurrentStage}
+                [bold]Started:[/] {state.Timestamp:yyyy-MM-dd HH:mm:ss}
+                """))
+            {
+                Header = new PanelHeader("Pipeline Information"),
+                Border = BoxBorder.Rounded
+            };
+
+            AnsiConsole.Write(infoPanel);
+            AnsiConsole.WriteLine();
+
+            // Display patch if available
+            if (!string.IsNullOrEmpty(state.Patch))
+            {
+                AnsiConsole.Write(new Rule("[bold]Patch Preview[/]"));
+                AnsiConsole.WriteLine();
+
+                var patchPanel = new Panel(Markup.Escape(state.Patch))
+                {
+                    Border = BoxBorder.Rounded,
+                    BorderStyle = new Style(Color.Grey),
+                    Padding = new Padding(1, 0, 1, 0)
+                };
+
+                AnsiConsole.Write(patchPanel);
+                AnsiConsole.WriteLine();
+            }
+
+            // Display scores if available
+            if (!string.IsNullOrEmpty(state.Scores))
+            {
+                AnsiConsole.Write(new Rule("[bold]Quality Scores[/]"));
+                AnsiConsole.WriteLine();
+
+                try
+                {
+                    var scores = System.Text.Json.JsonDocument.Parse(state.Scores);
+                    var evaluation = scores.RootElement.GetProperty("evaluation");
+                    var overallScore = evaluation.GetProperty("overall_score").GetDouble();
+                    var verdict = evaluation.GetProperty("final_verdict").GetString() ?? "UNKNOWN";
+
+                    var scoresPanel = new Panel(new Markup($"""
+                        [bold]Overall Score:[/] {overallScore:F1}/10
+                        [bold]Final Verdict:[/] [green]{verdict}[/]
+                        """))
+                    {
+                        Header = new PanelHeader("Quality Assessment"),
+                        Border = BoxBorder.Rounded
+                    };
+
+                    AnsiConsole.Write(scoresPanel);
+                }
+                catch (System.Text.Json.JsonException)
+                {
+                    AnsiConsole.WriteLine($"Scores: {state.Scores}");
+                }
+            }
+
+            return 0;
+        }
+#pragma warning disable CA1031 // Do not catch general exception types
+        catch (Exception ex)
+        {
+            AnsiConsole.MarkupLine($"[red]Error reviewing state: {Markup.Escape(ex.Message)}[/]");
+            return 1;
+        }
+#pragma warning restore CA1031
+    }
+
+    /// <summary>
+    /// Handles the 'resume' command - loads saved state and continues pipeline execution.
+    /// </summary>
+    private static async Task<int> HandleResumeCommandAsync(string[] args)
+    {
+        try
+        {
+            // Display header
+            AnsiConsole.Write(new FigletText("DevPilot").Color(Color.Blue));
+            AnsiConsole.MarkupLine("[dim]Resume Pipeline Execution[/]");
+            AnsiConsole.WriteLine();
+
+            if (args.Length < 2)
+            {
+                AnsiConsole.MarkupLine("[red]Error:[/] Pipeline ID required");
+                AnsiConsole.MarkupLine("[dim]Usage: devpilot resume <pipeline-id>[/]");
+                return 1;
+            }
+
+            var pipelineId = args[1];
+            var stateManager = new StateManager();
+            var state = await stateManager.LoadStateAsync(pipelineId);
+
+            if (state == null)
+            {
+                AnsiConsole.MarkupLine($"[red]Error:[/] Pipeline state not found: {pipelineId}");
+                return 1;
+            }
+
+            // Check if state can be resumed
+            if (state.Status == PipelineStatus.Completed)
+            {
+                AnsiConsole.MarkupLine("[yellow]Warning:[/] Pipeline already completed");
+                return 0;
+            }
+
+            if (state.Status == PipelineStatus.Approved)
+            {
+                AnsiConsole.MarkupLine("[yellow]Warning:[/] Pipeline already approved and applied");
+                return 0;
+            }
+
+            if (state.Status == PipelineStatus.Rejected)
+            {
+                AnsiConsole.MarkupLine("[yellow]Warning:[/] Pipeline was rejected");
+                return 0;
+            }
+
+            if (state.Status == PipelineStatus.Failed)
+            {
+                AnsiConsole.MarkupLine("[yellow]Warning:[/] Pipeline failed and cannot be resumed");
+                AnsiConsole.MarkupLine($"[dim]Error: {Markup.Escape(state.ErrorMessage ?? "Unknown error")}[/]");
+                return 1;
+            }
+
+            // TODO: Implement pipeline resume logic
+            // This requires:
+            // 1. Reconstructing PipelineContext from saved state
+            // 2. Reloading workspace from WorkspacePath
+            // 3. Continuing from CurrentStage
+            AnsiConsole.MarkupLine("[yellow]⚠ Resume functionality not yet implemented[/]");
+            AnsiConsole.MarkupLine("[dim]This feature requires reconstructing pipeline context and continuing from last stage.[/]");
+            AnsiConsole.MarkupLine($"[dim]Pipeline ID: {state.PipelineId}[/]");
+            AnsiConsole.MarkupLine($"[dim]Last Stage: {state.CurrentStage}[/]");
+
+            return 1;
+        }
+#pragma warning disable CA1031 // Do not catch general exception types
+        catch (Exception ex)
+        {
+            AnsiConsole.MarkupLine($"[red]Error resuming pipeline: {Markup.Escape(ex.Message)}[/]");
+            return 1;
+        }
+#pragma warning restore CA1031
+    }
+
+    /// <summary>
+    /// Handles the 'approve' command - applies patch to source repository and marks state as approved.
+    /// </summary>
+    private static async Task<int> HandleApproveCommandAsync(string[] args)
+    {
+        try
+        {
+            // Display header
+            AnsiConsole.Write(new FigletText("DevPilot").Color(Color.Blue));
+            AnsiConsole.MarkupLine("[dim]Approve Pipeline Changes[/]");
+            AnsiConsole.WriteLine();
+
+            if (args.Length < 2)
+            {
+                AnsiConsole.MarkupLine("[red]Error:[/] Pipeline ID required");
+                AnsiConsole.MarkupLine("[dim]Usage: devpilot approve <pipeline-id>[/]");
+                return 1;
+            }
+
+            var pipelineId = args[1];
+            var stateManager = new StateManager();
+            var state = await stateManager.LoadStateAsync(pipelineId);
+
+            if (state == null)
+            {
+                AnsiConsole.MarkupLine($"[red]Error:[/] Pipeline state not found: {pipelineId}");
+                return 1;
+            }
+
+            // Check if state can be approved
+            if (state.Status != PipelineStatus.AwaitingApproval)
+            {
+                AnsiConsole.MarkupLine($"[yellow]Warning:[/] Pipeline is not awaiting approval (status: {state.Status})");
+                return 1;
+            }
+
+            // Display patch summary
+            AnsiConsole.MarkupLine($"[bold]Request:[/] {Markup.Escape(state.UserRequest)}");
+            AnsiConsole.WriteLine();
+
+            if (!string.IsNullOrEmpty(state.Patch))
+            {
+                var patchPanel = new Panel(Markup.Escape(state.Patch.Length > 500
+                    ? state.Patch.Substring(0, 500) + "\n... (truncated)"
+                    : state.Patch))
+                {
+                    Header = new PanelHeader("Patch Preview"),
+                    Border = BoxBorder.Rounded,
+                    BorderStyle = new Style(Color.Grey)
+                };
+
+                AnsiConsole.Write(patchPanel);
+                AnsiConsole.WriteLine();
+            }
+
+            // TODO: Implement patch application logic
+            // This requires:
+            // 1. Applying patch from workspace to source repository
+            // 2. Copying files from WorkspacePath to SourceRoot
+            // 3. Cleaning up workspace
+            AnsiConsole.MarkupLine("[yellow]⚠ Approve functionality not yet implemented[/]");
+            AnsiConsole.MarkupLine("[dim]This feature requires applying workspace changes to source repository.[/]");
+            AnsiConsole.MarkupLine($"[dim]Workspace: {Markup.Escape(state.WorkspacePath)}[/]");
+            AnsiConsole.MarkupLine($"[dim]Source: {Markup.Escape(state.SourceRoot ?? "Unknown")}[/]");
+
+            return 1;
+        }
+#pragma warning disable CA1031 // Do not catch general exception types
+        catch (Exception ex)
+        {
+            AnsiConsole.MarkupLine($"[red]Error approving pipeline: {Markup.Escape(ex.Message)}[/]");
+            return 1;
+        }
+#pragma warning restore CA1031
+    }
+
+    /// <summary>
+    /// Handles the 'reject' command - marks state as rejected and cleans up workspace.
+    /// </summary>
+    private static async Task<int> HandleRejectCommandAsync(string[] args)
+    {
+        try
+        {
+            // Display header
+            AnsiConsole.Write(new FigletText("DevPilot").Color(Color.Blue));
+            AnsiConsole.MarkupLine("[dim]Reject Pipeline Changes[/]");
+            AnsiConsole.WriteLine();
+
+            if (args.Length < 2)
+            {
+                AnsiConsole.MarkupLine("[red]Error:[/] Pipeline ID required");
+                AnsiConsole.MarkupLine("[dim]Usage: devpilot reject <pipeline-id>[/]");
+                return 1;
+            }
+
+            var pipelineId = args[1];
+            var stateManager = new StateManager();
+            var state = await stateManager.LoadStateAsync(pipelineId);
+
+            if (state == null)
+            {
+                AnsiConsole.MarkupLine($"[red]Error:[/] Pipeline state not found: {pipelineId}");
+                return 1;
+            }
+
+            // Check if state can be rejected
+            if (state.Status != PipelineStatus.AwaitingApproval)
+            {
+                AnsiConsole.MarkupLine($"[yellow]Warning:[/] Pipeline is not awaiting approval (status: {state.Status})");
+                return 1;
+            }
+
+            // Confirm rejection
+            var confirmed = AnsiConsole.Confirm($"Reject pipeline '{state.UserRequest.Substring(0, Math.Min(50, state.UserRequest.Length))}'?", defaultValue: false);
+
+            if (!confirmed)
+            {
+                AnsiConsole.MarkupLine("[yellow]Rejection cancelled[/]");
+                return 0;
+            }
+
+            // Update status to rejected
+            var updated = await stateManager.UpdateStatusAsync(
+                pipelineId,
+                PipelineStatus.Rejected,
+                DateTime.UtcNow);
+
+            if (!updated)
+            {
+                AnsiConsole.MarkupLine("[red]Error:[/] Failed to update pipeline status");
+                return 1;
+            }
+
+            // Clean up workspace if it exists
+            if (Directory.Exists(state.WorkspacePath))
+            {
+                try
+                {
+                    Directory.Delete(state.WorkspacePath, recursive: true);
+                    AnsiConsole.MarkupLine($"[green]✓ Workspace deleted:[/] [dim]{Markup.Escape(state.WorkspacePath)}[/]");
+                }
+                catch (IOException ex)
+                {
+                    AnsiConsole.MarkupLine($"[yellow]⚠ Failed to delete workspace: {Markup.Escape(ex.Message)}[/]");
+                }
+            }
+
+            AnsiConsole.MarkupLine("[green]✓ Pipeline rejected successfully[/]");
+
+            return 0;
+        }
+#pragma warning disable CA1031 // Do not catch general exception types
+        catch (Exception ex)
+        {
+            AnsiConsole.MarkupLine($"[red]Error rejecting pipeline: {Markup.Escape(ex.Message)}[/]");
+            return 1;
+        }
+#pragma warning restore CA1031
+    }
+
+    /// <summary>
+    /// Handles the 'cleanup-states' command - deletes pipeline states older than specified days.
+    /// </summary>
+    private static async Task<int> HandleCleanupStatesCommandAsync(string[] args)
+    {
+        try
+        {
+            // Display header
+            AnsiConsole.Write(new FigletText("DevPilot").Color(Color.Blue));
+            AnsiConsole.MarkupLine("[dim]Cleanup Old Pipeline States[/]");
+            AnsiConsole.WriteLine();
+
+            // Parse max age (default: 7 days)
+            int maxAgeDays = 7;
+            if (args.Length > 1 && int.TryParse(args[1], out var parsedDays))
+            {
+                maxAgeDays = parsedDays;
+            }
+
+            var stateManager = new StateManager();
+            var deletedCount = await stateManager.CleanupOldStatesAsync(maxAgeDays);
+
+            if (deletedCount > 0)
+            {
+                AnsiConsole.MarkupLine($"[green]✓ Deleted {deletedCount} pipeline state(s) older than {maxAgeDays} days[/]");
+            }
+            else
+            {
+                AnsiConsole.MarkupLine($"[blue]No pipeline states older than {maxAgeDays} days found[/]");
+            }
+
+            return 0;
+        }
+#pragma warning disable CA1031 // Do not catch general exception types
+        catch (Exception ex)
+        {
+            AnsiConsole.MarkupLine($"[red]Error cleaning up states: {Markup.Escape(ex.Message)}[/]");
             return 1;
         }
 #pragma warning restore CA1031
