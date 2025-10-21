@@ -1250,15 +1250,36 @@ public sealed class WorkspaceManager : IDisposable
                     lines.RemoveAt(index);
                 }
             }
-            else if (index == lines.Count)
-            {
-                // Append new line at end
-                lines.Add(change.NewContent);
-            }
             else
             {
-                // Replace existing line
-                lines[index] = change.NewContent;
+                // Split new_content on newlines to handle multiline replacements
+                var newLines = change.NewContent.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+
+                if (index == lines.Count)
+                {
+                    // Append new lines at end
+                    foreach (var line in newLines)
+                    {
+                        if (!string.IsNullOrEmpty(line) || newLines.Length == 1)
+                        {
+                            lines.Add(line);
+                        }
+                    }
+                }
+                else
+                {
+                    // Replace existing line with first new line, then insert remaining lines
+                    lines[index] = newLines[0];
+
+                    // Insert additional lines after the first one
+                    for (int i = 1; i < newLines.Length; i++)
+                    {
+                        if (!string.IsNullOrEmpty(newLines[i]) || i == newLines.Length - 1)
+                        {
+                            lines.Insert(index + i, newLines[i]);
+                        }
+                    }
+                }
             }
         }
 
