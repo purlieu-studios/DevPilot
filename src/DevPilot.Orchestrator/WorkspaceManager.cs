@@ -1087,6 +1087,185 @@ public sealed class WorkspaceManager : IDisposable
     }
 
     /// <summary>
+    /// Applies a list of file operations from MCP tools to the workspace.
+    /// </summary>
+    /// <param name="operations">The file operations to apply.</param>
+    /// <returns>The result of applying the operations.</returns>
+    public MCPFileOperationResult ApplyFileOperations(List<MCPFileOperation> operations)
+    {
+        var filesModified = new List<string>();
+
+        try
+        {
+            foreach (var op in operations)
+            {
+                var relativePath = op.Path ?? op.OldPath ?? string.Empty;
+                var fullPath = Path.Combine(_workspaceRoot, relativePath);
+
+                switch (op.Type)
+                {
+                    case MCPFileOperationType.Create:
+                        if (File.Exists(fullPath))
+                        {
+                            return new MCPFileOperationResult
+                            {
+                                Success = false,
+                                ErrorMessage = $"Cannot create file {op.Path}: already exists"
+                            };
+                        }
+
+                        var directory = Path.GetDirectoryName(fullPath);
+                        if (directory != null && !Directory.Exists(directory))
+                        {
+                            Directory.CreateDirectory(directory);
+                        }
+
+                        File.WriteAllText(fullPath, op.Content ?? string.Empty);
+                        filesModified.Add(op.Path!);
+
+                        _appliedChanges.Add(new AppliedChange
+                        {
+                            FilePath = op.Path!,
+                            Operation = FileOperation.Create,
+                            BackupContent = null
+                        });
+                        break;
+
+                    case MCPFileOperationType.Modify:
+                        if (!File.Exists(fullPath))
+                        {
+                            return new MCPFileOperationResult
+                            {
+                                Success = false,
+                                ErrorMessage = $"Cannot modify file {op.Path}: does not exist"
+                            };
+                        }
+
+                        var backupContent = File.ReadAllText(fullPath);
+                        ApplyLineChanges(fullPath, op.Changes!);
+                        filesModified.Add(op.Path!);
+
+                        _appliedChanges.Add(new AppliedChange
+                        {
+                            FilePath = op.Path!,
+                            Operation = FileOperation.Modify,
+                            BackupContent = backupContent
+                        });
+                        break;
+
+                    case MCPFileOperationType.Delete:
+                        if (File.Exists(fullPath))
+                        {
+                            var deleteBackup = File.ReadAllText(fullPath);
+                            File.Delete(fullPath);
+                            filesModified.Add(op.Path!);
+
+                            _appliedChanges.Add(new AppliedChange
+                            {
+                                FilePath = op.Path!,
+                                Operation = FileOperation.Delete,
+                                BackupContent = deleteBackup
+                            });
+                        }
+                        break;
+
+                    case MCPFileOperationType.Rename:
+                        var oldFullPath = Path.Combine(_workspaceRoot, op.OldPath!);
+                        var newFullPath = Path.Combine(_workspaceRoot, op.NewPath!);
+
+                        if (File.Exists(oldFullPath))
+                        {
+                            var newDirectory = Path.GetDirectoryName(newFullPath);
+                            if (newDirectory != null && !Directory.Exists(newDirectory))
+                            {
+                                Directory.CreateDirectory(newDirectory);
+                            }
+
+                            File.Move(oldFullPath, newFullPath);
+                            filesModified.Add(op.NewPath!);
+
+                            _appliedChanges.Add(new AppliedChange
+                            {
+                                FilePath = op.NewPath!,
+                                Operation = FileOperation.Create,
+                                BackupContent = null
+                            });
+                        }
+                        break;
+                }
+            }
+
+            return new MCPFileOperationResult
+            {
+                Success = true,
+                FilesModified = filesModified
+            };
+        }
+        catch (Exception ex)
+        {
+            Rollback();
+            return new MCPFileOperationResult
+            {
+                Success = false,
+                ErrorMessage = $"Error applying file operations: {ex.Message}"
+            };
+        }
+    }
+
+    /// <summary>
+    /// Applies line-based changes to a file.
+    /// </summary>
+    /// <param name="filePath">The full path to the file.</param>
+    /// <param name="changes">The list of line changes to apply.</param>
+    private void ApplyLineChanges(string filePath, List<MCPLineChange> changes)
+    {
+        var lines = File.ReadAllLines(filePath).ToList();
+
+        // Sort changes by line number (descending) to avoid index shifting issues
+        foreach (var change in changes.OrderByDescending(c => c.LineNumber))
+        {
+            var index = change.LineNumber - 1; // Convert to 0-indexed
+
+            if (index < 0 || index > lines.Count)
+            {
+                throw new InvalidOperationException($"Line {change.LineNumber} out of range (file has {lines.Count} lines)");
+            }
+
+            // Optional validation: check if old content matches
+            if (change.OldContent != null && index < lines.Count)
+            {
+                if (!lines[index].Trim().Equals(change.OldContent.Trim(), StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException(
+                        $"Line {change.LineNumber} validation failed. Expected '{change.OldContent}', found '{lines[index]}'");
+                }
+            }
+
+            // Apply the change
+            if (string.IsNullOrEmpty(change.NewContent))
+            {
+                // Empty new_content = delete line
+                if (index < lines.Count)
+                {
+                    lines.RemoveAt(index);
+                }
+            }
+            else if (index == lines.Count)
+            {
+                // Append new line at end
+                lines.Add(change.NewContent);
+            }
+            else
+            {
+                // Replace existing line
+                lines[index] = change.NewContent;
+            }
+        }
+
+        File.WriteAllLines(filePath, lines);
+    }
+
+    /// <summary>
     /// Disposes the workspace manager and cleans up resources.
     /// </summary>
     public void Dispose()

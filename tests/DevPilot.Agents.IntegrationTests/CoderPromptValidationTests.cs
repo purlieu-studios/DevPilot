@@ -247,8 +247,8 @@ public sealed class CoderPromptValidationTests
         // Assert - Sections appear in logical order
         var discoveryIndex = coderDefinition.SystemPrompt.IndexOf("MANDATORY FIRST STEP: DISCOVER PROJECT STRUCTURE", StringComparison.Ordinal);
         var responsibilitiesIndex = coderDefinition.SystemPrompt.IndexOf("## Responsibilities", StringComparison.Ordinal);
-        var selfCheckIndex = coderDefinition.SystemPrompt.IndexOf("SELF-CHECK BEFORE FINALIZING PATCH", StringComparison.Ordinal);
-        var outputFormatIndex = coderDefinition.SystemPrompt.IndexOf("## Output Format - Unified Diff", StringComparison.Ordinal);
+        var selfCheckIndex = coderDefinition.SystemPrompt.IndexOf("SELF-CHECK BEFORE FINALIZING", StringComparison.Ordinal);
+        var outputFormatIndex = coderDefinition.SystemPrompt.IndexOf("## Output Format - MCP File Operations", StringComparison.Ordinal);
 
         discoveryIndex.Should().BeGreaterThan(0, "Discovery section must exist");
         responsibilitiesIndex.Should().BeGreaterThan(discoveryIndex, "Responsibilities should come after discovery");
