@@ -533,6 +533,12 @@ public sealed class ClaudeCliClient
                                                 finalResult = evaluationElement.GetRawText(); // Extract just the evaluation object
                                                 break;
                                             }
+                                            // Check if this has a "file_operations" property (from finalize_file_operations)
+                                            if (resultDoc.RootElement.TryGetProperty("file_operations", out var fileOpsElement))
+                                            {
+                                                finalResult = textStr; // Return the full result including the wrapper
+                                                break;
+                                            }
                                         }
                                         catch (JsonException)
                                         {

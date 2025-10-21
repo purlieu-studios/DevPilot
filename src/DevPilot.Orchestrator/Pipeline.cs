@@ -182,28 +182,17 @@ public sealed class Pipeline
                 {
                     try
                     {
-                        // Check if Coder is using MCP tools or unified diff
-                        var coderConfigPath = Path.Combine(context.SourceRoot!, ".agents", "coder", "config.json");
-                        var usesMcp = File.Exists(coderConfigPath) &&
-                                     File.ReadAllText(coderConfigPath).Contains("mcp_config_path");
+                        // Try parsing as MCP file operations first
+                        var fileOpsResult = ParseAndApplyFileOperations(agentResult.Output);
 
-                        if (usesMcp)
+                        if (fileOpsResult.Success)
                         {
-                            // Parse MCP file operations from agent output
-                            var fileOpsResult = ParseAndApplyFileOperations(agentResult.Output);
-                            if (!fileOpsResult.Success)
-                            {
-                                var errorMsg = $"Failed to apply file operations: {fileOpsResult.ErrorMessage}";
-                                context.AdvanceToStage(PipelineStage.Failed, errorMsg);
-                                stopwatch.Stop();
-                                return PipelineResult.CreateFailure(context, stopwatch.Elapsed, errorMsg);
-                            }
-
+                            // MCP parsing succeeded - use the file operations
                             context.SetAppliedFiles(fileOpsResult.FilesModified);
                         }
                         else
                         {
-                            // Fallback: Use unified diff patch (backward compatibility)
+                            // MCP parsing failed - fall back to unified diff patch (backward compatibility)
                             var patchResult = _workspace.ApplyPatch(agentResult.Output);
                             if (!patchResult.Success)
                             {
@@ -621,17 +610,14 @@ public sealed class Pipeline
     }
 
     /// <summary>
-    /// Builds the input for the coder agent with explicit instruction to generate unified diff.
+    /// Builds the input for the coder agent with the plan to implement using MCP file operation tools.
     /// </summary>
     /// <param name="context">The pipeline context.</param>
-    /// <returns>The coder input with plan and clear instruction.</returns>
+    /// <returns>The coder input with plan.</returns>
     private static string BuildCoderInput(PipelineContext context)
     {
         return $"""
-            Implement the following plan by generating a unified diff patch.
-
-            Output ONLY the unified diff in git format. Do NOT include explanations, analysis, or conversation.
-            Start your response with "diff --git" and nothing else.
+            Implement the following plan using MCP file operation tools.
 
             Plan:
             {context.Plan ?? string.Empty}
