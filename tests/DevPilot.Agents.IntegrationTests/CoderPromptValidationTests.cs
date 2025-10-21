@@ -76,10 +76,10 @@ public sealed class CoderPromptValidationTests
         var coderDefinition = await loader.LoadAgentAsync("coder", TestContext.Current.CancellationToken);
 
         // Assert - Clear guidance on create vs modify
-        coderDefinition.SystemPrompt.Should().Contain("ONLY use when the plan says \"Create\"",
+        coderDefinition.SystemPrompt.Should().Contain("ONLY use when the plan says \"Create\" or you're creating a wholly new file",
             "Must explain when to use create_file");
 
-        coderDefinition.SystemPrompt.Should().Contain("Use when the plan says \"Add\", \"Update\", or \"Fix\"",
+        coderDefinition.SystemPrompt.Should().Contain("Use when the plan says \"Add\", \"Update\", \"Fix\", or you're modifying existing code",
             "Must explain when to use modify_file");
 
         coderDefinition.SystemPrompt.Should().Contain("Read the plan carefully to understand which files are new vs existing",
