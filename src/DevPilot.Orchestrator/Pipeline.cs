@@ -1428,8 +1428,24 @@ public sealed class Pipeline
             // Parse finalize_file_operations result from MCP output
             var json = JsonDocument.Parse(mcpOutput);
 
-            if (!json.RootElement.TryGetProperty("file_operations", out var fileOpsElement))
+            // Handle MCP tool response format: { "success": true, "file_operations": {...} }
+            // vs direct format: { "file_operations": {...} }
+            JsonElement fileOpsElement;
+            if (json.RootElement.TryGetProperty("success", out var successProp))
             {
+                // MCP tool response wrapper - extract file_operations from nested level
+                if (!json.RootElement.TryGetProperty("file_operations", out fileOpsElement))
+                {
+                    return new MCPFileOperationResult
+                    {
+                        Success = false,
+                        ErrorMessage = "MCP tool response missing 'file_operations' property"
+                    };
+                }
+            }
+            else if (!json.RootElement.TryGetProperty("file_operations", out fileOpsElement))
+            {
+                // Direct format - file_operations at root level
                 return new MCPFileOperationResult
                 {
                     Success = false,
