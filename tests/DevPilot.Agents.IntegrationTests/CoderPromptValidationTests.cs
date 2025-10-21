@@ -154,7 +154,10 @@ public sealed class CoderPromptValidationTests
         coderDefinition.SystemPrompt.Should().Contain("### Example 2: Modify Existing File",
             "Must have modify_file example");
 
-        coderDefinition.SystemPrompt.Should().Contain("### Example 3: Finalize (REQUIRED)",
+        coderDefinition.SystemPrompt.Should().Contain("### Example 3: Modify Existing Method",
+            "Must have modify existing method example");
+
+        coderDefinition.SystemPrompt.Should().Contain("### Example 4: Finalize (REQUIRED)",
             "Must have finalize example");
     }
 
