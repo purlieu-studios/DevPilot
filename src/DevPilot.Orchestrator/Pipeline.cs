@@ -1,8 +1,11 @@
 using DevPilot.Core;
+using DevPilot.Orchestrator.CodeAnalysis;
+using DevPilot.Orchestrator.State;
 using DevPilot.Orchestrator.Validation;
 using DevPilot.RAG;
 using Spectre.Console;
 using System.Diagnostics;
+using System.Text;
 using System.Text.Json;
 
 namespace DevPilot.Orchestrator;
@@ -16,6 +19,8 @@ public sealed class Pipeline
     private readonly IReadOnlyDictionary<PipelineStage, IAgent> _agents;
     private readonly WorkspaceManager _workspace;
     private readonly IRagService? _ragService;
+    private readonly StateManager _stateManager;
+    private readonly CodeAnalyzer _codeAnalyzer;
     private readonly string _sourceRoot;
     private readonly bool _preserveWorkspace;
 
@@ -26,12 +31,14 @@ public sealed class Pipeline
     /// <param name="workspace">The workspace manager for this pipeline execution.</param>
     /// <param name="sourceRoot">The source repository root directory (where DevPilot was executed from).</param>
     /// <param name="ragService">Optional RAG service for context retrieval (null to disable RAG).</param>
+    /// <param name="stateManager">Optional state manager for persisting pipeline state (null to disable state persistence).</param>
     /// <param name="preserveWorkspace">If true, preserves workspace on failure for debugging (default: false).</param>
     public Pipeline(
         IReadOnlyDictionary<PipelineStage, IAgent> agents,
         WorkspaceManager workspace,
         string sourceRoot,
         IRagService? ragService = null,
+        StateManager? stateManager = null,
         bool preserveWorkspace = false)
     {
         ArgumentNullException.ThrowIfNull(agents);
@@ -43,6 +50,8 @@ public sealed class Pipeline
         _workspace = workspace;
         _sourceRoot = sourceRoot;
         _ragService = ragService;
+        _stateManager = stateManager ?? new StateManager(sourceRoot);
+        _codeAnalyzer = new CodeAnalyzer();
         _preserveWorkspace = preserveWorkspace;
     }
 
@@ -176,6 +185,9 @@ public sealed class Pipeline
                 }
 
                 context.AdvanceToStage(stage, agentResult.Output);
+
+                // Save pipeline state after each stage completes
+                await SavePipelineStateAsync(context, null, PipelineStatus.Running, cancellationToken);
 
                 // Apply patch to workspace after Coding stage
                 if (stage == PipelineStage.Coding)
@@ -436,10 +448,14 @@ public sealed class Pipeline
 
                     if (context.ApprovalRequired)
                     {
-                        return PipelineResult.CreateAwaitingApproval(context, stopwatch.Elapsed);
+                        var awaitingResult = PipelineResult.CreateAwaitingApproval(context, stopwatch.Elapsed);
+                        await SavePipelineStateAsync(context, awaitingResult, PipelineStatus.AwaitingApproval, cancellationToken);
+                        return awaitingResult;
                     }
 
-                    return PipelineResult.CreateFailure(context, stopwatch.Elapsed, "Pipeline stopped unexpectedly");
+                    var failureResult = PipelineResult.CreateFailure(context, stopwatch.Elapsed, "Pipeline stopped unexpectedly");
+                    await SavePipelineStateAsync(context, failureResult, PipelineStatus.Failed, cancellationToken);
+                    return failureResult;
                 }
             }
 
@@ -453,11 +469,15 @@ public sealed class Pipeline
             {
                 var warningMsg = $"{context.TestFailureCount} test(s) failed";
                 success = true; // Preserve workspace on success (even with warnings)
-                return PipelineResult.CreatePassedWithWarnings(context, stopwatch.Elapsed, warningMsg);
+                var warningResult = PipelineResult.CreatePassedWithWarnings(context, stopwatch.Elapsed, warningMsg);
+                await SavePipelineStateAsync(context, warningResult, PipelineStatus.Completed, cancellationToken);
+                return warningResult;
             }
 
             success = true; // Preserve workspace on success
-            return PipelineResult.CreateSuccess(context, stopwatch.Elapsed);
+            var successResult = PipelineResult.CreateSuccess(context, stopwatch.Elapsed);
+            await SavePipelineStateAsync(context, successResult, PipelineStatus.Completed, cancellationToken);
+            return successResult;
         }
         catch (OperationCanceledException)
         {
@@ -538,13 +558,13 @@ public sealed class Pipeline
     /// <param name="stage">The stage to build input for.</param>
     /// <param name="context">The pipeline context.</param>
     /// <returns>The input string for the stage.</returns>
-    private static string BuildStageInput(PipelineStage stage, PipelineContext context)
+    private string BuildStageInput(PipelineStage stage, PipelineContext context)
     {
         var baseInput = stage switch
         {
             PipelineStage.Planning => context.UserRequest,
             PipelineStage.Coding => BuildCoderInput(context),
-            PipelineStage.Reviewing => context.Patch ?? string.Empty,
+            PipelineStage.Reviewing => BuildReviewerInput(context),
             PipelineStage.Testing => BuildTesterInput(context),
             PipelineStage.Evaluating => BuildEvaluatorInput(context),
             _ => string.Empty
@@ -622,6 +642,69 @@ public sealed class Pipeline
             Plan:
             {context.Plan ?? string.Empty}
             """;
+    }
+
+    /// <summary>
+    /// Builds the input for the reviewer agent, enriched with Roslyn analyzer diagnostics.
+    /// </summary>
+    /// <param name="context">The pipeline context.</param>
+    /// <returns>The reviewer input with diagnostics and patch.</returns>
+    private string BuildReviewerInput(PipelineContext context)
+    {
+        var patch = context.Patch ?? string.Empty;
+
+        // Run Roslyn analysis on modified files if available
+        if (context.AppliedFiles != null && context.AppliedFiles.Count > 0 && _workspace.WorkspaceRoot != null)
+        {
+            try
+            {
+                var analysisResult = _codeAnalyzer.AnalyzeWorkspaceAsync(
+                    _workspace.WorkspaceRoot,
+                    context.AppliedFiles,
+                    CancellationToken.None).GetAwaiter().GetResult();
+
+                if (analysisResult.TotalCount > 0)
+                {
+                    // Prepend diagnostics to patch
+                    return FormatAnalysisForReviewer(analysisResult) + "\n\n" + patch;
+                }
+            }
+            catch (Exception ex)
+            {
+                // Analysis failed - just return patch without diagnostics
+                System.Console.Error.WriteLine($"Roslyn analysis failed: {ex.Message}");
+            }
+        }
+
+        return patch;
+    }
+
+    /// <summary>
+    /// Formats Roslyn analysis results for the Reviewer agent.
+    /// </summary>
+    /// <param name="analysis">The analysis results.</param>
+    /// <returns>Formatted diagnostics string.</returns>
+    private static string FormatAnalysisForReviewer(AnalysisResult analysis)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("## Roslyn Analyzer Diagnostics\n");
+
+        var counts = analysis.GetCountsBySeverity();
+        foreach (var (severity, count) in counts.OrderByDescending(x => (int)x.Key))
+        {
+            sb.AppendLine($"### {severity} ({count}):\n");
+
+            foreach (var diagnostic in analysis.Diagnostics.Where(d => d.Severity == severity))
+            {
+                sb.AppendLine($"- {diagnostic.FilePath}:{diagnostic.LineNumber} [{diagnostic.RuleId}]: {diagnostic.Message}");
+            }
+            sb.AppendLine();
+        }
+
+        sb.AppendLine("---\n");
+        sb.AppendLine("## Unified Diff Patch\n");
+
+        return sb.ToString();
     }
 
     /// <summary>
@@ -921,6 +1004,31 @@ public sealed class Pipeline
 
             Now generate the fix patch (ONLY the patch, no other text):
             """;
+    }
+
+    /// <summary>
+    /// Saves the current pipeline state for resume/approve/reject workflows.
+    /// </summary>
+    /// <param name="context">The pipeline context.</param>
+    /// <param name="result">The pipeline result (if available).</param>
+    /// <param name="status">The pipeline status.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    private async Task SavePipelineStateAsync(
+        PipelineContext context,
+        PipelineResult? result,
+        PipelineStatus status,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var state = PipelineState.FromContext(context, result, status);
+            await _stateManager.SaveStateAsync(state, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            // Don't fail the pipeline if state saving fails - just log
+            AnsiConsole.MarkupLine($"[yellow]⚠[/] [dim]Failed to save pipeline state: {ex.Message}[/]");
+        }
     }
 
     /// <summary>
