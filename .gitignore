@@ -403,3 +403,5 @@ src/DevPilot.Core/Calculator.cs
 src/DevPilot.Core/StringHelper.cs
 tests/DevPilot.Agents.Tests/CalculatorTests.cs
 tests/DevPilot.Agents.Tests/StringHelperTests.cs
+# Session diffs (local tracking only)
+diffs/
