@@ -339,4 +339,48 @@ public sealed class SessionManager
                 s.Activities.Any(a => a.Description.Contains(keywordLower, StringComparison.OrdinalIgnoreCase)))
             .ToList();
     }
+
+    /// <summary>
+    /// Deletes session files older than the specified number of days.
+    /// </summary>
+    /// <param name="keepDays">Number of days to keep sessions for (default: 30).</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The number of sessions deleted.</returns>
+    public async Task<int> CleanupOldSessionsAsync(int keepDays = 30, CancellationToken cancellationToken = default)
+    {
+        if (keepDays < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(keepDays), "Keep days cannot be negative.");
+        }
+
+        if (!Directory.Exists(_sessionsDirectory))
+        {
+            return 0;
+        }
+
+        var cutoffDate = DateTime.UtcNow.AddDays(-keepDays);
+        var sessionFiles = Directory.GetFiles(_sessionsDirectory, "*.json");
+        var deletedCount = 0;
+
+        foreach (var filePath in sessionFiles)
+        {
+            try
+            {
+                var json = await File.ReadAllTextAsync(filePath, cancellationToken);
+                var session = JsonSerializer.Deserialize<SessionMemory>(json, _jsonOptions);
+
+                if (session != null && session.StartTime < cutoffDate)
+                {
+                    File.Delete(filePath);
+                    deletedCount++;
+                }
+            }
+            catch (JsonException)
+            {
+                // Skip corrupted files
+            }
+        }
+
+        return deletedCount;
+    }
 }

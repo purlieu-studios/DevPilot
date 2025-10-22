@@ -149,6 +149,46 @@ public sealed class Pipeline
                 }
             }
 
+            // Load previous session context if available
+            if (_sessionManager != null)
+            {
+                try
+                {
+                    var lastSession = await _sessionManager.LoadLastSessionAsync(cancellationToken);
+                    if (lastSession != null && lastSession.Activities.Any())
+                    {
+                        var formattedSessionContext = FormatSessionContext(lastSession);
+                        context.SetSessionContext(formattedSessionContext);
+
+                        // Display session info for observability
+                        var lastActivity = lastSession.Activities
+                            .Where(a => a.Type == ActivityType.PipelineExecution)
+                            .OrderByDescending(a => a.Timestamp)
+                            .FirstOrDefault();
+
+                        if (lastActivity != null)
+                        {
+                            var timeAgo = DateTime.UtcNow - lastActivity.Timestamp;
+                            var timeAgoStr = timeAgo.TotalHours < 1
+                                ? $"{timeAgo.TotalMinutes:F0}m ago"
+                                : $"{timeAgo.TotalHours:F1}h ago";
+
+                            var scoreDisplay = lastActivity.Metadata.TryGetValue("qualityScore", out var scoreStr)
+                                ? $" ({scoreStr}/10)"
+                                : "";
+
+                            AnsiConsole.MarkupLine($"[cyan]📜 Previous session loaded:[/] {lastActivity.Description}{scoreDisplay} - {timeAgoStr}");
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // Session loading failed - continue without session context
+                    AnsiConsole.MarkupLine("[yellow]⚠ Failed to load session context:[/] {0}", ex.Message);
+                    AnsiConsole.MarkupLine("[dim]Pipeline continuing without session context[/]");
+                }
+            }
+
             // Execute all stages sequentially
             var stages = new[]
             {
@@ -598,6 +638,12 @@ public sealed class Pipeline
             contextParts.Add(context.RAGContext);
         }
 
+        // Prepend session context from previous runs (if available)
+        if (!string.IsNullOrWhiteSpace(context.SessionContext) && ShouldIncludeSessionContext(stage))
+        {
+            contextParts.Add(context.SessionContext);
+        }
+
         // Combine all context parts with the base input
         if (contextParts.Count > 0)
         {
@@ -641,6 +687,78 @@ public sealed class Pipeline
             or PipelineStage.Reviewing
             or PipelineStage.Testing
             or PipelineStage.Evaluating;
+    }
+
+    /// <summary>
+    /// Determines if a pipeline stage should receive session context from previous runs.
+    /// </summary>
+    /// <param name="stage">The pipeline stage.</param>
+    /// <returns>True if session context should be included; otherwise, false.</returns>
+    private static bool ShouldIncludeSessionContext(PipelineStage stage)
+    {
+        // Session context provides historical continuity for:
+        // - Planning: Previous requests/decisions inform new work
+        // - Reviewing: Historical quality scores guide expectations
+        // - Evaluating: Compare current vs historical scores
+        //
+        // Coding and Testing stages don't benefit from session history:
+        // - Coder implements current plan (no need for past context)
+        // - Tester executes tests (deterministic, no historical context needed)
+        return stage is PipelineStage.Planning
+            or PipelineStage.Reviewing
+            or PipelineStage.Evaluating;
+    }
+
+    /// <summary>
+    /// Formats session memory into markdown context for agent prompts.
+    /// </summary>
+    /// <param name="session">The session to format.</param>
+    /// <returns>Formatted session context as markdown.</returns>
+    private static string FormatSessionContext(SessionMemory session)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("## Previous Session Context");
+        sb.AppendLine();
+        sb.AppendLine($"Session from {session.StartTime:yyyy-MM-dd HH:mm} UTC ({session.Duration.TotalHours:F1}h duration)");
+
+        if (!string.IsNullOrWhiteSpace(session.Summary))
+        {
+            sb.AppendLine($"**Summary**: {session.Summary}");
+        }
+
+        sb.AppendLine();
+        sb.AppendLine($"**Recent Activities ({session.Activities.Count} total)**:");
+        sb.AppendLine();
+
+        // Show last 5 activities (most recent first)
+        var recentActivities = session.Activities
+            .OrderByDescending(a => a.Timestamp)
+            .Take(5)
+            .ToList();
+
+        foreach (var activity in recentActivities)
+        {
+            var timeAgo = DateTime.UtcNow - activity.Timestamp;
+            var timeAgoStr = timeAgo.TotalHours < 1
+                ? $"{timeAgo.TotalMinutes:F0}m ago"
+                : $"{timeAgo.TotalHours:F1}h ago";
+
+            sb.AppendLine($"- **{activity.Type}** ({timeAgoStr}): {activity.Description}");
+
+            // Include quality score for pipeline executions
+            if (activity.Type == ActivityType.PipelineExecution && activity.Metadata.TryGetValue("qualityScore", out var scoreStr))
+            {
+                sb.AppendLine($"  - Quality Score: {scoreStr}/10");
+            }
+        }
+
+        sb.AppendLine();
+        sb.AppendLine($"**Session Statistics**: {session.PipelineCount} pipelines, {session.CommitCount} commits");
+        sb.AppendLine();
+
+        return sb.ToString();
     }
 
     /// <summary>
