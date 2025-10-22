@@ -758,6 +758,388 @@ new file mode 100644
         File.Exists(Path.Combine(workspace.WorkspaceRoot, "src", "App.cs")).Should().BeTrue();
     }
 
+    #region AnalyzeProjectStructure Tests
+
+    [Fact]
+    public void AnalyzeProjectStructure_DetectsMainProject()
+    {
+        // Arrange
+        var pipelineId = Guid.NewGuid().ToString();
+        using var workspace = WorkspaceManager.CreateWorkspace(pipelineId, _testBaseDirectory);
+        _workspacesToCleanup.Add(workspace.WorkspaceRoot);
+
+        // Create main project directly in workspace
+        var mainProjectDir = Path.Combine(workspace.WorkspaceRoot, "MyApp");
+        Directory.CreateDirectory(mainProjectDir);
+        File.WriteAllText(Path.Combine(mainProjectDir, "MyApp.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup></Project>");
+
+        // Act
+        var structure = workspace.AnalyzeProjectStructure();
+
+        // Assert
+        structure.Should().NotBeNull();
+        structure.MainProject.Should().Be("MyApp/");
+        structure.TestProjects.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void AnalyzeProjectStructure_DetectsTestProjects_ByNamingConvention()
+    {
+        // Arrange
+        var pipelineId = Guid.NewGuid().ToString();
+        using var workspace = WorkspaceManager.CreateWorkspace(pipelineId, _testBaseDirectory);
+        _workspacesToCleanup.Add(workspace.WorkspaceRoot);
+
+        // Create main and test projects directly in workspace
+        var mainProjectDir = Path.Combine(workspace.WorkspaceRoot, "Calculator");
+        Directory.CreateDirectory(mainProjectDir);
+        File.WriteAllText(Path.Combine(mainProjectDir, "Calculator.csproj"),
+            "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup></Project>");
+
+        var testProjectDir = Path.Combine(workspace.WorkspaceRoot, "Calculator.Tests");
+        Directory.CreateDirectory(testProjectDir);
+        File.WriteAllText(Path.Combine(testProjectDir, "Calculator.Tests.csproj"),
+            "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup></Project>");
+
+        // Act
+        var structure = workspace.AnalyzeProjectStructure();
+
+        // Assert
+        structure.MainProject.Should().Be("Calculator/");
+        structure.TestProjects.Should().ContainSingle().Which.Should().Be("Calculator.Tests/");
+    }
+
+    [Fact]
+    public void AnalyzeProjectStructure_DetectsMultipleTestProjects()
+    {
+        // Arrange
+        var pipelineId = Guid.NewGuid().ToString();
+        using var workspace = WorkspaceManager.CreateWorkspace(pipelineId, _testBaseDirectory);
+        _workspacesToCleanup.Add(workspace.WorkspaceRoot);
+
+        // Create main and multiple test projects directly in workspace
+        var mainProjectDir = Path.Combine(workspace.WorkspaceRoot, "Core");
+        Directory.CreateDirectory(mainProjectDir);
+        File.WriteAllText(Path.Combine(mainProjectDir, "Core.csproj"),
+            "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup></Project>");
+
+        var unitTestDir = Path.Combine(workspace.WorkspaceRoot, "Core.UnitTests");
+        Directory.CreateDirectory(unitTestDir);
+        File.WriteAllText(Path.Combine(unitTestDir, "Core.UnitTests.csproj"),
+            "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup><ItemGroup><PackageReference Include=\"xunit\" /></ItemGroup></Project>");
+
+        var integrationTestDir = Path.Combine(workspace.WorkspaceRoot, "Core.IntegrationTests");
+        Directory.CreateDirectory(integrationTestDir);
+        File.WriteAllText(Path.Combine(integrationTestDir, "Core.IntegrationTests.csproj"),
+            "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup><ItemGroup><PackageReference Include=\"xunit\" /></ItemGroup></Project>");
+
+        // Act
+        var structure = workspace.AnalyzeProjectStructure();
+
+        // Assert
+        structure.MainProject.Should().Be("Core/");
+        structure.TestProjects.Should().HaveCount(2);
+        structure.TestProjects.Should().Contain("Core.UnitTests/");
+        structure.TestProjects.Should().Contain("Core.IntegrationTests/");
+    }
+
+    [Fact]
+    public void AnalyzeProjectStructure_DetectsDocsDirectory()
+    {
+        // Arrange
+        var pipelineId = Guid.NewGuid().ToString();
+        using var workspace = WorkspaceManager.CreateWorkspace(pipelineId, _testBaseDirectory);
+        _workspacesToCleanup.Add(workspace.WorkspaceRoot);
+
+        // Create docs directory directly in workspace
+        var docsDir = Path.Combine(workspace.WorkspaceRoot, "docs");
+        Directory.CreateDirectory(docsDir);
+        File.WriteAllText(Path.Combine(docsDir, "README.md"), "# Documentation");
+
+        // Act
+        var structure = workspace.AnalyzeProjectStructure();
+
+        // Assert
+        structure.HasDocs.Should().BeTrue();
+    }
+
+    [Fact]
+    public void AnalyzeProjectStructure_DetectsClaudeMd()
+    {
+        // Arrange
+        var pipelineId = Guid.NewGuid().ToString();
+        using var workspace = WorkspaceManager.CreateWorkspace(pipelineId, _testBaseDirectory);
+        _workspacesToCleanup.Add(workspace.WorkspaceRoot);
+
+        // Create CLAUDE.md directly in workspace
+        File.WriteAllText(Path.Combine(workspace.WorkspaceRoot, "CLAUDE.md"), "# Project instructions");
+
+        // Act
+        var structure = workspace.AnalyzeProjectStructure();
+
+        // Assert
+        structure.HasClaudeMd.Should().BeTrue();
+    }
+
+    #endregion
+
+    #region GenerateFileDiff Tests
+
+    [Fact]
+    public void GenerateFileDiff_ReturnsNull_WhenFileDoesNotExist()
+    {
+        // Arrange
+        var pipelineId = Guid.NewGuid().ToString();
+        using var workspace = WorkspaceManager.CreateWorkspace(pipelineId, _testBaseDirectory);
+        _workspacesToCleanup.Add(workspace.WorkspaceRoot);
+
+        // Act
+        var diff = workspace.GenerateFileDiff("NonExistent.cs");
+
+        // Assert
+        diff.Should().BeNull();
+    }
+
+    [Fact]
+    public void GenerateFileDiff_ReturnsUnifiedDiff_ForNewFile()
+    {
+        // Arrange
+        var pipelineId = Guid.NewGuid().ToString();
+        using var workspace = WorkspaceManager.CreateWorkspace(pipelineId, _testBaseDirectory);
+        _workspacesToCleanup.Add(workspace.WorkspaceRoot);
+
+        // Create sourceRoot directory (without the new file)
+        var sourceDir = Path.Combine(_testBaseDirectory, "DiffSource");
+        Directory.CreateDirectory(sourceDir);
+
+        // Create new file in workspace
+        var filePath = Path.Combine(workspace.WorkspaceRoot, "NewFile.cs");
+        File.WriteAllText(filePath, "public class NewClass\n{\n    // New code\n}\n");
+
+        // Act
+        var diff = workspace.GenerateFileDiff("NewFile.cs", sourceDir);
+
+        // Assert
+        diff.Should().NotBeNull();
+        diff.Should().Contain("--- /dev/null");
+        diff.Should().Contain("+++ b/NewFile.cs");
+        diff.Should().Contain("+public class NewClass");
+    }
+
+    [Fact]
+    public void GenerateFileDiff_ReturnsUnifiedDiff_ForModifiedFile()
+    {
+        // Arrange
+        var sourceDir = Path.Combine(_testBaseDirectory, "DiffTest");
+        Directory.CreateDirectory(sourceDir);
+        var originalFilePath = Path.Combine(sourceDir, "Calculator.cs");
+        File.WriteAllText(originalFilePath, "public class Calculator\n{\n    // Original code\n}\n");
+
+        var pipelineId = Guid.NewGuid().ToString();
+        using var workspace = WorkspaceManager.CreateWorkspace(pipelineId, _testBaseDirectory);
+        _workspacesToCleanup.Add(workspace.WorkspaceRoot);
+
+        // Copy original file to workspace
+        var workspaceFilePath = Path.Combine(workspace.WorkspaceRoot, "Calculator.cs");
+        File.Copy(originalFilePath, workspaceFilePath);
+
+        // Modify the file in workspace
+        File.WriteAllText(workspaceFilePath, "public class Calculator\n{\n    // Modified code\n}\n");
+
+        // Act
+        var diff = workspace.GenerateFileDiff("Calculator.cs", sourceDir);
+
+        // Assert
+        diff.Should().NotBeNull();
+        diff.Should().Contain("--- a/Calculator.cs");
+        diff.Should().Contain("+++ b/Calculator.cs");
+        diff.Should().Contain("// Original code"); // Verify content change is detected
+    }
+
+    #endregion
+
+    #region CopyClaudeMd Tests
+
+    [Fact]
+    public void CopyClaudeMd_CopiesFile_WhenExists()
+    {
+        // Arrange
+        var sourceDir = Path.Combine(_testBaseDirectory, "ClaudeMdTest");
+        Directory.CreateDirectory(sourceDir);
+        var claudeMdPath = Path.Combine(sourceDir, "CLAUDE.md");
+        File.WriteAllText(claudeMdPath, "# Project Instructions\n\nFollow these rules...");
+
+        var pipelineId = Guid.NewGuid().ToString();
+        using var workspace = WorkspaceManager.CreateWorkspace(pipelineId, _testBaseDirectory);
+        _workspacesToCleanup.Add(workspace.WorkspaceRoot);
+
+        // Act
+        workspace.CopyClaudeMd(sourceDir);
+
+        // Assert
+        var targetPath = Path.Combine(workspace.WorkspaceRoot, "CLAUDE.md");
+        File.Exists(targetPath).Should().BeTrue();
+        File.ReadAllText(targetPath).Should().Contain("Follow these rules");
+    }
+
+    [Fact]
+    public void CopyClaudeMd_DoesNotThrow_WhenFileDoesNotExist()
+    {
+        // Arrange
+        var sourceDir = Path.Combine(_testBaseDirectory, "NoClaudeMd");
+        Directory.CreateDirectory(sourceDir);
+
+        var pipelineId = Guid.NewGuid().ToString();
+        using var workspace = WorkspaceManager.CreateWorkspace(pipelineId, _testBaseDirectory);
+        _workspacesToCleanup.Add(workspace.WorkspaceRoot);
+
+        // Act
+        var act = () => workspace.CopyClaudeMd(sourceDir);
+
+        // Assert
+        act.Should().NotThrow();
+        File.Exists(Path.Combine(workspace.WorkspaceRoot, "CLAUDE.md")).Should().BeFalse();
+    }
+
+    #endregion
+
+    #region ApplyFileOperations (MCP) Tests
+
+    [Fact]
+    public void ApplyFileOperations_CreatesNewFile_WithCreateOperation()
+    {
+        // Arrange
+        var pipelineId = Guid.NewGuid().ToString();
+        using var workspace = WorkspaceManager.CreateWorkspace(pipelineId, _testBaseDirectory);
+        _workspacesToCleanup.Add(workspace.WorkspaceRoot);
+
+        var operations = new List<DevPilot.Core.MCPFileOperation>
+        {
+            new DevPilot.Core.MCPFileOperation
+            {
+                Type = DevPilot.Core.MCPFileOperationType.Create,
+                Path = "NewClass.cs",
+                Content = "public class NewClass { }"
+            }
+        };
+
+        // Act
+        var result = workspace.ApplyFileOperations(operations);
+
+        // Assert
+        result.Success.Should().BeTrue();
+        result.FilesModified.Should().ContainSingle().Which.Should().Be("NewClass.cs");
+        File.Exists(Path.Combine(workspace.WorkspaceRoot, "NewClass.cs")).Should().BeTrue();
+    }
+
+    [Fact]
+    public void ApplyFileOperations_ModifiesExistingFile_WithModifyOperation()
+    {
+        // Arrange
+        var pipelineId = Guid.NewGuid().ToString();
+        using var workspace = WorkspaceManager.CreateWorkspace(pipelineId, _testBaseDirectory);
+        _workspacesToCleanup.Add(workspace.WorkspaceRoot);
+
+        var filePath = Path.Combine(workspace.WorkspaceRoot, "Existing.cs");
+        File.WriteAllText(filePath, "Line 1\nLine 2\nLine 3\n");
+
+        var operations = new List<DevPilot.Core.MCPFileOperation>
+        {
+            new DevPilot.Core.MCPFileOperation
+            {
+                Type = DevPilot.Core.MCPFileOperationType.Modify,
+                Path = "Existing.cs",
+                Changes = new List<DevPilot.Core.MCPLineChange>
+                {
+                    new DevPilot.Core.MCPLineChange
+                    {
+                        LineNumber = 2,
+                        NewContent = "Modified Line 2",
+                        LinesToReplace = 1
+                    }
+                }
+            }
+        };
+
+        // Act
+        var result = workspace.ApplyFileOperations(operations);
+
+        // Assert
+        result.Success.Should().BeTrue();
+        var content = File.ReadAllText(filePath);
+        content.Should().Contain("Modified Line 2");
+    }
+
+    [Fact]
+    public void ApplyFileOperations_HandlesMultipleOperations()
+    {
+        // Arrange
+        var pipelineId = Guid.NewGuid().ToString();
+        using var workspace = WorkspaceManager.CreateWorkspace(pipelineId, _testBaseDirectory);
+        _workspacesToCleanup.Add(workspace.WorkspaceRoot);
+
+        var operations = new List<DevPilot.Core.MCPFileOperation>
+        {
+            new DevPilot.Core.MCPFileOperation
+            {
+                Type = DevPilot.Core.MCPFileOperationType.Create,
+                Path = "Class1.cs",
+                Content = "public class Class1 { }"
+            },
+            new DevPilot.Core.MCPFileOperation
+            {
+                Type = DevPilot.Core.MCPFileOperationType.Create,
+                Path = "Class2.cs",
+                Content = "public class Class2 { }"
+            }
+        };
+
+        // Act
+        var result = workspace.ApplyFileOperations(operations);
+
+        // Assert
+        result.Success.Should().BeTrue();
+        result.FilesModified.Should().HaveCount(2);
+        File.Exists(Path.Combine(workspace.WorkspaceRoot, "Class1.cs")).Should().BeTrue();
+        File.Exists(Path.Combine(workspace.WorkspaceRoot, "Class2.cs")).Should().BeTrue();
+    }
+
+    [Fact]
+    public void ApplyFileOperations_FailsGracefully_WhenModifyingNonExistentFile()
+    {
+        // Arrange
+        var pipelineId = Guid.NewGuid().ToString();
+        using var workspace = WorkspaceManager.CreateWorkspace(pipelineId, _testBaseDirectory);
+        _workspacesToCleanup.Add(workspace.WorkspaceRoot);
+
+        var operations = new List<DevPilot.Core.MCPFileOperation>
+        {
+            new DevPilot.Core.MCPFileOperation
+            {
+                Type = DevPilot.Core.MCPFileOperationType.Modify,
+                Path = "NonExistent.cs",
+                Changes = new List<DevPilot.Core.MCPLineChange>
+                {
+                    new DevPilot.Core.MCPLineChange
+                    {
+                        LineNumber = 1,
+                        NewContent = "Modified"
+                    }
+                }
+            }
+        };
+
+        // Act
+        var result = workspace.ApplyFileOperations(operations);
+
+        // Assert
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().NotBeNullOrEmpty();
+        result.ErrorMessage.Should().Contain("does not exist");
+    }
+
+    #endregion
+
     public void Dispose()
     {
         // Clean up all test workspaces
