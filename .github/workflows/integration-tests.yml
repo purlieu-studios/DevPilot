@@ -8,12 +8,6 @@ on:
   # Allow manual trigger
   workflow_dispatch:
 
-  # Run on PRs that modify integration test files (optional)
-  pull_request:
-    paths:
-      - 'tests/DevPilot.Agents.IntegrationTests/**'
-      - 'src/DevPilot.Agents/ClaudeCliClient.cs'
-
 jobs:
   integration-tests:
     runs-on: windows-latest
