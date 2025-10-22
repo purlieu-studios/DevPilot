@@ -64,3 +64,38 @@ jobs:
       - name: Verify build succeeded
         run: |
           echo "Build completed successfully in Release mode"
+
+  regression-tests:
+    name: Regression Tests
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+          dotnet-quality: 'preview'
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build solution
+        run: dotnet build --no-restore --configuration Release
+
+      - name: Run Roslyn smoke tests
+        run: dotnet test tests/DevPilot.Orchestrator.Tests --no-build --configuration Release --filter "FullyQualifiedName~RoslynSmokeTests" --logger "trx;LogFileName=roslyn-smoke-results.trx" --verbosity normal
+
+      - name: Run CodeAnalyzer integration tests
+        run: dotnet test tests/DevPilot.Orchestrator.Tests --no-build --configuration Release --filter "FullyQualifiedName~CodeAnalyzerIntegrationTests" --logger "trx;LogFileName=codeanalyzer-integration-results.trx" --verbosity normal
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: regression-test-results
+          path: '**/*-results.trx'
