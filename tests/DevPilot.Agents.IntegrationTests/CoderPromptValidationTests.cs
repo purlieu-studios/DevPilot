@@ -23,7 +23,7 @@ public sealed class CoderPromptValidationTests
     {
         // Arrange
         var loader = new AgentLoader(Path.GetDirectoryName(CoderAgentPath)!);
-        var coderDefinition = await loader.LoadAgentAsync("coder", TestContext.Current.CancellationToken);
+        var coderDefinition = await loader.LoadAgentAsync("coder", CancellationToken.None);
 
         // Assert - Strong warning against using non-MCP tools
         coderDefinition.SystemPrompt.Should().Contain("If you use ANY other tool (Write, Edit, Bash, Task, Glob, Grep, Read, etc.), the **pipeline will FAIL**",
@@ -45,7 +45,7 @@ public sealed class CoderPromptValidationTests
     {
         // Arrange
         var loader = new AgentLoader(Path.GetDirectoryName(CoderAgentPath)!);
-        var coderDefinition = await loader.LoadAgentAsync("coder", TestContext.Current.CancellationToken);
+        var coderDefinition = await loader.LoadAgentAsync("coder", CancellationToken.None);
 
         // Assert - All 5 MCP tools with mcp__pipeline-tools__ prefix
         coderDefinition.SystemPrompt.Should().Contain("mcp__pipeline-tools__create_file",
@@ -73,7 +73,7 @@ public sealed class CoderPromptValidationTests
     {
         // Arrange
         var loader = new AgentLoader(Path.GetDirectoryName(CoderAgentPath)!);
-        var coderDefinition = await loader.LoadAgentAsync("coder", TestContext.Current.CancellationToken);
+        var coderDefinition = await loader.LoadAgentAsync("coder", CancellationToken.None);
 
         // Assert - Clear guidance on create vs modify
         coderDefinition.SystemPrompt.Should().Contain("ONLY use when the plan says \"Create\" or you're creating a wholly new file",
@@ -95,7 +95,7 @@ public sealed class CoderPromptValidationTests
     {
         // Arrange
         var loader = new AgentLoader(Path.GetDirectoryName(CoderAgentPath)!);
-        var coderDefinition = await loader.LoadAgentAsync("coder", TestContext.Current.CancellationToken);
+        var coderDefinition = await loader.LoadAgentAsync("coder", CancellationToken.None);
 
         // Assert - Finalization requirement emphasized
         coderDefinition.SystemPrompt.Should().Contain("MUST BE LAST",
@@ -117,7 +117,7 @@ public sealed class CoderPromptValidationTests
     {
         // Arrange
         var loader = new AgentLoader(Path.GetDirectoryName(CoderAgentPath)!);
-        var coderDefinition = await loader.LoadAgentAsync("coder", TestContext.Current.CancellationToken);
+        var coderDefinition = await loader.LoadAgentAsync("coder", CancellationToken.None);
 
         // Assert - C# best practices included
         coderDefinition.SystemPrompt.Should().Contain("## C# Best Practices",
@@ -142,7 +142,7 @@ public sealed class CoderPromptValidationTests
     {
         // Arrange
         var loader = new AgentLoader(Path.GetDirectoryName(CoderAgentPath)!);
-        var coderDefinition = await loader.LoadAgentAsync("coder", TestContext.Current.CancellationToken);
+        var coderDefinition = await loader.LoadAgentAsync("coder", CancellationToken.None);
 
         // Assert - Examples for create_file and modify_file
         coderDefinition.SystemPrompt.Should().Contain("## MCP Tool Examples",
@@ -170,7 +170,7 @@ public sealed class CoderPromptValidationTests
     {
         // Arrange
         var loader = new AgentLoader(Path.GetDirectoryName(CoderAgentPath)!);
-        var coderDefinition = await loader.LoadAgentAsync("coder", TestContext.Current.CancellationToken);
+        var coderDefinition = await loader.LoadAgentAsync("coder", CancellationToken.None);
 
         // Assert - Sections appear in logical order
         var forbiddenIndex = coderDefinition.SystemPrompt.IndexOf("If you use ANY other tool", StringComparison.Ordinal);
@@ -193,7 +193,7 @@ public sealed class CoderPromptValidationTests
     {
         // Arrange
         var loader = new AgentLoader(Path.GetDirectoryName(CoderAgentPath)!);
-        var coderDefinition = await loader.LoadAgentAsync("coder", TestContext.Current.CancellationToken);
+        var coderDefinition = await loader.LoadAgentAsync("coder", CancellationToken.None);
 
         // Assert - Common mistakes section exists
         coderDefinition.SystemPrompt.Should().Contain("## Common Patterns",
