@@ -129,6 +129,10 @@ internal sealed class Program
             // Create session manager and show last session context (automatic, no config needed)
             var sourceRoot = Directory.GetCurrentDirectory();
             var sessionManager = new SessionManager(sourceRoot);
+
+            // Automatically clean up old sessions (keep last 30 days)
+            _ = await sessionManager.CleanupOldSessionsAsync();
+
             var lastSession = await sessionManager.LoadLastSessionAsync();
             if (lastSession != null && lastSession.Activities.Any())
             {

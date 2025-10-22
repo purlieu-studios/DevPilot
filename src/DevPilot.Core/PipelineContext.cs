@@ -69,6 +69,11 @@ public sealed class PipelineContext
     public string? RAGContext { get; private set; }
 
     /// <summary>
+    /// Gets the session context from previous pipeline runs for agent prompts.
+    /// </summary>
+    public string? SessionContext { get; private set; }
+
+    /// <summary>
     /// Gets whether RAG (Retrieval Augmented Generation) was enabled for this pipeline run.
     /// </summary>
     public bool RAGEnabled { get; private set; }
@@ -226,6 +231,16 @@ public sealed class PipelineContext
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(ragContext);
         RAGContext = ragContext;
+    }
+
+    /// <summary>
+    /// Sets the session context from previous pipeline runs.
+    /// </summary>
+    /// <param name="sessionContext">The formatted context from session history.</param>
+    public void SetSessionContext(string sessionContext)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sessionContext);
+        SessionContext = sessionContext;
     }
 
     /// <summary>

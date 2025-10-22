@@ -351,4 +351,93 @@ public sealed class SessionManagerTests : IDisposable
         session.CommitCount.Should().Be(3);
         session.Activities.Should().HaveCount(6);
     }
+
+    [Fact]
+    public async Task CleanupOldSessionsAsync_WithNoSessions_ReturnsZero()
+    {
+        // Act
+        var deletedCount = await _sessionManager.CleanupOldSessionsAsync();
+
+        // Assert
+        deletedCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task CleanupOldSessionsAsync_DeletesOldSessions_KeepsRecentOnes()
+    {
+        // Arrange - Create old session (35 days ago)
+        var oldSession = new SessionMemory
+        {
+            SessionId = Guid.NewGuid().ToString(),
+            StartTime = DateTime.UtcNow.AddDays(-35),
+            EndTime = DateTime.UtcNow.AddDays(-35).AddHours(1),
+            Activities = new List<SessionActivity>(),
+            Summary = "Old session"
+        };
+
+        // Create recent session (5 days ago)
+        var recentSession = new SessionMemory
+        {
+            SessionId = Guid.NewGuid().ToString(),
+            StartTime = DateTime.UtcNow.AddDays(-5),
+            EndTime = DateTime.UtcNow.AddDays(-5).AddHours(1),
+            Activities = new List<SessionActivity>(),
+            Summary = "Recent session"
+        };
+
+        // Save both sessions manually
+        var sessionsDir = Path.Combine(_tempDirectory, ".devpilot", "sessions");
+        Directory.CreateDirectory(sessionsDir);
+
+        var oldSessionFile = Path.Combine(sessionsDir, $"{oldSession.StartTime:yyyyMMdd-HHmmss}-{oldSession.SessionId.Substring(0, 8)}.json");
+        var recentSessionFile = Path.Combine(sessionsDir, $"{recentSession.StartTime:yyyyMMdd-HHmmss}-{recentSession.SessionId.Substring(0, 8)}.json");
+
+        await File.WriteAllTextAsync(oldSessionFile, System.Text.Json.JsonSerializer.Serialize(oldSession, new System.Text.Json.JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase }));
+        await File.WriteAllTextAsync(recentSessionFile, System.Text.Json.JsonSerializer.Serialize(recentSession, new System.Text.Json.JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase }));
+
+        // Act - Clean up sessions older than 30 days
+        var deletedCount = await _sessionManager.CleanupOldSessionsAsync(keepDays: 30);
+
+        // Assert
+        deletedCount.Should().Be(1);
+        File.Exists(oldSessionFile).Should().BeFalse();
+        File.Exists(recentSessionFile).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task CleanupOldSessionsAsync_WithCustomKeepDays_DeletesCorrectly()
+    {
+        // Arrange - Create session 8 days ago
+        var session = new SessionMemory
+        {
+            SessionId = Guid.NewGuid().ToString(),
+            StartTime = DateTime.UtcNow.AddDays(-8),
+            EndTime = DateTime.UtcNow.AddDays(-8).AddHours(1),
+            Activities = new List<SessionActivity>(),
+            Summary = "8 days old"
+        };
+
+        // Save session manually
+        var sessionsDir = Path.Combine(_tempDirectory, ".devpilot", "sessions");
+        Directory.CreateDirectory(sessionsDir);
+
+        var sessionFile = Path.Combine(sessionsDir, $"{session.StartTime:yyyyMMdd-HHmmss}-{session.SessionId.Substring(0, 8)}.json");
+        await File.WriteAllTextAsync(sessionFile, System.Text.Json.JsonSerializer.Serialize(session, new System.Text.Json.JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase }));
+
+        // Act - Clean up sessions older than 7 days (should delete the 8-day-old session)
+        var deletedCount = await _sessionManager.CleanupOldSessionsAsync(keepDays: 7);
+
+        // Assert
+        deletedCount.Should().Be(1);
+        File.Exists(sessionFile).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task CleanupOldSessionsAsync_WithNegativeKeepDays_ThrowsException()
+    {
+        // Act & Assert
+        var act = async () => await _sessionManager.CleanupOldSessionsAsync(keepDays: -1);
+        await act.Should().ThrowAsync<ArgumentOutOfRangeException>()
+            .WithMessage("*Keep days cannot be negative*");
+    }
 }
