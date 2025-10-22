@@ -23,6 +23,7 @@ public sealed class Pipeline
     private readonly CodeAnalyzer _codeAnalyzer;
     private readonly string _sourceRoot;
     private readonly bool _preserveWorkspace;
+    private readonly SessionManager? _sessionManager;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="Pipeline"/> class.
@@ -32,6 +33,7 @@ public sealed class Pipeline
     /// <param name="sourceRoot">The source repository root directory (where DevPilot was executed from).</param>
     /// <param name="ragService">Optional RAG service for context retrieval (null to disable RAG).</param>
     /// <param name="stateManager">Optional state manager for persisting pipeline state (null to disable state persistence).</param>
+    /// <param name="sessionManager">Optional session manager for recording session context (null to disable session tracking).</param>
     /// <param name="preserveWorkspace">If true, preserves workspace on failure for debugging (default: false).</param>
     public Pipeline(
         IReadOnlyDictionary<PipelineStage, IAgent> agents,
@@ -39,6 +41,7 @@ public sealed class Pipeline
         string sourceRoot,
         IRagService? ragService = null,
         StateManager? stateManager = null,
+        SessionManager? sessionManager = null,
         bool preserveWorkspace = false)
     {
         ArgumentNullException.ThrowIfNull(agents);
@@ -52,6 +55,7 @@ public sealed class Pipeline
         _ragService = ragService;
         _stateManager = stateManager ?? new StateManager(sourceRoot);
         _codeAnalyzer = new CodeAnalyzer();
+        _sessionManager = sessionManager;
         _preserveWorkspace = preserveWorkspace;
     }
 
@@ -72,6 +76,7 @@ public sealed class Pipeline
             PipelineId = _workspace.PipelineId
         };
         bool success = false;
+        double? qualityScore = null; // Track quality score from evaluator for session recording
 
         try
         {
@@ -433,6 +438,7 @@ public sealed class Pipeline
                 if (stage == PipelineStage.Evaluating)
                 {
                     var (score, verdict) = ParseEvaluatorVerdict(agentResult.Output);
+                    qualityScore = score; // Store for session recording
                     if (verdict == "REJECT" || score < 7.0)
                     {
                         var errorMsg = $"Evaluator rejected pipeline (score: {score:F1}/10, verdict: {verdict})";
@@ -471,12 +477,20 @@ public sealed class Pipeline
                 success = true; // Preserve workspace on success (even with warnings)
                 var warningResult = PipelineResult.CreatePassedWithWarnings(context, stopwatch.Elapsed, warningMsg);
                 await SavePipelineStateAsync(context, warningResult, PipelineStatus.Completed, cancellationToken);
+
+                // Record pipeline execution in session (automatic, no user config needed)
+                _sessionManager?.RecordPipelineExecution(context.PipelineId, userRequest, success: true, qualityScore);
+
                 return warningResult;
             }
 
             success = true; // Preserve workspace on success
             var successResult = PipelineResult.CreateSuccess(context, stopwatch.Elapsed);
             await SavePipelineStateAsync(context, successResult, PipelineStatus.Completed, cancellationToken);
+
+            // Record pipeline execution in session (automatic, no user config needed)
+            _sessionManager?.RecordPipelineExecution(context.PipelineId, userRequest, success: true, qualityScore);
+
             return successResult;
         }
         catch (OperationCanceledException)
