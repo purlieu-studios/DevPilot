@@ -9,6 +9,7 @@ Thank you for your interest in contributing to DevPilot! This document provides 
 - [Pre-Merge Checklist](#pre-merge-checklist)
 - [Testing Guidelines](#testing-guidelines)
 - [Code Standards](#code-standards)
+  - [Package Management](#package-management)
 - [Pull Request Process](#pull-request-process)
 
 ## Development Workflow
@@ -285,6 +286,62 @@ devpilot --yes "Refactor <method> to use <pattern>"
 - Update CONTRIBUTING.md for workflow changes
 - Keep README.md user-focused (not developer-focused)
 - Add inline comments for complex logic
+
+### Package Management
+
+DevPilot has **strict package version constraints** to ensure Roslyn and MSBuild compatibility.
+
+#### Critical Package Versions
+
+Current versions (as of 2025-10-21):
+- `Microsoft.Build.Locator`: **1.7.8** (do NOT upgrade to 1.10.2)
+- `Microsoft.CodeAnalysis.CSharp.Workspaces`: **4.11.0**
+- `Microsoft.CodeAnalysis.Workspaces.MSBuild`: **4.11.0**
+- `Microsoft.CodeAnalysis.NetAnalyzers`: **9.0.0** (latest)
+
+#### Package Upgrade Guidelines
+
+**ALWAYS run regression tests** after upgrading Roslyn/MSBuild packages:
+
+1. **Before upgrading:**
+   ```bash
+   # Run existing regression tests
+   dotnet test --filter "FullyQualifiedName~RoslynSmokeTests"
+   dotnet test --filter "FullyQualifiedName~CodeAnalyzerIntegrationTests"
+   ```
+
+2. **Upgrade packages** in `*.csproj` files
+
+3. **After upgrading:**
+   ```bash
+   # Verify smoke tests still pass
+   dotnet test --filter "FullyQualifiedName~RoslynSmokeTests"
+
+   # Verify integration tests still pass
+   dotnet test --filter "FullyQualifiedName~CodeAnalyzerIntegrationTests"
+
+   # Run full test suite
+   dotnet test
+   ```
+
+4. **If any regression test fails**, the upgrade broke compatibility - revert and investigate
+
+#### Known Package Constraints
+
+- **Microsoft.Build.Locator 1.10.2**: Requires `ExcludeAssets="runtime"` on `Microsoft.Build.*` packages, which breaks `MSBuildWorkspace`. Stay on **1.7.8**.
+
+- **Microsoft.CodeAnalysis.* versions**: Must match (e.g., all 4.11.0) to avoid `CompilationWithAnalyzers` API incompatibilities.
+
+- **Microsoft.Build.Tasks.Core**: Has security vulnerability [GHSA-h4j7-5rxr-p4wc](https://github.com/advisories/GHSA-h4j7-5rxr-p4wc) but cannot be upgraded due to MSBuildWorkspace compatibility.
+
+#### Why These Tests Exist
+
+The regression tests prevent **exactly this scenario**:
+- PR #102 added CodeAnalyzer tests
+- PR #103 upgraded NetAnalyzers 8.0.0 → 9.0.0
+- PR #103's CI ran BEFORE PR #102 merged
+- PR #103 broke the newly added CodeAnalyzer tests
+- **Regression tests now catch this before merge**
 
 ## Pull Request Process
 
