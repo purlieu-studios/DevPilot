@@ -62,7 +62,7 @@ jobs:
         run: dotnet build --no-restore --configuration Release
 
       - name: Run integration tests
-        run: dotnet test --no-build --configuration Release --filter "Category=Integration&Category!=RequiresClaudeAuth" --logger "trx;LogFileName=integration-test-results.trx" --verbosity normal
+        run: dotnet test --no-build --configuration Release --filter "Category=Integration&Category!=RequiresClaudeAuth&Category!=LocalOnly" --logger "trx;LogFileName=integration-test-results.trx" --verbosity normal
 
       - name: Upload test results
         if: always()
