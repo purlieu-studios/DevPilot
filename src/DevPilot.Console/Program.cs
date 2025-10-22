@@ -126,8 +126,30 @@ internal sealed class Program
             AnsiConsole.MarkupLine("[dim]MASAI Pipeline - Automated Code Generation & Review[/]");
             AnsiConsole.WriteLine();
 
-            // Pre-flight validation: Check environment before starting
+            // Create session manager and show last session context (automatic, no config needed)
             var sourceRoot = Directory.GetCurrentDirectory();
+            var sessionManager = new SessionManager(sourceRoot);
+            var lastSession = await sessionManager.LoadLastSessionAsync();
+            if (lastSession != null && lastSession.Activities.Any())
+            {
+                var lastActivity = lastSession.Activities.LastOrDefault(a => a.Type == ActivityType.PipelineExecution);
+                if (lastActivity != null)
+                {
+                    var qualityScore = lastActivity.Metadata.ContainsKey("qualityScore")
+                        ? lastActivity.Metadata["qualityScore"]
+                        : null;
+                    var timeAgo = DateTime.UtcNow - lastActivity.Timestamp;
+                    var timeAgoStr = timeAgo.TotalMinutes < 1 ? "just now" :
+                                     timeAgo.TotalMinutes < 60 ? $"{(int)timeAgo.TotalMinutes}m ago" :
+                                     timeAgo.TotalHours < 24 ? $"{(int)timeAgo.TotalHours}h ago" :
+                                     $"{(int)timeAgo.TotalDays}d ago";
+                    var scoreStr = qualityScore != null ? $" ({qualityScore}/10)" : "";
+                    AnsiConsole.MarkupLine($"[dim]Last: \"{Markup.Escape(lastActivity.Metadata.GetValueOrDefault("userRequest", "Unknown"))}\"{scoreStr} - {timeAgoStr}[/]");
+                    AnsiConsole.WriteLine();
+                }
+            }
+
+            // Pre-flight validation: Check environment before starting
             var validator = new PreFlightValidator();
             var validationResult = validator.Validate(sourceRoot);
 
@@ -171,7 +193,10 @@ internal sealed class Program
             }
 
             // Load agents and build pipeline with workspace context
-            var pipeline = await BuildPipelineAsync(workspace, enableRag, preserveWorkspace);
+            var pipeline = await BuildPipelineAsync(workspace, sessionManager, enableRag, preserveWorkspace);
+
+            // Start new session (automatic, tracks context between runs)
+            sessionManager.StartSession(sourceRoot);
 
             // Execute pipeline
             AnsiConsole.MarkupLine($"[bold]Request:[/] {userRequest}");
@@ -186,6 +211,12 @@ internal sealed class Program
 
             // Display results
             DisplayResults(result);
+
+            // End session with auto-generated summary (automatic, no user input needed)
+            var sessionSummary = result.Success
+                ? $"✓ {userRequest}"
+                : $"✗ {userRequest} (failed)";
+            await sessionManager.EndSessionAsync(sessionSummary);
 
             // Track metrics and check for regressions
             TrackMetricsAndCheckRegressions(result, enableRag);
@@ -286,7 +317,7 @@ internal sealed class Program
     /// <param name="enableRag">Whether to enable RAG (Retrieval Augmented Generation) context retrieval.</param>
     /// <param name="preserveWorkspace">Whether to preserve workspace on failure for debugging.</param>
     /// <returns>The configured pipeline ready for execution.</returns>
-    private static async Task<Pipeline> BuildPipelineAsync(WorkspaceManager workspace, bool enableRag, bool preserveWorkspace)
+    private static async Task<Pipeline> BuildPipelineAsync(WorkspaceManager workspace, SessionManager sessionManager, bool enableRag, bool preserveWorkspace)
     {
         // Find agents directory (workspace custom agents or DevPilot defaults)
         var agentsDirectory = FindAgentsDirectory(workspace.WorkspaceRoot, out var usingCustomAgents);
@@ -368,7 +399,7 @@ internal sealed class Program
 
         var sourceRoot = Directory.GetCurrentDirectory();
         var stateManager = new StateManager(sourceRoot);
-        return new Pipeline(agents, workspace, sourceRoot, ragService, stateManager, preserveWorkspace);
+        return new Pipeline(agents, workspace, sourceRoot, ragService, stateManager, sessionManager, preserveWorkspace);
     }
 
     /// <summary>
