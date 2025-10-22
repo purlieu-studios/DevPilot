@@ -1,5 +1,7 @@
+using System.Collections.Immutable;
 using Microsoft.Build.Locator;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.MSBuild;
 
 namespace DevPilot.Orchestrator.CodeAnalysis;
@@ -54,6 +56,12 @@ public sealed class CodeAnalyzer
         ArgumentException.ThrowIfNullOrWhiteSpace(workspaceRoot);
         ArgumentNullException.ThrowIfNull(modifiedFiles);
 
+        // Check if analysis is disabled
+        if (!_options.Enabled)
+        {
+            return AnalysisResult.Empty;
+        }
+
         if (modifiedFiles.Count == 0)
         {
             return AnalysisResult.Empty;
@@ -97,8 +105,32 @@ public sealed class CodeAnalyzer
                     continue;
                 }
 
-                // Get all diagnostics from the compilation
-                var compilationDiagnostics = compilation.GetDiagnostics(cancellationToken);
+                IEnumerable<Diagnostic> allDiagnostics;
+
+                // Run analyzers if project has any
+                if (project.AnalyzerReferences.Any())
+                {
+                    // Load analyzers from project references
+                    var analyzers = project.AnalyzerReferences
+                        .SelectMany(r => r.GetAnalyzers(compilation.Language))
+                        .ToImmutableArray();
+
+                    if (analyzers.Length > 0)
+                    {
+                        var compilationWithAnalyzers = compilation.WithAnalyzers(analyzers, options: null);
+                        allDiagnostics = await compilationWithAnalyzers.GetAllDiagnosticsAsync(cancellationToken);
+                    }
+                    else
+                    {
+                        // No analyzers loaded, just get compilation diagnostics
+                        allDiagnostics = compilation.GetDiagnostics(cancellationToken);
+                    }
+                }
+                else
+                {
+                    // No analyzer references, just get compilation diagnostics
+                    allDiagnostics = compilation.GetDiagnostics(cancellationToken);
+                }
 
                 // Filter to only modified files
                 var modifiedFilePaths = modifiedFiles
@@ -106,7 +138,7 @@ public sealed class CodeAnalyzer
                     .Select(Path.GetFullPath)
                     .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-                foreach (var diagnostic in compilationDiagnostics)
+                foreach (var diagnostic in allDiagnostics)
                 {
                     // Skip if diagnostic doesn't have a location
                     if (diagnostic.Location == Location.None || diagnostic.Location.SourceTree == null)
