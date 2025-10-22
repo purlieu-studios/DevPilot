@@ -584,6 +584,18 @@ devpilot --enable-rag "Add authentication to User class"
 
 **For detailed contributor guidelines, see [CONTRIBUTING.md](./CONTRIBUTING.md).**
 
+### Session Diff Tracking
+
+DevPilot uses a `diffs/` folder (gitignored) to track changes between development sessions:
+
+```bash
+# At end of session, create:
+diffs/<feature-name>-<timestamp>.diff          # Full git diff
+diffs/<feature-name>-<timestamp>-summary.md    # Human-readable summary
+```
+
+**Purpose**: Helps Claude Code remember context between sessions (since Claude has no memory across conversations). Each summary includes files changed, commits made, test results, and next steps.
+
 ### Quick Reference: When to Use Meta-Loop vs Direct Development
 
 **Meta-Loop** (DevPilot improving DevPilot):

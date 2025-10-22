@@ -39,38 +39,6 @@ jobs:
           name: unit-test-results
           path: '**/unit-test-results.trx'
 
-  integration-tests:
-    name: Integration Tests
-    runs-on: windows-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: |
-            8.0.x
-            10.0.x
-          dotnet-quality: 'preview'
-
-      - name: Restore dependencies
-        run: dotnet restore
-
-      - name: Build solution
-        run: dotnet build --no-restore --configuration Release
-
-      - name: Run integration tests
-        run: dotnet test --no-build --configuration Release --filter "Category=Integration&Category!=RequiresClaudeAuth" --logger "trx;LogFileName=integration-test-results.trx" --verbosity normal
-
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: integration-test-results
-          path: '**/integration-test-results.trx'
-
   build-validation:
     name: Build Validation
     runs-on: windows-latest

@@ -2,5 +2,6 @@
   "agent_name": "coder",
   "version": "1.0.0",
   "description": "Generates high-quality C# code following best practices and conventions",
-  "model": "sonnet"
+  "model": "sonnet",
+  "mcp_config_path": "../../experiments/mcp-planner/plan-tools.json"
 }

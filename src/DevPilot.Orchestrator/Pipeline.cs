@@ -1,8 +1,11 @@
 using DevPilot.Core;
+using DevPilot.Orchestrator.CodeAnalysis;
+using DevPilot.Orchestrator.State;
 using DevPilot.Orchestrator.Validation;
 using DevPilot.RAG;
 using Spectre.Console;
 using System.Diagnostics;
+using System.Text;
 using System.Text.Json;
 
 namespace DevPilot.Orchestrator;
@@ -16,8 +19,11 @@ public sealed class Pipeline
     private readonly IReadOnlyDictionary<PipelineStage, IAgent> _agents;
     private readonly WorkspaceManager _workspace;
     private readonly IRagService? _ragService;
+    private readonly StateManager _stateManager;
+    private readonly CodeAnalyzer _codeAnalyzer;
     private readonly string _sourceRoot;
     private readonly bool _preserveWorkspace;
+    private readonly SessionManager? _sessionManager;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="Pipeline"/> class.
@@ -26,12 +32,16 @@ public sealed class Pipeline
     /// <param name="workspace">The workspace manager for this pipeline execution.</param>
     /// <param name="sourceRoot">The source repository root directory (where DevPilot was executed from).</param>
     /// <param name="ragService">Optional RAG service for context retrieval (null to disable RAG).</param>
+    /// <param name="stateManager">Optional state manager for persisting pipeline state (null to disable state persistence).</param>
+    /// <param name="sessionManager">Optional session manager for recording session context (null to disable session tracking).</param>
     /// <param name="preserveWorkspace">If true, preserves workspace on failure for debugging (default: false).</param>
     public Pipeline(
         IReadOnlyDictionary<PipelineStage, IAgent> agents,
         WorkspaceManager workspace,
         string sourceRoot,
         IRagService? ragService = null,
+        StateManager? stateManager = null,
+        SessionManager? sessionManager = null,
         bool preserveWorkspace = false)
     {
         ArgumentNullException.ThrowIfNull(agents);
@@ -43,6 +53,9 @@ public sealed class Pipeline
         _workspace = workspace;
         _sourceRoot = sourceRoot;
         _ragService = ragService;
+        _stateManager = stateManager ?? new StateManager(sourceRoot);
+        _codeAnalyzer = new CodeAnalyzer();
+        _sessionManager = sessionManager;
         _preserveWorkspace = preserveWorkspace;
     }
 
@@ -63,6 +76,7 @@ public sealed class Pipeline
             PipelineId = _workspace.PipelineId
         };
         bool success = false;
+        double? qualityScore = null; // Track quality score from evaluator for session recording
 
         try
         {
@@ -135,6 +149,46 @@ public sealed class Pipeline
                 }
             }
 
+            // Load previous session context if available
+            if (_sessionManager != null)
+            {
+                try
+                {
+                    var lastSession = await _sessionManager.LoadLastSessionAsync(cancellationToken);
+                    if (lastSession != null && lastSession.Activities.Any())
+                    {
+                        var formattedSessionContext = FormatSessionContext(lastSession);
+                        context.SetSessionContext(formattedSessionContext);
+
+                        // Display session info for observability
+                        var lastActivity = lastSession.Activities
+                            .Where(a => a.Type == ActivityType.PipelineExecution)
+                            .OrderByDescending(a => a.Timestamp)
+                            .FirstOrDefault();
+
+                        if (lastActivity != null)
+                        {
+                            var timeAgo = DateTime.UtcNow - lastActivity.Timestamp;
+                            var timeAgoStr = timeAgo.TotalHours < 1
+                                ? $"{timeAgo.TotalMinutes:F0}m ago"
+                                : $"{timeAgo.TotalHours:F1}h ago";
+
+                            var scoreDisplay = lastActivity.Metadata.TryGetValue("qualityScore", out var scoreStr)
+                                ? $" ({scoreStr}/10)"
+                                : "";
+
+                            AnsiConsole.MarkupLine($"[cyan]📜 Previous session loaded:[/] {lastActivity.Description}{scoreDisplay} - {timeAgoStr}");
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // Session loading failed - continue without session context
+                    AnsiConsole.MarkupLine("[yellow]⚠ Failed to load session context:[/] {0}", ex.Message);
+                    AnsiConsole.MarkupLine("[dim]Pipeline continuing without session context[/]");
+                }
+            }
+
             // Execute all stages sequentially
             var stages = new[]
             {
@@ -177,21 +231,36 @@ public sealed class Pipeline
 
                 context.AdvanceToStage(stage, agentResult.Output);
 
+                // Save pipeline state after each stage completes
+                await SavePipelineStateAsync(context, null, PipelineStatus.Running, cancellationToken);
+
                 // Apply patch to workspace after Coding stage
                 if (stage == PipelineStage.Coding)
                 {
                     try
                     {
-                        var patchResult = _workspace.ApplyPatch(agentResult.Output);
-                        if (!patchResult.Success)
-                        {
-                            var errorMsg = $"Failed to apply patch: {patchResult.ErrorMessage}";
-                            context.AdvanceToStage(PipelineStage.Failed, errorMsg);
-                            stopwatch.Stop();
-                            return PipelineResult.CreateFailure(context, stopwatch.Elapsed, errorMsg);
-                        }
+                        // Try parsing as MCP file operations first
+                        var fileOpsResult = ParseAndApplyFileOperations(agentResult.Output);
 
-                        context.SetAppliedFiles(_workspace.AppliedFiles);
+                        if (fileOpsResult.Success)
+                        {
+                            // MCP parsing succeeded - use the file operations
+                            context.SetAppliedFiles(fileOpsResult.FilesModified);
+                        }
+                        else
+                        {
+                            // MCP parsing failed - fall back to unified diff patch (backward compatibility)
+                            var patchResult = _workspace.ApplyPatch(agentResult.Output);
+                            if (!patchResult.Success)
+                            {
+                                var errorMsg = $"Failed to apply patch: {patchResult.ErrorMessage}";
+                                context.AdvanceToStage(PipelineStage.Failed, errorMsg);
+                                stopwatch.Stop();
+                                return PipelineResult.CreateFailure(context, stopwatch.Elapsed, errorMsg);
+                            }
+
+                            context.SetAppliedFiles(_workspace.AppliedFiles);
+                        }
 
                         // Validate only modified files to prevent false positives from existing code (always run)
                         var validator = new CodeValidator();
@@ -409,6 +478,7 @@ public sealed class Pipeline
                 if (stage == PipelineStage.Evaluating)
                 {
                     var (score, verdict) = ParseEvaluatorVerdict(agentResult.Output);
+                    qualityScore = score; // Store for session recording
                     if (verdict == "REJECT" || score < 7.0)
                     {
                         var errorMsg = $"Evaluator rejected pipeline (score: {score:F1}/10, verdict: {verdict})";
@@ -424,10 +494,14 @@ public sealed class Pipeline
 
                     if (context.ApprovalRequired)
                     {
-                        return PipelineResult.CreateAwaitingApproval(context, stopwatch.Elapsed);
+                        var awaitingResult = PipelineResult.CreateAwaitingApproval(context, stopwatch.Elapsed);
+                        await SavePipelineStateAsync(context, awaitingResult, PipelineStatus.AwaitingApproval, cancellationToken);
+                        return awaitingResult;
                     }
 
-                    return PipelineResult.CreateFailure(context, stopwatch.Elapsed, "Pipeline stopped unexpectedly");
+                    var failureResult = PipelineResult.CreateFailure(context, stopwatch.Elapsed, "Pipeline stopped unexpectedly");
+                    await SavePipelineStateAsync(context, failureResult, PipelineStatus.Failed, cancellationToken);
+                    return failureResult;
                 }
             }
 
@@ -441,11 +515,23 @@ public sealed class Pipeline
             {
                 var warningMsg = $"{context.TestFailureCount} test(s) failed";
                 success = true; // Preserve workspace on success (even with warnings)
-                return PipelineResult.CreatePassedWithWarnings(context, stopwatch.Elapsed, warningMsg);
+                var warningResult = PipelineResult.CreatePassedWithWarnings(context, stopwatch.Elapsed, warningMsg);
+                await SavePipelineStateAsync(context, warningResult, PipelineStatus.Completed, cancellationToken);
+
+                // Record pipeline execution in session (automatic, no user config needed)
+                _sessionManager?.RecordPipelineExecution(context.PipelineId, userRequest, success: true, qualityScore);
+
+                return warningResult;
             }
 
             success = true; // Preserve workspace on success
-            return PipelineResult.CreateSuccess(context, stopwatch.Elapsed);
+            var successResult = PipelineResult.CreateSuccess(context, stopwatch.Elapsed);
+            await SavePipelineStateAsync(context, successResult, PipelineStatus.Completed, cancellationToken);
+
+            // Record pipeline execution in session (automatic, no user config needed)
+            _sessionManager?.RecordPipelineExecution(context.PipelineId, userRequest, success: true, qualityScore);
+
+            return successResult;
         }
         catch (OperationCanceledException)
         {
@@ -526,13 +612,13 @@ public sealed class Pipeline
     /// <param name="stage">The stage to build input for.</param>
     /// <param name="context">The pipeline context.</param>
     /// <returns>The input string for the stage.</returns>
-    private static string BuildStageInput(PipelineStage stage, PipelineContext context)
+    private string BuildStageInput(PipelineStage stage, PipelineContext context)
     {
         var baseInput = stage switch
         {
             PipelineStage.Planning => context.UserRequest,
             PipelineStage.Coding => BuildCoderInput(context),
-            PipelineStage.Reviewing => context.Patch ?? string.Empty,
+            PipelineStage.Reviewing => BuildReviewerInput(context),
             PipelineStage.Testing => BuildTesterInput(context),
             PipelineStage.Evaluating => BuildEvaluatorInput(context),
             _ => string.Empty
@@ -550,6 +636,12 @@ public sealed class Pipeline
         if (!string.IsNullOrWhiteSpace(context.RAGContext) && ShouldIncludeRAGContext(stage))
         {
             contextParts.Add(context.RAGContext);
+        }
+
+        // Prepend session context from previous runs (if available)
+        if (!string.IsNullOrWhiteSpace(context.SessionContext) && ShouldIncludeSessionContext(stage))
+        {
+            contextParts.Add(context.SessionContext);
         }
 
         // Combine all context parts with the base input
@@ -598,21 +690,153 @@ public sealed class Pipeline
     }
 
     /// <summary>
-    /// Builds the input for the coder agent with explicit instruction to generate unified diff.
+    /// Determines if a pipeline stage should receive session context from previous runs.
+    /// </summary>
+    /// <param name="stage">The pipeline stage.</param>
+    /// <returns>True if session context should be included; otherwise, false.</returns>
+    private static bool ShouldIncludeSessionContext(PipelineStage stage)
+    {
+        // Session context provides historical continuity for:
+        // - Planning: Previous requests/decisions inform new work
+        // - Reviewing: Historical quality scores guide expectations
+        // - Evaluating: Compare current vs historical scores
+        //
+        // Coding and Testing stages don't benefit from session history:
+        // - Coder implements current plan (no need for past context)
+        // - Tester executes tests (deterministic, no historical context needed)
+        return stage is PipelineStage.Planning
+            or PipelineStage.Reviewing
+            or PipelineStage.Evaluating;
+    }
+
+    /// <summary>
+    /// Formats session memory into markdown context for agent prompts.
+    /// </summary>
+    /// <param name="session">The session to format.</param>
+    /// <returns>Formatted session context as markdown.</returns>
+    private static string FormatSessionContext(SessionMemory session)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("## Previous Session Context");
+        sb.AppendLine();
+        sb.AppendLine($"Session from {session.StartTime:yyyy-MM-dd HH:mm} UTC ({session.Duration.TotalHours:F1}h duration)");
+
+        if (!string.IsNullOrWhiteSpace(session.Summary))
+        {
+            sb.AppendLine($"**Summary**: {session.Summary}");
+        }
+
+        sb.AppendLine();
+        sb.AppendLine($"**Recent Activities ({session.Activities.Count} total)**:");
+        sb.AppendLine();
+
+        // Show last 5 activities (most recent first)
+        var recentActivities = session.Activities
+            .OrderByDescending(a => a.Timestamp)
+            .Take(5)
+            .ToList();
+
+        foreach (var activity in recentActivities)
+        {
+            var timeAgo = DateTime.UtcNow - activity.Timestamp;
+            var timeAgoStr = timeAgo.TotalHours < 1
+                ? $"{timeAgo.TotalMinutes:F0}m ago"
+                : $"{timeAgo.TotalHours:F1}h ago";
+
+            sb.AppendLine($"- **{activity.Type}** ({timeAgoStr}): {activity.Description}");
+
+            // Include quality score for pipeline executions
+            if (activity.Type == ActivityType.PipelineExecution && activity.Metadata.TryGetValue("qualityScore", out var scoreStr))
+            {
+                sb.AppendLine($"  - Quality Score: {scoreStr}/10");
+            }
+        }
+
+        sb.AppendLine();
+        sb.AppendLine($"**Session Statistics**: {session.PipelineCount} pipelines, {session.CommitCount} commits");
+        sb.AppendLine();
+
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Builds the input for the coder agent with the plan to implement using MCP file operation tools.
     /// </summary>
     /// <param name="context">The pipeline context.</param>
-    /// <returns>The coder input with plan and clear instruction.</returns>
+    /// <returns>The coder input with plan.</returns>
     private static string BuildCoderInput(PipelineContext context)
     {
         return $"""
-            Implement the following plan by generating a unified diff patch.
-
-            Output ONLY the unified diff in git format. Do NOT include explanations, analysis, or conversation.
-            Start your response with "diff --git" and nothing else.
+            Implement the following plan using MCP file operation tools.
 
             Plan:
             {context.Plan ?? string.Empty}
             """;
+    }
+
+    /// <summary>
+    /// Builds the input for the reviewer agent, enriched with Roslyn analyzer diagnostics.
+    /// </summary>
+    /// <param name="context">The pipeline context.</param>
+    /// <returns>The reviewer input with diagnostics and patch.</returns>
+    private string BuildReviewerInput(PipelineContext context)
+    {
+        var patch = context.Patch ?? string.Empty;
+
+        // Run Roslyn analysis on modified files if available
+        if (context.AppliedFiles != null && context.AppliedFiles.Count > 0 && _workspace.WorkspaceRoot != null)
+        {
+            try
+            {
+                var analysisResult = _codeAnalyzer.AnalyzeWorkspaceAsync(
+                    _workspace.WorkspaceRoot,
+                    context.AppliedFiles,
+                    CancellationToken.None).GetAwaiter().GetResult();
+
+                if (analysisResult.TotalCount > 0)
+                {
+                    // Prepend diagnostics to patch
+                    return FormatAnalysisForReviewer(analysisResult) + "\n\n" + patch;
+                }
+            }
+            catch (Exception ex)
+            {
+                // Analysis failed - just return patch without diagnostics
+                System.Console.Error.WriteLine($"Roslyn analysis failed: {ex.Message}");
+            }
+        }
+
+        return patch;
+    }
+
+    /// <summary>
+    /// Formats Roslyn analysis results for the Reviewer agent.
+    /// </summary>
+    /// <param name="analysis">The analysis results.</param>
+    /// <returns>Formatted diagnostics string.</returns>
+    private static string FormatAnalysisForReviewer(AnalysisResult analysis)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("## Roslyn Analyzer Diagnostics\n");
+
+        var counts = analysis.GetCountsBySeverity();
+        foreach (var (severity, count) in counts.OrderByDescending(x => (int)x.Key))
+        {
+            sb.AppendLine($"### {severity} ({count}):\n");
+
+            foreach (var diagnostic in analysis.Diagnostics.Where(d => d.Severity == severity))
+            {
+                sb.AppendLine($"- {diagnostic.FilePath}:{diagnostic.LineNumber} [{diagnostic.RuleId}]: {diagnostic.Message}");
+            }
+            sb.AppendLine();
+        }
+
+        sb.AppendLine("---\n");
+        sb.AppendLine("## Unified Diff Patch\n");
+
+        return sb.ToString();
     }
 
     /// <summary>
@@ -912,6 +1136,31 @@ public sealed class Pipeline
 
             Now generate the fix patch (ONLY the patch, no other text):
             """;
+    }
+
+    /// <summary>
+    /// Saves the current pipeline state for resume/approve/reject workflows.
+    /// </summary>
+    /// <param name="context">The pipeline context.</param>
+    /// <param name="result">The pipeline result (if available).</param>
+    /// <param name="status">The pipeline status.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    private async Task SavePipelineStateAsync(
+        PipelineContext context,
+        PipelineResult? result,
+        PipelineStatus status,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var state = PipelineState.FromContext(context, result, status);
+            await _stateManager.SaveStateAsync(state, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            // Don't fail the pipeline if state saving fails - just log
+            AnsiConsole.MarkupLine($"[yellow]⚠[/] [dim]Failed to save pipeline state: {ex.Message}[/]");
+        }
     }
 
     /// <summary>
@@ -1299,5 +1548,127 @@ public sealed class Pipeline
         }
 
         return string.Join("\n", updatedLines);
+    }
+
+    /// <summary>
+    /// Parse MCP file operations output and apply to workspace.
+    /// </summary>
+    private MCPFileOperationResult ParseAndApplyFileOperations(string mcpOutput)
+    {
+        try
+        {
+            // Parse finalize_file_operations result from MCP output
+            var json = JsonDocument.Parse(mcpOutput);
+
+            // Handle MCP tool response format: { "success": true, "file_operations": {...} }
+            // vs direct format: { "file_operations": {...} }
+            JsonElement fileOpsElement;
+            if (json.RootElement.TryGetProperty("success", out var successProp))
+            {
+                // MCP tool response wrapper - extract file_operations from nested level
+                if (!json.RootElement.TryGetProperty("file_operations", out fileOpsElement))
+                {
+                    return new MCPFileOperationResult
+                    {
+                        Success = false,
+                        ErrorMessage = "MCP tool response missing 'file_operations' property"
+                    };
+                }
+            }
+            else if (!json.RootElement.TryGetProperty("file_operations", out fileOpsElement))
+            {
+                // Direct format - file_operations at root level
+                return new MCPFileOperationResult
+                {
+                    Success = false,
+                    ErrorMessage = "MCP output missing 'file_operations' property"
+                };
+            }
+
+            if (!fileOpsElement.TryGetProperty("operations", out var opsArray))
+            {
+                return new MCPFileOperationResult
+                {
+                    Success = false,
+                    ErrorMessage = "MCP file_operations missing 'operations' array"
+                };
+            }
+
+            var operations = new List<MCPFileOperation>();
+
+            foreach (var op in opsArray.EnumerateArray())
+            {
+                var type = op.GetProperty("type").GetString();
+                operations.Add(type switch
+                {
+                    "create" => new MCPFileOperation
+                    {
+                        Type = MCPFileOperationType.Create,
+                        Path = op.GetProperty("path").GetString(),
+                        Content = op.GetProperty("content").GetString(),
+                        Reason = op.TryGetProperty("reason", out var r) ? r.GetString() : null
+                    },
+                    "modify" => new MCPFileOperation
+                    {
+                        Type = MCPFileOperationType.Modify,
+                        Path = op.GetProperty("path").GetString(),
+                        Changes = ParseLineChanges(op.GetProperty("changes"))
+                    },
+                    "delete" => new MCPFileOperation
+                    {
+                        Type = MCPFileOperationType.Delete,
+                        Path = op.GetProperty("path").GetString(),
+                        Reason = op.TryGetProperty("reason", out var r) ? r.GetString() : null
+                    },
+                    "rename" => new MCPFileOperation
+                    {
+                        Type = MCPFileOperationType.Rename,
+                        OldPath = op.GetProperty("old_path").GetString(),
+                        NewPath = op.GetProperty("new_path").GetString(),
+                        Reason = op.TryGetProperty("reason", out var r) ? r.GetString() : null
+                    },
+                    _ => throw new InvalidOperationException($"Unknown operation type: {type}")
+                });
+            }
+
+            return _workspace.ApplyFileOperations(operations);
+        }
+        catch (JsonException ex)
+        {
+            return new MCPFileOperationResult
+            {
+                Success = false,
+                ErrorMessage = $"Failed to parse MCP output: {ex.Message}"
+            };
+        }
+        catch (Exception ex)
+        {
+            return new MCPFileOperationResult
+            {
+                Success = false,
+                ErrorMessage = $"Error applying file operations: {ex.Message}"
+            };
+        }
+    }
+
+    /// <summary>
+    /// Parse line changes from JSON element.
+    /// </summary>
+    private static List<MCPLineChange> ParseLineChanges(JsonElement changesElement)
+    {
+        var changes = new List<MCPLineChange>();
+
+        foreach (var change in changesElement.EnumerateArray())
+        {
+            changes.Add(new MCPLineChange
+            {
+                LineNumber = change.GetProperty("line_number").GetInt32(),
+                OldContent = change.TryGetProperty("old_content", out var old) ? old.GetString() : null,
+                NewContent = change.GetProperty("new_content").GetString()!,
+                LinesToReplace = change.TryGetProperty("lines_to_replace", out var lines) ? lines.GetInt32() : 1
+            });
+        }
+
+        return changes;
     }
 }

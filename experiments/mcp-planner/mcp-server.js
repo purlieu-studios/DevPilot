@@ -52,6 +52,16 @@ function initEvaluation() {
   };
 }
 
+// In-memory file operations state
+let currentFileOps = null;
+
+// Initialize file operations state
+function initFileOps() {
+  currentFileOps = {
+    operations: []
+  };
+}
+
 // Tool definitions matching our PlannerOutput schema
 const tools = [
   {
@@ -237,6 +247,90 @@ const tools = [
       properties: {},
       required: []
     }
+  },
+  // File operation tools for Coder agent
+  {
+    name: 'file_exists',
+    description: 'Check if a file exists in the workspace. Use BEFORE create_file or modify_file to determine which operation to use.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: { type: 'string', description: 'Relative path from workspace root (e.g., "src/Calculator.cs")' }
+      },
+      required: ['path']
+    }
+  },
+  {
+    name: 'create_file',
+    description: 'Create a brand new file. ONLY use if file_exists returns false. For existing files, use modify_file instead.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: { type: 'string', description: 'Relative path for new file' },
+        content: { type: 'string', description: 'Complete file content' },
+        reason: { type: 'string', description: 'Why this file is needed (1 sentence)' }
+      },
+      required: ['path', 'content', 'reason']
+    }
+  },
+  {
+    name: 'modify_file',
+    description: 'Modify an existing file with line-based changes. Use this for files that already exist. IMPORTANT: line_number refers to the line in the ORIGINAL file (before any changes), not the final file. Changes are applied in descending order to prevent line number shifts.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: { type: 'string', description: 'Path to existing file' },
+        changes: {
+          type: 'array',
+          description: 'List of line changes. Each line_number must refer to the ORIGINAL file (as it exists now, before modifications). The system will sort changes in descending order automatically.',
+          items: {
+            type: 'object',
+            properties: {
+              line_number: { type: 'number', description: 'Line number in the ORIGINAL file (1-indexed). Must be <= current file length. Example: to modify line 5 in a 10-line file, use line_number: 5.' },
+              old_content: { type: 'string', description: 'Expected current line content (optional, for validation)' },
+              new_content: { type: 'string', description: 'New line content (can contain \\n for multiline replacements; empty string to delete line)' },
+              lines_to_replace: { type: 'number', description: 'Number of consecutive lines to delete before inserting new_content (default: 1). When modifying multi-line methods, set this to the number of lines in the old method to avoid duplicates.' }
+            },
+            required: ['line_number', 'new_content']
+          }
+        }
+      },
+      required: ['path', 'changes']
+    }
+  },
+  {
+    name: 'delete_file',
+    description: 'Delete a file from the workspace.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: { type: 'string', description: 'Path to file to delete' },
+        reason: { type: 'string', description: 'Why this file is being deleted' }
+      },
+      required: ['path', 'reason']
+    }
+  },
+  {
+    name: 'rename_file',
+    description: 'Rename or move a file to a new location.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        old_path: { type: 'string', description: 'Current file path' },
+        new_path: { type: 'string', description: 'New file path' },
+        reason: { type: 'string', description: 'Why this file is being renamed/moved' }
+      },
+      required: ['old_path', 'new_path', 'reason']
+    }
+  },
+  {
+    name: 'finalize_file_operations',
+    description: 'Finalize and return all queued file operations as structured JSON. Call this after all file operations are queued.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+      required: []
+    }
   }
 ];
 
@@ -376,6 +470,67 @@ function handleToolCall(name, args) {
       const evaluation = currentEvaluation;
       currentEvaluation = null; // Reset for next request
       return { success: true, evaluation: evaluation };
+
+    // File operation tool handlers
+    case 'file_exists':
+      // Note: Actual file existence check will be done by C# orchestrator
+      // This just acknowledges the query and returns a placeholder response
+      return {
+        success: true,
+        exists: false,
+        message: 'File existence will be checked by orchestrator during patch application'
+      };
+
+    case 'create_file':
+      if (!currentFileOps) {
+        initFileOps();
+      }
+      currentFileOps.operations.push({
+        type: 'create',
+        path: args.path,
+        content: args.content,
+        reason: args.reason
+      });
+      return { success: true, message: `Queued file creation: ${args.path}` };
+
+    case 'modify_file':
+      if (!currentFileOps) {
+        initFileOps();
+      }
+      currentFileOps.operations.push({
+        type: 'modify',
+        path: args.path,
+        changes: args.changes
+      });
+      return { success: true, message: `Queued ${args.changes.length} changes to ${args.path}` };
+
+    case 'delete_file':
+      if (!currentFileOps) {
+        initFileOps();
+      }
+      currentFileOps.operations.push({
+        type: 'delete',
+        path: args.path,
+        reason: args.reason
+      });
+      return { success: true, message: `Queued file deletion: ${args.path}` };
+
+    case 'rename_file':
+      if (!currentFileOps) {
+        initFileOps();
+      }
+      currentFileOps.operations.push({
+        type: 'rename',
+        old_path: args.old_path,
+        new_path: args.new_path,
+        reason: args.reason
+      });
+      return { success: true, message: `Queued file rename: ${args.old_path} → ${args.new_path}` };
+
+    case 'finalize_file_operations':
+      const fileOps = currentFileOps;
+      currentFileOps = null; // Reset for next request
+      return { success: true, file_operations: fileOps };
 
     default:
       return { success: false, error: `Unknown tool: ${name}` };

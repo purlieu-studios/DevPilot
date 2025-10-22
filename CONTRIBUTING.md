@@ -41,6 +41,69 @@ DevPilot uses a **hybrid development approach**: direct development with Claude 
 └─────────────────────────────────────────────────────────────┘
 ```
 
+## Session Diff Tracking
+
+DevPilot uses a `diffs/` folder to track changes made during development sessions. This provides a historical record of what changed and why.
+
+### Creating Session Diffs
+
+At the end of each development session, create two files:
+
+```bash
+# 1. Generate full diff
+git diff origin/main..HEAD > diffs/<feature-name>-$(date +%Y%m%d-%H%M%S).diff
+
+# 2. Create summary
+cat > diffs/<feature-name>-$(date +%Y%m%d-%H%M%S)-summary.md << 'EOF'
+# <Feature Name> - Session Summary
+
+**Date**: YYYY-MM-DD
+**Branch**: <branch-name>
+**PR**: #<number>
+
+## Files Modified
+
+1. **path/to/file.cs**
+   - Description of changes
+
+## Commits
+
+1. <commit-hash> - <commit message>
+
+## Test Results
+
+- Test stats
+- Coverage changes
+
+## Next Steps
+
+- What's remaining
+- Follow-up tasks
+EOF
+```
+
+### Diff Folder Structure
+
+```
+diffs/
+├── ca-analyzer-integration-20251021-193045.diff
+├── ca-analyzer-integration-20251021-193045-summary.md
+├── epic-breakdown-service-20251022-104530.diff
+└── epic-breakdown-service-20251022-104530-summary.md
+```
+
+### Benefits
+
+- **Session Continuity**: Helps Claude Code remember what happened between sessions (Claude doesn't have memory across conversations)
+- **Historical Record**: See what changed in each session
+- **Context Preservation**: Summaries explain why changes were made
+- **Review Aid**: Easy to review session work before committing
+- **Learning**: Track evolution of features over multiple sessions
+
+### Gitignore
+
+The `diffs/` folder is gitignored (local tracking only), so these files won't be committed to the repository.
+
 ## Meta-Loop vs Direct Development
 
 ### When to Use Meta-Loop ✅
