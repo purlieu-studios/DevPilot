@@ -126,8 +126,18 @@ public sealed class WorkspaceManager : IDisposable
             throw new DirectoryNotFoundException($"Source directory does not exist: {sourceRoot}");
         }
 
+        // Check if sourceRoot contains .csproj files (indicating it's a project directory or contains projects)
+        // Look in immediate subdirectories to detect cases like "examples/ecs-library/" containing "EcsLibrary/" and "EcsLibrary.Tests/"
+        var hasLocalProjects = Directory.GetFiles(sourceRoot, "*.csproj", SearchOption.TopDirectoryOnly).Length > 0 ||
+                               Directory.GetDirectories(sourceRoot)
+                                   .Where(d => !Path.GetFileName(d).StartsWith(".") &&
+                                              !new[] { "bin", "obj", "node_modules", "packages" }.Contains(Path.GetFileName(d)))
+                                   .Any(d => Directory.GetFiles(d, "*.csproj", SearchOption.TopDirectoryOnly).Length > 0);
+
         // Find solution root (directory containing .sln file)
-        var solutionRoot = FindSolutionRoot(sourceRoot);
+        // If sourceRoot has projects, only check current directory (don't walk up)
+        // If sourceRoot has no projects, walk up to find parent solution
+        var solutionRoot = FindSolutionRoot(sourceRoot, searchParents: !hasLocalProjects);
         if (solutionRoot == null)
         {
             // No solution file found, use sourceRoot as-is
@@ -255,8 +265,9 @@ public sealed class WorkspaceManager : IDisposable
     /// Finds the solution root by walking up the directory tree looking for .sln files.
     /// </summary>
     /// <param name="startDirectory">The directory to start searching from.</param>
+    /// <param name="searchParents">If true, walks up parent directories. If false, only checks start directory.</param>
     /// <returns>The solution root directory, or null if no solution file is found.</returns>
-    private static string? FindSolutionRoot(string startDirectory)
+    private static string? FindSolutionRoot(string startDirectory, bool searchParents = true)
     {
         var currentDir = new DirectoryInfo(startDirectory);
 
@@ -267,6 +278,12 @@ public sealed class WorkspaceManager : IDisposable
             if (slnFiles.Length > 0)
             {
                 return currentDir.FullName;
+            }
+
+            // If not searching parents, stop after checking start directory
+            if (!searchParents)
+            {
+                break;
             }
 
             // Move up to parent directory
