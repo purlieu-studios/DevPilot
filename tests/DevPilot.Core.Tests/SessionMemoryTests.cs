@@ -448,7 +448,7 @@ public sealed class SessionMemoryTests
     }
 
     [Fact]
-    public void SessionActivity_Metadata_CanBeNull()
+    public void SessionActivity_Metadata_DefaultsToEmptyDictionary()
     {
         // Arrange & Act
         var activity = new SessionActivity
@@ -459,7 +459,8 @@ public sealed class SessionMemoryTests
         };
 
         // Assert
-        activity.Metadata.Should().BeNull();
+        activity.Metadata.Should().NotBeNull();
+        activity.Metadata.Should().BeEmpty();
     }
 
     [Fact]
