@@ -267,10 +267,11 @@ namespace TestApp;
 
 public class Program
 {
+    private int _unusedField = 42;  // CS0414 (Warning: assigned but never used)
+
     public void ProcessData()
     {
-        try { }
-        catch (Exception ex) { }  // CA1031 (Warning)
+        // Method implementation
     }
 }");
 
@@ -281,7 +282,7 @@ public class Program
         var result = await analyzer.AnalyzeWorkspaceAsync(_testWorkspacePath, modifiedFiles, CancellationToken.None);
 
         // Assert
-        result.HasWarnings.Should().BeTrue("CA warnings should be detected");
+        result.HasWarnings.Should().BeTrue("compiler warnings should be detected");
     }
 
     #endregion
