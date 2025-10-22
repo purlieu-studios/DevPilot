@@ -25,8 +25,8 @@ public void Calculator_Add_ReturnsSum()
 
 ### Integration Tests
 **Trait**: `[Trait("Category", "Integration")]`
-- ✅ Run in CI
-- ✅ Run locally
+- ❌ **NOT run in CI** (too slow/flaky)
+- ✅ Run locally (**REQUIRED before creating PRs**)
 - May spawn subprocesses (`dotnet build`, `dotnet test`)
 - Can take several seconds to minutes
 - Isolated workspace creation/cleanup
@@ -41,7 +41,6 @@ public async Task TestRunner_ExecutesTests_ReturnsResults()
 }
 ```
 
-**CI Filter**: `Category=Integration&Category!=RequiresClaudeAuth&Category!=LocalOnly`
 
 ### Local-Only Integration Tests
 **Trait**: `[Trait("Category", "LocalOnly")]`
@@ -91,12 +90,7 @@ dotnet test
 dotnet test --filter "Category!=Integration&Category!=EndToEnd"
 ```
 
-### Run CI-Friendly Integration Tests
-```bash
-dotnet test --filter "Category=Integration&Category!=RequiresClaudeAuth&Category!=LocalOnly"
-```
-
-### Run All Integration Tests (Including Local-Only)
+### Run All Integration Tests (REQUIRED Before PRs)
 ```bash
 dotnet test --filter "Category=Integration&Category!=RequiresClaudeAuth"
 ```
@@ -116,28 +110,42 @@ dotnet test tests/DevPilot.Core.Tests
 
 ## CI Pipeline Behavior
 
-The GitHub Actions CI pipeline runs three jobs:
+The GitHub Actions CI pipeline runs two jobs:
 
 1. **Unit Tests** - Fast, no external dependencies
    - Filter: `Category!=Integration&Category!=EndToEnd`
    - ~30 seconds
 
-2. **Integration Tests** - Subprocesses, workspace isolation
-   - Filter: `Category=Integration&Category!=RequiresClaudeAuth&Category!=LocalOnly`
-   - ~5-10 minutes
-
-3. **Build Validation** - Ensures Release build succeeds
+2. **Build Validation** - Ensures Release build succeeds
    - No tests, just `dotnet build --configuration Release`
+
+**⚠️ Integration tests are NOT run in CI** - they must be run locally before creating a PR.
+
+## Pre-PR Checklist
+
+Before creating a pull request, developers MUST run integration tests locally:
+
+```bash
+# Run ALL integration tests (including LocalOnly)
+dotnet test --filter "Category=Integration&Category!=RequiresClaudeAuth"
+```
+
+This ensures:
+- ✅ All integration tests pass locally
+- ✅ No regressions in TestRunner, Pipeline, or other integration scenarios
+- ✅ CI remains fast and reliable (unit tests only)
 
 ## When to Use Each Category
 
 | Scenario | Category | CI | Duration |
 |----------|----------|-----|----------|
 | Pure logic, no I/O | (none) | ✅ | <1s |
-| File operations, temp directories | `Integration` | ✅ | <10s |
-| Subprocess spawning (`dotnet test`) | `Integration` | ✅ | 1-5min |
+| File operations, temp directories | `Integration` | ❌ | <10s |
+| Subprocess spawning (`dotnet test`) | `Integration` | ❌ | 1-5min |
 | **Hangs in CI, works locally** | `Integration` + `LocalOnly` | ❌ | Varies |
 | Real Claude API calls | `Integration` + `RequiresClaudeAuth` | ❌ | 10-15min |
+
+**Note**: All `Integration` tests must be run locally before creating a PR.
 
 ## Adding a New Test Category
 
