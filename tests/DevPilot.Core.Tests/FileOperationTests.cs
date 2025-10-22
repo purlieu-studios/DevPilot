@@ -320,4 +320,303 @@ public sealed class FileOperationTests
     }
 
     #endregion
+
+    #region MCPFileOperationResult Tests
+
+    [Fact]
+    public void MCPFileOperationResult_Success_CanBeCreated()
+    {
+        // Arrange & Act
+        var result = new MCPFileOperationResult
+        {
+            Success = true,
+            FilesModified = new List<string> { "file1.cs", "file2.cs" }
+        };
+
+        // Assert
+        result.Success.Should().BeTrue();
+        result.FilesModified.Should().HaveCount(2);
+        result.ErrorMessage.Should().BeNull();
+    }
+
+    [Fact]
+    public void MCPFileOperationResult_Failure_CanStoreErrorMessage()
+    {
+        // Arrange & Act
+        var result = new MCPFileOperationResult
+        {
+            Success = false,
+            ErrorMessage = "File not found: test.cs"
+        };
+
+        // Assert
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().Be("File not found: test.cs");
+        result.FilesModified.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void MCPFileOperationResult_FilesModified_DefaultsToEmptyList()
+    {
+        // Arrange & Act
+        var result = new MCPFileOperationResult
+        {
+            Success = true
+        };
+
+        // Assert
+        result.FilesModified.Should().NotBeNull();
+        result.FilesModified.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void MCPFileOperationResult_WithMultipleFiles_StoresAll()
+    {
+        // Arrange
+        var files = new List<string>
+        {
+            "src/Calculator.cs",
+            "tests/CalculatorTests.cs",
+            "docs/README.md"
+        };
+
+        // Act
+        var result = new MCPFileOperationResult
+        {
+            Success = true,
+            FilesModified = files
+        };
+
+        // Assert
+        result.FilesModified.Should().HaveCount(3);
+        result.FilesModified.Should().Contain("src/Calculator.cs");
+    }
+
+    #endregion
+
+    #region Record Equality Tests
+
+    [Fact]
+    public void MCPFileOperation_RecordEquality_WorksCorrectly()
+    {
+        // Arrange
+        var operation1 = new MCPFileOperation
+        {
+            Type = MCPFileOperationType.Create,
+            Path = "test.cs",
+            Content = "content"
+        };
+
+        var operation2 = new MCPFileOperation
+        {
+            Type = MCPFileOperationType.Create,
+            Path = "test.cs",
+            Content = "content"
+        };
+
+        // Assert
+        operation1.Should().Be(operation2);
+        (operation1 == operation2).Should().BeTrue();
+    }
+
+    [Fact]
+    public void MCPFileOperation_WithDifferentTypes_AreNotEqual()
+    {
+        // Arrange
+        var operation1 = new MCPFileOperation
+        {
+            Type = MCPFileOperationType.Create,
+            Path = "test.cs"
+        };
+
+        var operation2 = new MCPFileOperation
+        {
+            Type = MCPFileOperationType.Delete,
+            Path = "test.cs"
+        };
+
+        // Assert
+        operation1.Should().NotBe(operation2);
+    }
+
+    [Fact]
+    public void MCPFileOperationResult_RecordEquality_WorksCorrectly()
+    {
+        // Arrange
+        var files = new List<string> { "file1.cs" };
+
+        var result1 = new MCPFileOperationResult
+        {
+            Success = true,
+            FilesModified = files
+        };
+
+        var result2 = new MCPFileOperationResult
+        {
+            Success = true,
+            FilesModified = files
+        };
+
+        // Assert - same list instance
+        result1.Should().Be(result2);
+    }
+
+    #endregion
+
+    #region Edge Case Tests
+
+    [Fact]
+    public void MCPFileOperation_WithVeryLongPath_StoresCorrectly()
+    {
+        // Arrange
+        var longPath = string.Join("/", Enumerable.Repeat("folder", 50)) + "/file.cs";
+
+        // Act
+        var operation = new MCPFileOperation
+        {
+            Type = MCPFileOperationType.Create,
+            Path = longPath,
+            Content = "test"
+        };
+
+        // Assert
+        operation.Path.Should().HaveLength(longPath.Length);
+        operation.Path.Should().EndWith("file.cs");
+    }
+
+    [Fact]
+    public void MCPFileOperation_WithVeryLargeContent_StoresCorrectly()
+    {
+        // Arrange
+        var largeContent = new string('a', 100000); // 100KB of content
+
+        // Act
+        var operation = new MCPFileOperation
+        {
+            Type = MCPFileOperationType.Create,
+            Path = "large.txt",
+            Content = largeContent
+        };
+
+        // Assert
+        operation.Content.Should().HaveLength(100000);
+    }
+
+    [Fact]
+    public void MCPLineChange_WithVeryLargeLineNumber_StoresCorrectly()
+    {
+        // Arrange & Act
+        var change = new MCPLineChange
+        {
+            LineNumber = 999999,
+            NewContent = "deep line"
+        };
+
+        // Assert
+        change.LineNumber.Should().Be(999999);
+    }
+
+    [Fact]
+    public void MCPLineChange_WithVeryLargeLinesToReplace_StoresCorrectly()
+    {
+        // Arrange & Act
+        var change = new MCPLineChange
+        {
+            LineNumber = 10,
+            NewContent = "replacement",
+            LinesToReplace = 1000
+        };
+
+        // Assert
+        change.LinesToReplace.Should().Be(1000);
+    }
+
+    [Fact]
+    public void MCPFileOperationResult_WithManyFiles_StoresAll()
+    {
+        // Arrange
+        var manyFiles = Enumerable.Range(1, 100).Select(i => $"file{i}.cs").ToList();
+
+        // Act
+        var result = new MCPFileOperationResult
+        {
+            Success = true,
+            FilesModified = manyFiles
+        };
+
+        // Assert
+        result.FilesModified.Should().HaveCount(100);
+        result.FilesModified.Should().Contain("file50.cs");
+    }
+
+    [Fact]
+    public void MCPFileOperationResult_WithMultilineErrorMessage_StoresCorrectly()
+    {
+        // Arrange
+        var multilineError = "Error on line 1\nError on line 2\nError on line 3";
+
+        // Act
+        var result = new MCPFileOperationResult
+        {
+            Success = false,
+            ErrorMessage = multilineError
+        };
+
+        // Assert
+        result.ErrorMessage.Should().Contain("\n");
+        result.ErrorMessage.Should().Contain("line 3");
+    }
+
+    #endregion
+
+    #region Path Validation Edge Cases
+
+    [Fact]
+    public void MCPFileOperation_WithWindowsPath_StoresCorrectly()
+    {
+        // Arrange & Act
+        var operation = new MCPFileOperation
+        {
+            Type = MCPFileOperationType.Create,
+            Path = "C:\\Users\\Test\\file.cs",
+            Content = "test"
+        };
+
+        // Assert
+        operation.Path.Should().Contain("\\");
+        operation.Path.Should().StartWith("C:");
+    }
+
+    [Fact]
+    public void MCPFileOperation_WithUnixPath_StoresCorrectly()
+    {
+        // Arrange & Act
+        var operation = new MCPFileOperation
+        {
+            Type = MCPFileOperationType.Create,
+            Path = "/home/user/file.cs",
+            Content = "test"
+        };
+
+        // Assert
+        operation.Path.Should().StartWith("/");
+        operation.Path.Should().Contain("/home");
+    }
+
+    [Fact]
+    public void MCPFileOperation_WithRelativePath_StoresCorrectly()
+    {
+        // Arrange & Act
+        var operation = new MCPFileOperation
+        {
+            Type = MCPFileOperationType.Create,
+            Path = "../parent/file.cs",
+            Content = "test"
+        };
+
+        // Assert
+        operation.Path.Should().StartWith("..");
+    }
+
+    #endregion
 }
