@@ -209,13 +209,20 @@ public sealed class WorkspaceManager : IDisposable
         foreach (var projectPath in projectFiles)
         {
             var relativePath = Path.GetRelativePath(_workspaceRoot, projectPath);
-            var projectName = Path.GetFileNameWithoutExtension(projectPath);
+
+            // Use relative path to create unique project names (e.g., "Examples.Calculator" instead of just "Calculator")
+            // This prevents conflicts when multiple projects have the same filename
+            var uniqueProjectName = relativePath
+                .Replace(Path.DirectorySeparatorChar, '.')  // Convert path separators to dots
+                .Replace('/', '.')                           // Handle Unix-style separators
+                .Replace(".csproj", "");                      // Remove .csproj extension
+
             var projectGuid = Guid.NewGuid();
             var typeGuid = Guid.Parse("FAE04EC0-301F-11D3-BF4B-00C04F79EFBC"); // C# project type
 
             projectGuids.Add((relativePath, projectGuid, typeGuid));
 
-            slnContent.AppendLine($"Project(\"{{{typeGuid}}}\") = \"{projectName}\", \"{relativePath}\", \"{{{projectGuid}}}\"");
+            slnContent.AppendLine($"Project(\"{{{typeGuid}}}\") = \"{uniqueProjectName}\", \"{relativePath}\", \"{{{projectGuid}}}\"");
             slnContent.AppendLine("EndProject");
         }
 
