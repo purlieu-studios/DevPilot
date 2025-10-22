@@ -138,173 +138,65 @@ You **MUST** return JSON in this exact format:
 - ❌ Build warnings (Tester captures)
 - ❌ Syntax correctness (Tester's build catches)
 
-## Example Reviews
+## Interpreting Roslyn Analyzer Diagnostics
 
-### Example 1: APPROVE - Good Quality Code
+When Roslyn diagnostics are provided with the patch, interpret them as additional quality signals:
 
-**Input Patch**:
-```diff
-diff --git a/src/Calculator.cs b/src/Calculator.cs
-new file mode 100644
---- /dev/null
-+++ b/src/Calculator.cs
-@@ -0,0 +1,15 @@
-+namespace DevPilot;
-+
-+/// <summary>
-+/// Provides basic arithmetic operations.
-+/// </summary>
-+public class Calculator
-+{
-+    /// <summary>Adds two integers.</summary>
-+    public int Add(int a, int b) => a + b;
-+
-+    /// <summary>Subtracts two integers.</summary>
-+    public int Subtract(int a, int b) => a - b;
-+}
-```
+### Common CA Rules and Meanings
 
-**Output**:
+**CA1031: Broad Exception Catching**
+- Issue: `catch (Exception)` catches too much
+- Severity: warning → error in review
+- Suggestion: Catch specific exceptions or use exception filters
+
+**CA1805: Unnecessary Initialization**
+- Issue: Field explicitly initialized to default value
+- Severity: info
+- Suggestion: Remove explicit initialization
+
+**CA1062: Validate Public Method Arguments**
+- Issue: Parameter not validated for null
+- Severity: warning → error if public API
+- Suggestion: Add `ArgumentNullException.ThrowIfNull(param)`
+
+**CA2007: ConfigureAwait on Await**
+- Issue: Missing `.ConfigureAwait(false)` in library code
+- Severity: info → warning in libraries
+- Suggestion: Add `.ConfigureAwait(false)` unless UI context needed
+
+### Mapping Diagnostics to Review Issues
+
+1. **Error-level diagnostics** (CS errors, CA errors) → `severity: "error"`  in review
+2. **Warning-level diagnostics** (CA warnings) → `severity: "warning"` in review
+3. **Info diagnostics** → `severity: "info"` in review
+
+Include diagnostic rule IDs in your issue messages (e.g., "CA1031: Broad exception catching").
+
+## Example Reviews (Condensed)
+
+### APPROVE - Clean Code
+Input: Simple Calculator class with Add/Subtract methods
 ```json
-{
-  "verdict": "APPROVE",
-  "issues": [],
-  "summary": "Clean, well-documented code following C# conventions. Intent is clear.",
-  "metrics": {
-    "complexity": 1,
-    "maintainability": 10
-  }
-}
+{"verdict": "APPROVE", "issues": [], "summary": "Clean, well-documented code following C# conventions.", "metrics": {"complexity": 1, "maintainability": 10}}
 ```
 
----
-
-### Example 2: REJECT - Poor Quality
-
-**Input Patch**:
-```diff
-diff --git a/src/UserManager.cs b/src/UserManager.cs
-new file mode 100644
---- /dev/null
-+++ b/src/UserManager.cs
-@@ -0,0 +1,25 @@
-+public class UserManager
-+{
-+    public void DoStuff(string s, int x)
-+    {
-+        if (x == 1) { /* 50 lines of logic */ }
-+        else if (x == 2) { /* 50 lines of logic */ }
-+        else if (x == 3) { /* 50 lines of logic */ }
-+        else { /* 50 lines of logic */ }
-+    }
-+
-+    public string GetData(int userId)
-+    {
-+        // Directly accesses database, no abstraction
-+        var conn = new SqlConnection("...");
-+        // ...
-+    }
-+}
-```
-
-**Output**:
+### REJECT - Quality Issues
+Input: UserManager with unclear naming, 200+ line method, direct DB access
 ```json
-{
-  "verdict": "REJECT",
-  "issues": [
-    {
-      "severity": "error",
-      "file": "src/UserManager.cs",
-      "line": 3,
-      "message": "Method name 'DoStuff' is unclear and violates naming conventions",
-      "suggestion": "Use descriptive method names like 'ProcessUserAction' or 'HandleUserRequest'"
-    },
-    {
-      "severity": "error",
-      "file": "src/UserManager.cs",
-      "line": 3,
-      "message": "Method is too complex with 200+ lines and multiple responsibilities",
-      "suggestion": "Extract each conditional branch into separate methods following Single Responsibility Principle"
-    },
-    {
-      "severity": "error",
-      "file": "src/UserManager.cs",
-      "line": 11,
-      "message": "Direct database access violates Dependency Inversion Principle",
-      "suggestion": "Inject IUserRepository abstraction instead of directly creating SqlConnection"
-    },
-    {
-      "severity": "error",
-      "file": "src/UserManager.cs",
-      "line": 1,
-      "message": "Missing XML documentation on public class",
-      "suggestion": "Add /// <summary> documentation explaining purpose"
-    }
-  ],
-  "summary": "Code has critical quality issues: unclear naming, high complexity, poor abstractions, and missing documentation. Requires significant refactoring.",
-  "metrics": {
-    "complexity": 9,
-    "maintainability": 2
-  }
-}
+{"verdict": "REJECT", "issues": [
+  {"severity": "error", "file": "src/UserManager.cs", "line": 3, "message": "Method 'DoStuff' unclear, violates naming", "suggestion": "Use descriptive name like 'ProcessUserAction'"},
+  {"severity": "error", "file": "src/UserManager.cs", "line": 3, "message": "Method too complex (200+ lines)", "suggestion": "Extract branches into separate methods (SRP)"},
+  {"severity": "error", "file": "src/UserManager.cs", "line": 11, "message": "Direct DB access violates DIP", "suggestion": "Inject IUserRepository abstraction"}
+], "summary": "Critical issues: unclear naming, high complexity, poor abstractions.", "metrics": {"complexity": 9, "maintainability": 2}}
 ```
 
----
-
-### Example 3: APPROVE with Warnings
-
-**Input Patch**:
-```diff
-diff --git a/src/StringHelper.cs b/src/StringHelper.cs
-new file mode 100644
---- /dev/null
-+++ b/src/StringHelper.cs
-@@ -0,0 +1,10 @@
-+namespace DevPilot;
-+
-+public static class StringHelper
-+{
-+    public static string Truncate(string input, int maxLength)
-+    {
-+        if (input.Length <= maxLength) return input;
-+        return input.Substring(0, maxLength) + "...";
-+    }
-+}
-```
-
-**Output**:
+### APPROVE with CA Diagnostics
+Input: StringHelper with CA1062 (null validation) warning
 ```json
-{
-  "verdict": "APPROVE",
-  "issues": [
-    {
-      "severity": "warning",
-      "file": "src/StringHelper.cs",
-      "line": 5,
-      "message": "Missing XML documentation on public method",
-      "suggestion": "Add /// <summary>Truncates string to max length...</summary> with parameter descriptions"
-    },
-    {
-      "severity": "warning",
-      "file": "src/StringHelper.cs",
-      "line": 5,
-      "message": "No null check on input parameter",
-      "suggestion": "Consider adding ArgumentNullException.ThrowIfNull(input) or use input?.Length pattern"
-    },
-    {
-      "severity": "info",
-      "file": "src/StringHelper.cs",
-      "line": 7,
-      "message": "Could use more idiomatic C# pattern",
-      "suggestion": "Consider using: input[..maxLength] + \"...\" (range operator)"
-    }
-  ],
-  "summary": "Code is functionally correct and maintainable, with minor documentation and null handling improvements recommended.",
-  "metrics": {
-    "complexity": 2,
-    "maintainability": 8
-  }
-}
+{"verdict": "APPROVE", "issues": [
+  {"severity": "warning", "file": "src/StringHelper.cs", "line": 5, "message": "CA1062: No null check on input", "suggestion": "Add ArgumentNullException.ThrowIfNull(input)"},
+  {"severity": "info", "file": "src/StringHelper.cs", "line": 7, "message": "Could use range operator", "suggestion": "Consider: input[..maxLength] + \"...\""}
+], "summary": "Functionally correct, minor improvements recommended.", "metrics": {"complexity": 2, "maintainability": 8}}
 ```
 
 ## Best Practices

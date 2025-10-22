@@ -1251,21 +1251,23 @@ public sealed class WorkspaceManager : IDisposable
                 }
             }
 
-            // Apply the change
-            if (string.IsNullOrEmpty(change.NewContent))
+            // Delete the lines to be replaced (default: 1 line)
+            int linesToDelete = Math.Min(change.LinesToReplace, lines.Count - index);
+            for (int i = 0; i < linesToDelete; i++)
             {
-                // Empty new_content = delete line
                 if (index < lines.Count)
                 {
                     lines.RemoveAt(index);
                 }
             }
-            else
+
+            // Apply the change
+            if (!string.IsNullOrEmpty(change.NewContent))
             {
                 // Split new_content on newlines to handle multiline replacements
                 var newLines = change.NewContent.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
 
-                if (index == lines.Count)
+                if (index >= lines.Count)
                 {
                     // Append new lines at end
                     foreach (var line in newLines)
@@ -1275,15 +1277,10 @@ public sealed class WorkspaceManager : IDisposable
                 }
                 else
                 {
-                    // Replace existing line with first new line, then insert remaining lines
-                    lines[index] = newLines[0];
-
-                    // Insert additional lines after the first one, tracking position dynamically
-                    int insertPosition = index + 1;
-                    for (int i = 1; i < newLines.Length; i++)
+                    // Insert all new lines at the index position
+                    for (int i = 0; i < newLines.Length; i++)
                     {
-                        lines.Insert(insertPosition, newLines[i]);
-                        insertPosition++;  // Track actual position for next insertion
+                        lines.Insert(index + i, newLines[i]);
                     }
                 }
             }

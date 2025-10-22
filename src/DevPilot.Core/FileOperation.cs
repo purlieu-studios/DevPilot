@@ -86,6 +86,13 @@ public record MCPLineChange
     /// New line content (empty string to delete line).
     /// </summary>
     public required string NewContent { get; init; }
+
+    /// <summary>
+    /// Number of lines to replace starting from LineNumber (default: 1).
+    /// When modifying existing methods, set this to the number of lines in the old method
+    /// to avoid creating duplicates.
+    /// </summary>
+    public int LinesToReplace { get; init; } = 1;
 }
 
 /// <summary>
